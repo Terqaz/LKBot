@@ -1,11 +1,20 @@
 package com.my;
 
 public class Subject {
-    private int hours;
-    private int semesterWorkPoints;
-    private int creditPoints;
-    private int examPoints;
-    private int courseWorkPoints;
+    private String name;
+    private int hours = -1;
+    private int semesterWorkPoints = -1;
+    private int creditPoints = -1;
+    private int examPoints = -1;
+    private int courseWorkPoints = -1;
+
+    public String getName () {
+        return name;
+    }
+
+    public void setName (String name) {
+        this.name = name;
+    }
 
     public int getHours () {
         return hours;
