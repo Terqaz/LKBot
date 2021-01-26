@@ -76,9 +76,9 @@ public class LstuParser {
 
         final String jsonResponseString = response.parse().body().text();
         if (jsonResponseString.startsWith("{\"SUCCESS\":\"1\"")) {
-            System.out.println("Login succeeded");
+            System.out.println("Login complete");
         } else {
-            throw new AuthenticationException("Failed login in LK");
+            throw new AuthenticationException("Login failed");
         }
     }
 
@@ -103,7 +103,7 @@ public class LstuParser {
                     .cookie("PHPSESSID", phpSessId)
                     .method(Connection.Method.POST)
                     .execute();
-            System.out.println("Logout successful");
+            System.out.println("Logout complete");
         } catch (IOException e) {
             System.out.println("Logout failed");
         }
@@ -142,6 +142,7 @@ public class LstuParser {
             i--;
             semestersData.add(semesterData);
         }
+        logout();
         return semestersData;
     }
 
@@ -171,7 +172,7 @@ public class LstuParser {
                 .get();
         final Elements htmlSubjectsTableColumnNames = document.select("div.table-responsive").select("th");
         if (htmlSubjectsTableColumnNames.size() <= 3) {
-            return Collections.EMPTY_LIST;
+            return Collections.emptyList();
         }
 
         Map<String, Integer> columnNames = new HashMap<>();
@@ -183,18 +184,45 @@ public class LstuParser {
         final Elements htmlSubjects = document.select("tr.eduProc");
         System.out.println(htmlSubjects);
 
-        List<Subject> subjects = new ArrayList<>();
-
-        // TODO если 0 проверка
-//        final Subject subject = new Subject();
-//        for (Element element : htmlSubjects) {
-//            final Elements innerTds = element.select("tr > td");
-//            subject.setName(innerTds.get(0).text());
-//            Optional.of(Integer.parseInt(innerTds.get(3).text())).ifPresent(subject::setSemesterWorkPoints);
-//            Optional.of(Integer.parseInt(innerTds.get(4).text())).ifPresent(subject::setExamPoints);
-//            Optional.of(Integer.parseInt(innerTds.get(5).text())).ifPresent(subject::setCreditPoints);
-//        }
+        final List<Subject> subjects = new ArrayList<>();
+        for (Element element : htmlSubjects) {
+            final Subject subject = new Subject();
+            final Elements htmlTableRow = element.select("tr > td");
+            for (Map.Entry entry : columnNames.entrySet()) {
+                String columnName = (String) entry.getKey();
+                columnId = (Integer) entry.getValue();
+                switch (columnName) {
+                    case "Дисциплина":
+                        subject.setName(htmlTableRow.get(columnId).text());
+                        break;
+                    case "Семестр":
+                        subject.setSemesterWorkPoints(parseInt(htmlTableRow, columnId));
+                        break;
+                    case "Зачет":
+                        subject.setCreditPoints(parseInt(htmlTableRow, columnId));
+                        break;
+                    case "Экзамен":
+                        subject.setExamPoints(parseInt(htmlTableRow, columnId));
+                        break;
+                    case "Курсовая работа":
+                        subject.setCourseWorkPoints(parseInt(htmlTableRow, columnId));
+                        break;
+                    default: break;
+                }
+            }
+            subjects.add(subject);
+        }
         return subjects;
+    }
+
+    private int parseInt (Elements htmlTableRow, int columnId) {
+        final int value;
+        try {
+            value = Integer.parseInt(htmlTableRow.get(columnId).text());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+        return value;
     }
 
 

@@ -55,4 +55,16 @@ public class Subject {
     public void setCourseWorkPoints (int courseWorkPoints) {
         this.courseWorkPoints = courseWorkPoints;
     }
+
+    @Override
+    public String toString () {
+        return "Subject{" +
+                "name='" + name + '\'' +
+                ", hours=" + hours +
+                ", semesterWorkPoints=" + semesterWorkPoints +
+                ", creditPoints=" + creditPoints +
+                ", examPoints=" + examPoints +
+                ", courseWorkPoints=" + courseWorkPoints +
+                '}';
+    }
 }
