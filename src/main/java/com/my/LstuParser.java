@@ -2,8 +2,6 @@ package com.my;
 
 import org.apache.http.auth.AuthenticationException;
 import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.jsoup.Connection;
 import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
@@ -19,11 +17,24 @@ public class LstuParser {
 
     public static final String FAILED_LK_LOGIN = "Failed LK login";
 
-    private static final CloseableHttpClient httpClient = HttpClients.createDefault();
     public static final String LSTU_HOST_NAME = "lk.stu.lipetsk.ru";
+    public static final String LOGGED_IN_BEFORE = "You must be logged in before";
     private final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0";
     private String sessId = null;
     private String phpSessId = null;
+
+    private URIBuilder getLstuOriginUriBuilder() {
+        return new URIBuilder()
+                .setScheme("http")
+                .setHost(LSTU_HOST_NAME);
+    }
+
+    private Connection getLstuOriginConnection(String url) {
+        return Jsoup.connect(url)
+                .userAgent(USER_AGENT)
+                .header("Accept", "text/html")
+                .header("Connection", "keep-alive");
+    }
 
     public void login (String login, String password) throws AuthenticationException {
         try {
@@ -36,10 +47,7 @@ public class LstuParser {
     }
 
     private void auth (String login, String password) throws IOException, AuthenticationException {
-        final Response firstResponse = Jsoup.connect("http://lk.stu.lipetsk.ru/")
-                .userAgent(USER_AGENT)
-                .header("Accept", "text/html")
-                .header("Connection", "keep-alive")
+        final Response firstResponse = getLstuOriginConnection("http://lk.stu.lipetsk.ru/")
                 .method(Connection.Method.POST)
                 .execute();
 
@@ -54,9 +62,7 @@ public class LstuParser {
 
         final String lstuAuthUri;
         try {
-            lstuAuthUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(LSTU_HOST_NAME)
+            lstuAuthUri = getLstuOriginUriBuilder()
                     .setPath("index.php")
                     .addParameter("AUTH_FORM", "1")
                     .addParameter("sessid", sessId)
@@ -64,12 +70,9 @@ public class LstuParser {
                     .addParameter("PASSWORD", password)
                     .build().toString();
         } catch (URISyntaxException e) {
-            throw new AuthenticationException("Failed login in LK");
+            throw new AuthenticationException(FAILED_LK_LOGIN);
         }
-        final Response response = Jsoup.connect(lstuAuthUri)
-                .userAgent(USER_AGENT)
-                .header("Accept", "text/html")
-                .header("Connection", "keep-alive")
+        final Response response = getLstuOriginConnection(lstuAuthUri)
                 .cookie("PHPSESSID", phpSessId)
                 .method(Connection.Method.POST)
                 .execute();
@@ -78,17 +81,18 @@ public class LstuParser {
         if (jsonResponseString.startsWith("{\"SUCCESS\":\"1\"")) {
             System.out.println("Login complete");
         } else {
-            throw new AuthenticationException("Login failed");
+            throw new AuthenticationException(FAILED_LK_LOGIN);
         }
     }
 
-    public void logout() {
+    public void logout() throws AuthenticationException {
+        if (!isLoggedIn()) {
+            throw new AuthenticationException(LOGGED_IN_BEFORE);
+        }
         final String lstuLogoutUri;
 
         try {
-            lstuLogoutUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(LSTU_HOST_NAME)
+            lstuLogoutUri = getLstuOriginUriBuilder()
                     .addParameter("logout", "Y")
                     .build().toString();
         } catch (URISyntaxException e) {
@@ -96,10 +100,7 @@ public class LstuParser {
         }
 
         try {
-            Jsoup.connect(lstuLogoutUri)
-                    .userAgent(USER_AGENT)
-                    .header("Accept", "text/html")
-                    .header("Connection", "keep-alive")
+            getLstuOriginConnection(lstuLogoutUri)
                     .cookie("PHPSESSID", phpSessId)
                     .method(Connection.Method.POST)
                     .execute();
@@ -111,23 +112,18 @@ public class LstuParser {
 
     public List<SemesterData> getSemestersData() throws AuthenticationException, IOException {
         if (!isLoggedIn()) {
-            throw new AuthenticationException("You must be logged in before");
+            throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
         final String semestersUri;
         try {
-            semestersUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(LSTU_HOST_NAME)
+            semestersUri = getLstuOriginUriBuilder()
                     .setPath("education/0/")
                     .build().toString();
         } catch (URISyntaxException ignore) {
             return Collections.emptyList();
         }
 
-        Document document = Jsoup.connect(semestersUri)
-                .userAgent(USER_AGENT)
-                .header("Accept","text/html")
-                .header("Connection", "keep-alive")
+        Document document = getLstuOriginConnection(semestersUri)
                 .cookie("PHPSESSID", phpSessId)
                 .get();
 
@@ -135,11 +131,11 @@ public class LstuParser {
         System.out.println(htmlSemestersData);
         List<SemesterData> semestersData = new ArrayList<>();
 
-        int i = htmlSemestersData.size();
+        int semesterNumber = htmlSemestersData.size();
         for (Element htmlSemesterData : htmlSemestersData) {
             SemesterData semesterData = getSemesterData(htmlSemesterData);
-            semesterData.setNumber(i);
-            i--;
+            semesterData.setNumber(semesterNumber);
+            semesterNumber--;
             semestersData.add(semesterData);
         }
         logout();
@@ -156,18 +152,13 @@ public class LstuParser {
     private List<Subject> getSubjects (String localRef) throws IOException {
         final String semesterSubjectsUri;
         try {
-            semesterSubjectsUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(LSTU_HOST_NAME)
+            semesterSubjectsUri = getLstuOriginUriBuilder()
                     .setPath(localRef)
                     .build().toString();
         } catch (URISyntaxException ignore) {
             return Collections.emptyList();
         }
-        Document document = Jsoup.connect(semesterSubjectsUri)
-                .userAgent(USER_AGENT)
-                .header("Accept","text/html")
-                .header("Connection", "keep-alive")
+        Document document = getLstuOriginConnection(semesterSubjectsUri)
                 .cookie("PHPSESSID", phpSessId)
                 .get();
         final Elements htmlSubjectsTableColumnNames = document.select("div.table-responsive").select("th");
