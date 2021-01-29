@@ -1,5 +1,7 @@
 package com.my;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 public class Subject {
     private String name;
     private int hours = -1;
@@ -56,15 +58,8 @@ public class Subject {
         this.courseWorkPoints = courseWorkPoints;
     }
 
-    @Override
-    public String toString () {
-        return "Subject{" +
-                "name='" + name + '\'' +
-                ", hours=" + hours +
-                ", semesterWorkPoints=" + semesterWorkPoints +
-                ", creditPoints=" + creditPoints +
-                ", examPoints=" + examPoints +
-                ", courseWorkPoints=" + courseWorkPoints +
-                '}';
+    @JsonIgnore
+    public boolean isPractice () {
+        return getName().toLowerCase().contains("практика");
     }
 }

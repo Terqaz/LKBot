@@ -11,6 +11,8 @@ public class LstuConnections {
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0";
 
+    private LstuConnections() {}
+
     private static Connection getOriginConnection (String url) {
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
@@ -26,26 +28,35 @@ public class LstuConnections {
                 .cookie("PHPSESSID", phpSessId);
     }
 
-    public static Response openLoginPage () throws IOException {
-        return getOriginConnection("http://lk.stu.lipetsk.ru/")
-                .method(Connection.Method.GET)
-                .execute();
+    private static Response executeRequest(Connection connection) {
+        try {
+            return connection.execute();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
-    public static Response executeLoginRequest (String authUrl, String phpSessId) throws IOException {
-        return getOriginSessionConnection(authUrl, phpSessId)
-                .method(Connection.Method.POST)
-                .execute();
+    public static Response executeLoginRequest (String authUrl, String phpSessId) {
+        return executeRequest(getOriginSessionConnection(authUrl, phpSessId)
+                .method(Connection.Method.POST));
     }
 
-    public static void executeLogoutRequest (String logoutUrl, String phpSessId) throws IOException {
-        getOriginSessionConnection(logoutUrl, phpSessId)
-                .method(Connection.Method.POST)
-                .execute();
+    public static void executeLogoutRequest (String logoutUrl, String phpSessId) {
+        executeRequest(getOriginSessionConnection(logoutUrl, phpSessId)
+                .method(Connection.Method.POST));
     }
 
-    public static Document openPage (String url, String phpSessId) throws IOException {
-        return getOriginSessionConnection(url, phpSessId)
-                .get();
+    public static Response openLoginPage () {
+        return executeRequest(getOriginConnection("http://lk.stu.lipetsk.ru/")
+                .method(Connection.Method.GET));
+    }
+
+    public static Document openPage (String url, String phpSessId) {
+        try {
+            return getOriginSessionConnection(url, phpSessId)
+                    .get();
+        } catch (IOException e) {
+            return null;
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.my;
 
+import com.my.exceptions.ConnectionAttemptsException;
 import com.my.utils.LstuConnections;
 import com.my.utils.LstuUrlBuilder;
 import org.apache.http.auth.AuthenticationException;
@@ -15,6 +16,7 @@ public class LstuParser {
 
     public static final String FAILED_LK_LOGIN = "Failed LK login";
     public static final String LOGGED_IN_BEFORE = "You must be logged in before";
+    private static final int ATTEMPTS_COUNT = 8;
     private String sessId = null;
     private String phpSessId = null;
 
@@ -52,22 +54,22 @@ public class LstuParser {
         }
     }
 
-    public void logout() throws AuthenticationException {
-        if (!isLoggedIn()) {
+    public void logout () throws AuthenticationException {
+        if (isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
         try {
             LstuConnections.executeLogoutRequest(
                     LstuUrlBuilder.buildLogoutUrl(),
                     phpSessId);
-        } catch (IOException e) {
+        } catch (Exception e) {
             System.out.println("Logout failed");
         }
         System.out.println("Logout complete");
     }
 
-    public List<SemesterData> getSemestersData() throws AuthenticationException, IOException {
-        if (!isLoggedIn()) {
+    public List<SemesterData> getSemestersData () throws AuthenticationException {
+        if (isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
         Document document = LstuConnections.openPage(
@@ -75,7 +77,6 @@ public class LstuParser {
                 phpSessId);
 
         final Elements htmlSemestersData = document.select("ul.ul-main > li");
-        System.out.println(htmlSemestersData);
         List<SemesterData> semestersData = new ArrayList<>();
 
         int semesterNumber = htmlSemestersData.size();
@@ -85,24 +86,34 @@ public class LstuParser {
             semesterNumber--;
             semestersData.add(semesterData);
         }
-        logout();
         return semestersData;
     }
 
-    private SemesterData getSemesterData(Element element) throws IOException {
+    private SemesterData getSemesterData (Element element) {
         final SemesterData semesterData = new SemesterData();
         semesterData.setName(element.text());
-        semesterData.setSubjects(getSubjects(element.select("a").attr("href")));
+        List<Subject> subjects = getSubjects(element.select("a").attr("href"));
+        semesterData.setSubjects(subjects);
         return semesterData;
     }
 
-    private List<Subject> getSubjects (String localRef) throws IOException {
-        Document document = LstuConnections.openPage(
-                LstuUrlBuilder.buildGetSubjectsUrl(localRef),
-                phpSessId);
+    private List<Subject> getSubjects (String localRef) {
+        int attemptsLeft = ATTEMPTS_COUNT;
+        Document subjectsPage;
+        Elements htmlSubjectsTableColumnNames;
+        do {
+            subjectsPage = LstuConnections.openPage(
+                    LstuUrlBuilder.buildGetSubjectsUrl(localRef),
+                    phpSessId);
+            htmlSubjectsTableColumnNames = subjectsPage.select("div.table-responsive").select("th");
+            attemptsLeft--;
+            if (!htmlSubjectsTableColumnNames.isEmpty())
+                break;
+        } while (attemptsLeft > 0);
 
-        final Elements htmlSubjectsTableColumnNames = document.select("div.table-responsive").select("th");
-        if (htmlSubjectsTableColumnNames.size() <= 3) {
+        if (htmlSubjectsTableColumnNames.isEmpty()) {
+            throw new ConnectionAttemptsException("Too many attempts to get data. Try later");
+        } else if (htmlSubjectsTableColumnNames.size() <= 3) { // Subjects without data
             return Collections.emptyList();
         }
 
@@ -112,8 +123,7 @@ public class LstuParser {
             columnNames.put(htmlColumnName.text(), columnId);
             columnId++;
         }
-        final Elements htmlSubjects = document.select("tr.eduProc");
-        System.out.println(htmlSubjects);
+        final Elements htmlSubjects = subjectsPage.select("tr.eduProc");
 
         final List<Subject> subjects = new ArrayList<>();
         for (Element element : htmlSubjects) {
@@ -138,7 +148,8 @@ public class LstuParser {
                     case "Курсовая работа":
                         subject.setCourseWorkPoints(parseInt(htmlTableRow, columnId));
                         break;
-                    default: break;
+                    default:
+                        break;
                 }
             }
             subjects.add(subject);
@@ -157,7 +168,7 @@ public class LstuParser {
     }
 
 
-    private boolean isLoggedIn () {
-        return (sessId != null) && (phpSessId != null);
+    private boolean isNotLoggedIn () {
+        return (sessId == null) || (phpSessId == null);
     }
 }
