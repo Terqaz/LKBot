@@ -12,13 +12,13 @@ import org.jsoup.select.Elements;
 import java.io.IOException;
 import java.util.*;
 
-public class LstuParser {
+public class LstuClient {
 
     public static final String FAILED_LK_LOGIN = "Failed LK login";
     public static final String LOGGED_IN_BEFORE = "You must be logged in before";
     private static final int ATTEMPTS_COUNT = 8;
-    private String sessId = null;
-    private String phpSessId = null;
+
+    private final LstuConnections lstuConnections = new LstuConnections();
 
     public void login (String login, String password) throws AuthenticationException {
         try {
@@ -31,20 +31,21 @@ public class LstuParser {
     }
 
     private void auth (String login, String password) throws IOException, AuthenticationException {
-        final Response firstResponse = LstuConnections.openLoginPage();
 
-        phpSessId = firstResponse.header("Set-Cookie")
+        final Response firstResponse = lstuConnections.openLoginPage();
+
+        String phpSessId = firstResponse.header("Set-Cookie")
                 .split(";")[0]
                 .split("=")[1];
 
         Document document1 = firstResponse.parse();
-        sessId = document1.select("input[name=\"sessid\"]")
+        String sessId = document1.select("input[name=\"sessid\"]")
                 .get(0)
                 .attr("value");
+        lstuConnections.updateSessionTokens(sessId, phpSessId);
 
-        final Response response = LstuConnections.executeLoginRequest(
-                LstuUrlBuilder.buildAuthUrl(login, password, sessId),
-                phpSessId);
+        final Response response = lstuConnections.executeLoginRequest(
+                LstuUrlBuilder.buildAuthUrl(login, password, sessId));
 
         final String jsonResponse = response.parse().body().text();
         if (jsonResponse.startsWith("{\"SUCCESS\":\"1\"")) {
@@ -55,13 +56,12 @@ public class LstuParser {
     }
 
     public void logout () throws AuthenticationException {
-        if (isNotLoggedIn()) {
+        if (lstuConnections.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
         try {
-            LstuConnections.executeLogoutRequest(
-                    LstuUrlBuilder.buildLogoutUrl(),
-                    phpSessId);
+            lstuConnections.executeLogoutRequest(
+                    LstuUrlBuilder.buildLogoutUrl());
         } catch (Exception e) {
             System.out.println("Logout failed");
         }
@@ -69,12 +69,11 @@ public class LstuParser {
     }
 
     public List<SemesterData> getSemestersData () throws AuthenticationException {
-        if (isNotLoggedIn()) {
+        if (lstuConnections.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
-        Document document = LstuConnections.openPage(
-                LstuUrlBuilder.buildGetSemestersUrl(),
-                phpSessId);
+        Document document = lstuConnections.openPage(
+                LstuUrlBuilder.buildGetSemestersUrl());
 
         final Elements htmlSemestersData = document.select("ul.ul-main > li");
         List<SemesterData> semestersData = new ArrayList<>();
@@ -98,18 +97,15 @@ public class LstuParser {
     }
 
     private List<Subject> getSubjects (String localRef) {
-        int attemptsLeft = ATTEMPTS_COUNT;
-        Document subjectsPage;
-        Elements htmlSubjectsTableColumnNames;
-        do {
-            subjectsPage = LstuConnections.openPage(
-                    LstuUrlBuilder.buildGetSubjectsUrl(localRef),
-                    phpSessId);
+        Document subjectsPage = null;
+        Elements htmlSubjectsTableColumnNames = null;
+        for (int attemptsLeft = 0; attemptsLeft < ATTEMPTS_COUNT; attemptsLeft++) {
+            subjectsPage = lstuConnections.openPage(
+                    LstuUrlBuilder.buildGetByLocalUrl(localRef));
             htmlSubjectsTableColumnNames = subjectsPage.select("div.table-responsive").select("th");
-            attemptsLeft--;
             if (!htmlSubjectsTableColumnNames.isEmpty())
                 break;
-        } while (attemptsLeft > 0);
+        }
 
         if (htmlSubjectsTableColumnNames.isEmpty()) {
             throw new ConnectionAttemptsException("Too many attempts to get data. Try later");
@@ -129,9 +125,9 @@ public class LstuParser {
         for (Element element : htmlSubjects) {
             final Subject subject = new Subject();
             final Elements htmlTableRow = element.select("tr > td");
-            for (Map.Entry entry : columnNames.entrySet()) {
-                String columnName = (String) entry.getKey();
-                columnId = (Integer) entry.getValue();
+            for (Map.Entry<String, Integer> entry : columnNames.entrySet()) {
+                String columnName = entry.getKey();
+                columnId = entry.getValue();
                 switch (columnName) {
                     case "Дисциплина":
                         subject.setName(htmlTableRow.get(columnId).text());
@@ -167,8 +163,38 @@ public class LstuParser {
         return value;
     }
 
+    // Map of document names for all subjects
+    public Map<String, Set<String>> getDocumentNames (String semesterName) throws AuthenticationException {
+        if (lstuConnections.isNotLoggedIn()) {
+            throw new AuthenticationException(LOGGED_IN_BEFORE);
+        }
+        String semesterLink = getSemesterLink(semesterName);
+        final Document semesterDataPage = lstuConnections.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
+        final Elements htmlSubjectsLinks = semesterDataPage.select("li.submenu.level3 > a");
 
-    private boolean isNotLoggedIn () {
-        return (sessId == null) || (phpSessId == null);
+        Map<String, Set<String>> documentNames = new HashMap<>();
+        htmlSubjectsLinks.forEach(subjectLink -> {
+            String link = subjectLink.attr("href");
+            String name = subjectLink.text();
+            documentNames.put(name, getSemesterDocumentNames(link));
+        });
+        return documentNames;
+    }
+
+    private String getSemesterLink(String semesterName) {
+        Document semestersListPage = lstuConnections.openPage(
+                LstuUrlBuilder.buildGetSemestersUrl());
+        final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
+        for (Element link : htmlSemestersLinks) {
+            if (link.text().equals(semesterName)) {
+                return link.attr("href");
+            }
+        }
+        return null;
+    }
+
+    private Set<String> getSemesterDocumentNames(String semesterLink) {
+        final Document subjectDataPage = lstuConnections.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
+        return new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText());
     }
 }

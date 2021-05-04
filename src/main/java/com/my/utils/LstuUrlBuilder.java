@@ -41,7 +41,7 @@ public class LstuUrlBuilder {
                 .setPath("education/0/"));
     }
 
-    public static String buildGetSubjectsUrl (String localRef) {
+    public static String buildGetByLocalUrl (String localRef) {
         return buildUrl(getLstuOriginUriBuilder()
                 .setPath(localRef));
     }

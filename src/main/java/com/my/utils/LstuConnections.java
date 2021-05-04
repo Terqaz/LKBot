@@ -11,16 +11,36 @@ public class LstuConnections {
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0";
 
-    private LstuConnections() {}
+    private String sessId = null;
+    private String phpSessId = null;
 
-    private static Connection getOriginConnection (String url) {
+    public LstuConnections () {}
+
+    public void updateSessionTokens (String sessId, String phpSessId) {
+        this.sessId = sessId;
+        this.phpSessId = phpSessId;
+    }
+
+    public String getSessId () {
+        return sessId;
+    }
+
+    public String getPhpSessId () {
+        return phpSessId;
+    }
+
+    public boolean isNotLoggedIn() {
+        return (sessId == null || phpSessId == null);
+    }
+
+    private Connection getOriginConnection (String url) {
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
                 .header("Accept", "text/html")
                 .header("Connection", "keep-alive");
     }
 
-    private static Connection getOriginSessionConnection(String url, String phpSessId) {
+    private Connection getOriginSessionConnection(String url) {
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
                 .header("Accept", "text/html")
@@ -28,7 +48,7 @@ public class LstuConnections {
                 .cookie("PHPSESSID", phpSessId);
     }
 
-    private static Response executeRequest(Connection connection) {
+    private Response executeRequest(Connection connection) {
         try {
             return connection.execute();
         } catch (IOException e) {
@@ -36,24 +56,24 @@ public class LstuConnections {
         }
     }
 
-    public static Response executeLoginRequest (String authUrl, String phpSessId) {
-        return executeRequest(getOriginSessionConnection(authUrl, phpSessId)
+    public Response executeLoginRequest (String authUrl) {
+        return executeRequest(getOriginSessionConnection(authUrl)
                 .method(Connection.Method.POST));
     }
 
-    public static void executeLogoutRequest (String logoutUrl, String phpSessId) {
-        executeRequest(getOriginSessionConnection(logoutUrl, phpSessId)
+    public void executeLogoutRequest (String logoutUrl) {
+        executeRequest(getOriginSessionConnection(logoutUrl)
                 .method(Connection.Method.POST));
     }
 
-    public static Response openLoginPage () {
+    public Response openLoginPage () {
         return executeRequest(getOriginConnection("http://lk.stu.lipetsk.ru/")
                 .method(Connection.Method.GET));
     }
 
-    public static Document openPage (String url, String phpSessId) {
+    public Document openPage (String url) {
         try {
-            return getOriginSessionConnection(url, phpSessId)
+            return getOriginSessionConnection(url)
                     .get();
         } catch (IOException e) {
             return null;

@@ -3,7 +3,6 @@ package com.my;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.my.exceptions.ConnectionAttemptsException;
 import org.apache.http.auth.AuthenticationException;
 
 import java.io.File;
@@ -14,6 +13,7 @@ import java.util.stream.Collectors;
 public class Main {
 
     static final String SEMESTERS_DATA_FILENAME = "semesters.json";
+    static final String DOCUMENT_NAMES_DATA_FILENAME = "documentNames.json";
 
     static final ObjectMapper objectMapper = new ObjectMapper();
     static final Scanner in = new Scanner(System.in);
@@ -115,6 +115,7 @@ public class Main {
         }
     }
 
+    // TODO filename обобщить
     public static void saveDataToFile(List<SemesterData> semesterData) {
         try {
             objectMapper.writeValue(new File(SEMESTERS_DATA_FILENAME), semesterData);
@@ -125,8 +126,7 @@ public class Main {
 
     public static List<SemesterData> loadDataFromFile() {
         try {
-            return objectMapper.readValue(new File(SEMESTERS_DATA_FILENAME), new TypeReference<List<SemesterData>>() {
-            });
+            return objectMapper.readValue(new File(SEMESTERS_DATA_FILENAME), new TypeReference<>() {});
         } catch (JsonMappingException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -135,28 +135,37 @@ public class Main {
         return Collections.emptyList();
     }
 
-    public static void main (String[] args) {
+    public static void countRating() throws AuthenticationException {
         List<SemesterData> semestersData = loadDataFromFile();
         semestersData.forEach(Main::completeData);
 
         if (semestersData.isEmpty()) {
-            LstuParser lstuParser = new LstuParser();
-            try {
-                lstuParser.login("s11916327", "f7LLDSJibCw8QNGeR6");
-//                lstuParser.login("s11916942", "newpas");
-                semestersData = lstuParser.getSemestersData();
-                lstuParser.logout();
-            } catch (AuthenticationException | ConnectionAttemptsException e) {
-                e.printStackTrace();
-            }
-            semestersData = semestersData.stream()
+            LstuClient lstuClient = new LstuClient();
+            lstuClient.login("s11916327", "f7LLDSJibCw8QNGeR6");
+            semestersData = lstuClient.getSemestersData();
+            lstuClient.logout();
+            semestersData.stream()
                     .filter(semesterData -> !semesterData.getSubjects().isEmpty())
-                    .collect(Collectors.toList());
-
-            semestersData.forEach(semesterData -> {
-                completeData(semesterData);
-                System.out.println("Rating for the " + semesterData.getName() + " semester is " + countRating(semesterData));
-            });
+                    .forEach(semesterData -> {
+                        completeData(semesterData);
+                        System.out.println("Rating for the " + semesterData.getName() + " semester is " + countRating(semesterData));
+                    });
         }
+    }
+
+    public static void checkNewDocuments() throws AuthenticationException {
+        LstuClient lstuClient = new LstuClient();
+        lstuClient.login("s11916327", "f7LLDSJibCw8QNGeR6");
+        Map<String, Set<String>> semestersDocumentNames = lstuClient.getDocumentNames("2021-В");
+        semestersDocumentNames.forEach((semesterName, documentNames) -> {
+            System.out.println("Documents for "+semesterName+":");
+            documentNames.stream().forEach(documentName -> System.out.print("\""+documentName+"\" "));
+            System.out.println();
+        });
+        lstuClient.logout();
+    }
+
+    public static void main (String[] args) throws AuthenticationException {
+        checkNewDocuments(); // TODO Сохранение и сравнение
     }
 }
