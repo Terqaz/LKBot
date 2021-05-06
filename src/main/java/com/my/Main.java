@@ -1,11 +1,11 @@
 package com.my;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.auth.AuthenticationException;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -115,28 +115,20 @@ public class Main {
         }
     }
 
-    // TODO filename обобщить
-    public static void saveDataToFile(List<SemesterData> semesterData) {
+    private static <T> T readFile (String filename, TypeReference<T> typeReference)
+            throws IOException {
+
         try {
-            objectMapper.writeValue(new File(SEMESTERS_DATA_FILENAME), semesterData);
-        } catch (IOException e) {
-            System.out.println("Failed to save semester data to file");
+            return objectMapper.readValue(new File(filename), typeReference);
+        } catch (FileNotFoundException e) {
+            return null;
         }
     }
 
-    public static List<SemesterData> loadDataFromFile() {
-        try {
-            return objectMapper.readValue(new File(SEMESTERS_DATA_FILENAME), new TypeReference<>() {});
-        } catch (JsonMappingException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            System.out.println("Failed to load semester data from file");
-        }
-        return Collections.emptyList();
-    }
-
-    public static void countRating() throws AuthenticationException {
-        List<SemesterData> semestersData = loadDataFromFile();
+    //TODO доделать
+    public static void countRating() throws AuthenticationException, IOException {
+        List<SemesterData> semestersData
+                = readFile(SEMESTERS_DATA_FILENAME, new TypeReference<>() {});
         semestersData.forEach(Main::completeData);
 
         if (semestersData.isEmpty()) {
@@ -153,19 +145,46 @@ public class Main {
         }
     }
 
-    public static void checkNewDocuments() throws AuthenticationException {
+    public static Map<String, Set<String>> checkNewDocuments() throws AuthenticationException, IOException {
         LstuClient lstuClient = new LstuClient();
         lstuClient.login("s11916327", "f7LLDSJibCw8QNGeR6");
-        Map<String, Set<String>> semestersDocumentNames = lstuClient.getDocumentNames("2021-В");
-        semestersDocumentNames.forEach((semesterName, documentNames) -> {
-            System.out.println("Documents for "+semesterName+":");
-            documentNames.stream().forEach(documentName -> System.out.print("\""+documentName+"\" "));
-            System.out.println();
-        });
+        Map<String, Set<String>> actualDocuments = lstuClient.getDocumentNames("2021-В");
         lstuClient.logout();
+
+        final Map<String, Set<String>> oldDocuments
+                = readFile(DOCUMENT_NAMES_DATA_FILENAME, new TypeReference<>() {});
+
+        if (!actualDocuments.isEmpty())
+            writeFile(DOCUMENT_NAMES_DATA_FILENAME, actualDocuments);
+
+        if (oldDocuments != null) {
+            return actualDocuments.entrySet().stream()
+                    .map(entry -> {
+                        final String semester = entry.getKey();
+                        final Set<String> documents = entry.getValue();
+                        if (oldDocuments.containsKey(semester))
+                            documents.removeAll(oldDocuments.get(semester));
+                        return new AbstractMap.SimpleEntry<>(semester, documents);})
+                    .filter(entry -> !entry.getValue().isEmpty())
+                    .collect(Collectors.toMap(
+                            AbstractMap.SimpleEntry::getKey,
+                            AbstractMap.SimpleEntry::getValue));
+        } else {
+            return actualDocuments;
+        }
     }
 
-    public static void main (String[] args) throws AuthenticationException {
-        checkNewDocuments(); // TODO Сохранение и сравнение
+    private static void writeFile (String filename, Map<String, Set<String>> oldDocuments) throws IOException {
+        objectMapper.writeValue(new File(filename), oldDocuments);
+    }
+
+    public static void main (String[] args) throws AuthenticationException, IOException {
+        System.out.println("--- Список новых документов по предметам ---");
+        checkNewDocuments().forEach((semesterName, documentNames) -> {
+            System.out.println(semesterName+":");
+            documentNames.forEach(
+                    documentName -> System.out.print("\""+documentName+"\" "));
+            System.out.println();
+        });
     }
 }

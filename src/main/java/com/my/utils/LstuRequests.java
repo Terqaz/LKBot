@@ -7,20 +7,19 @@ import org.jsoup.nodes.Document;
 
 import java.io.IOException;
 
-public class LstuConnections {
+public class LstuRequests {
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0";
 
     private String sessId = null;
     private String phpSessId = null;
 
-    public LstuConnections () {}
+    public LstuRequests () {}
 
     public void updateSessionTokens (String sessId, String phpSessId) {
         this.sessId = sessId;
         this.phpSessId = phpSessId;
     }
-
     public String getSessId () {
         return sessId;
     }

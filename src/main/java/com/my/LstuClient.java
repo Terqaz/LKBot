@@ -1,7 +1,7 @@
 package com.my;
 
 import com.my.exceptions.ConnectionAttemptsException;
-import com.my.utils.LstuConnections;
+import com.my.utils.LstuRequests;
 import com.my.utils.LstuUrlBuilder;
 import org.apache.http.auth.AuthenticationException;
 import org.jsoup.Connection.Response;
@@ -18,7 +18,7 @@ public class LstuClient {
     public static final String LOGGED_IN_BEFORE = "You must be logged in before";
     private static final int ATTEMPTS_COUNT = 8;
 
-    private final LstuConnections lstuConnections = new LstuConnections();
+    private final LstuRequests lstuRequests = new LstuRequests();
 
     public void login (String login, String password) throws AuthenticationException {
         try {
@@ -32,7 +32,7 @@ public class LstuClient {
 
     private void auth (String login, String password) throws IOException, AuthenticationException {
 
-        final Response firstResponse = lstuConnections.openLoginPage();
+        final Response firstResponse = lstuRequests.openLoginPage();
 
         String phpSessId = firstResponse.header("Set-Cookie")
                 .split(";")[0]
@@ -42,9 +42,9 @@ public class LstuClient {
         String sessId = document1.select("input[name=\"sessid\"]")
                 .get(0)
                 .attr("value");
-        lstuConnections.updateSessionTokens(sessId, phpSessId);
+        lstuRequests.updateSessionTokens(sessId, phpSessId);
 
-        final Response response = lstuConnections.executeLoginRequest(
+        final Response response = lstuRequests.executeLoginRequest(
                 LstuUrlBuilder.buildAuthUrl(login, password, sessId));
 
         final String jsonResponse = response.parse().body().text();
@@ -56,11 +56,11 @@ public class LstuClient {
     }
 
     public void logout () throws AuthenticationException {
-        if (lstuConnections.isNotLoggedIn()) {
+        if (lstuRequests.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
         try {
-            lstuConnections.executeLogoutRequest(
+            lstuRequests.executeLogoutRequest(
                     LstuUrlBuilder.buildLogoutUrl());
         } catch (Exception e) {
             System.out.println("Logout failed");
@@ -69,10 +69,10 @@ public class LstuClient {
     }
 
     public List<SemesterData> getSemestersData () throws AuthenticationException {
-        if (lstuConnections.isNotLoggedIn()) {
+        if (lstuRequests.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
-        Document document = lstuConnections.openPage(
+        Document document = lstuRequests.openPage(
                 LstuUrlBuilder.buildGetSemestersUrl());
 
         final Elements htmlSemestersData = document.select("ul.ul-main > li");
@@ -100,7 +100,7 @@ public class LstuClient {
         Document subjectsPage = null;
         Elements htmlSubjectsTableColumnNames = null;
         for (int attemptsLeft = 0; attemptsLeft < ATTEMPTS_COUNT; attemptsLeft++) {
-            subjectsPage = lstuConnections.openPage(
+            subjectsPage = lstuRequests.openPage(
                     LstuUrlBuilder.buildGetByLocalUrl(localRef));
             htmlSubjectsTableColumnNames = subjectsPage.select("div.table-responsive").select("th");
             if (!htmlSubjectsTableColumnNames.isEmpty())
@@ -165,24 +165,26 @@ public class LstuClient {
 
     // Map of document names for all subjects
     public Map<String, Set<String>> getDocumentNames (String semesterName) throws AuthenticationException {
-        if (lstuConnections.isNotLoggedIn()) {
+        if (lstuRequests.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
         String semesterLink = getSemesterLink(semesterName);
-        final Document semesterDataPage = lstuConnections.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
+        final Document semesterDataPage = lstuRequests.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
         final Elements htmlSubjectsLinks = semesterDataPage.select("li.submenu.level3 > a");
 
         Map<String, Set<String>> documentNames = new HashMap<>();
         htmlSubjectsLinks.forEach(subjectLink -> {
             String link = subjectLink.attr("href");
             String name = subjectLink.text();
-            documentNames.put(name, getSemesterDocumentNames(link));
+            final Set<String> semesterDocumentNames = getSemesterDocumentNames(link);
+            if (!semesterDocumentNames.isEmpty())
+                documentNames.put(name, semesterDocumentNames);
         });
         return documentNames;
     }
 
     private String getSemesterLink(String semesterName) {
-        Document semestersListPage = lstuConnections.openPage(
+        Document semestersListPage = lstuRequests.openPage(
                 LstuUrlBuilder.buildGetSemestersUrl());
         final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
         for (Element link : htmlSemestersLinks) {
@@ -194,7 +196,7 @@ public class LstuClient {
     }
 
     private Set<String> getSemesterDocumentNames(String semesterLink) {
-        final Document subjectDataPage = lstuConnections.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
+        final Document subjectDataPage = lstuRequests.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
         return new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText());
     }
 }
