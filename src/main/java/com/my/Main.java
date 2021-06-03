@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 public class Main {
 
     static final String SEMESTERS_DATA_FILENAME = "semesters.json";
-    static final String DOCUMENT_NAMES_DATA_FILENAME = "documentNames.json";
+    static final String SUBJECTS_DATA_FILENAME = "subjectsData.json";
 
     static final ObjectMapper objectMapper = new ObjectMapper();
     static final Scanner in = new Scanner(System.in);
@@ -49,10 +49,10 @@ public class Main {
         return result;
     }
 
-    public static double countRating (SemesterData semesterData) {
+    public static double countRating (SemesterSubjects semesterSubjects) {
         List<Integer> presentPoints = new ArrayList<>();
         double rating = 0;
-        for (Subject subject : semesterData.getSubjects()) {
+        for (Subject subject : semesterSubjects.getSubjects()) {
             int key = 0;
             if (subject.isPractice()) { // TODO
                 key = 0x00001;
@@ -70,49 +70,53 @@ public class Main {
             rating += subject.getHours() * countLinearCombination(presentPoints, coefficients.get(key));
             presentPoints.clear();
         }
-        rating /= semesterData.getSubjects().stream().map(Subject::getHours)
+        rating /= semesterSubjects.getSubjects().stream().map(Subject::getHours)
                 .reduce(0, Integer::sum);
         return rating;
     }
 
-    public static void completeData (SemesterData semesterData) {
-        semesterData.setSubjects(
-                semesterData.getSubjects().stream().filter(
+    public static void completeData (SemesterSubjects semesterSubjects) {
+        semesterSubjects.setSubjects(
+                semesterSubjects.getSubjects().stream().filter(
                         subject -> !(subject.getSemesterWorkPoints() == -1 && subject.getCreditPoints() == -1 &&
                                 subject.getExamPoints() == -1 && subject.getCourseWorkPoints() == -1))
                         .collect(Collectors.toList()));
-        if (semesterData.getSubjects().isEmpty())
+        if (semesterSubjects.getSubjects().isEmpty())
             return;
 
-        System.out.println("Input hours for " + semesterData.getName() + " semester subjects:");
-        for (Subject subject : semesterData.getSubjects()) {
+        System.out.println("Input hours for " + semesterSubjects.getName() + " semester subjects:");
+        for (Subject subject : semesterSubjects.getSubjects()) {
             if (subject.getHours() == -1) {
                 System.out.print(subject.getName() + ": ");
                 subject.setHours(in.nextInt());
             }
         }
-        for (Subject subject : semesterData.getSubjects()) {
+        for (Subject subject : semesterSubjects.getSubjects()) {
             if (subject.getSemesterWorkPoints() == 0) {
                 System.out.print("Specify work points for " + subject.getName() +
-                        "\nin semester " + semesterData.getName() + ":");
+                        "\nin semester " + semesterSubjects.getName() + ":");
                 subject.setSemesterWorkPoints(in.nextInt());
             }
             if (subject.getCreditPoints() == 0) {
                 System.out.print("Specify credit points for " + subject.getName() +
-                        "\nin semester " + semesterData.getName() + ":");
+                        "\nin semester " + semesterSubjects.getName() + ":");
                 subject.setCreditPoints(in.nextInt());
             }
             if (subject.getExamPoints() == 0) {
                 System.out.print("Specify exam points for " + subject.getName() +
-                        "\nin semester " + semesterData.getName() + ":");
+                        "\nin semester " + semesterSubjects.getName() + ":");
                 subject.setExamPoints(in.nextInt());
             }
             if (subject.getCourseWorkPoints() == 0) {
                 System.out.print("Specify course work points for " + subject.getName() +
-                        "\nin semester " + semesterData.getName() + ":");
+                        "\nin semester " + semesterSubjects.getName() + ":");
                 subject.setCourseWorkPoints(in.nextInt());
             }
         }
+    }
+
+    public static <T> void writeFile (String filename, T object) throws IOException {
+        objectMapper.writeValue(new File(filename), object);
     }
 
     private static <T> T readFile (String filename, TypeReference<T> typeReference)
@@ -127,7 +131,7 @@ public class Main {
 
     //TODO доделать
     public static void countRating() throws AuthenticationException, IOException {
-        List<SemesterData> semestersData
+        List<SemesterSubjects> semestersData
                 = readFile(SEMESTERS_DATA_FILENAME, new TypeReference<>() {});
         semestersData.forEach(Main::completeData);
 
@@ -137,54 +141,58 @@ public class Main {
             semestersData = lstuClient.getSemestersData();
             lstuClient.logout();
             semestersData.stream()
-                    .filter(semesterData -> !semesterData.getSubjects().isEmpty())
-                    .forEach(semesterData -> {
-                        completeData(semesterData);
-                        System.out.println("Rating for the " + semesterData.getName() + " semester is " + countRating(semesterData));
+                    .filter(semesterSubjects -> !semesterSubjects.getSubjects().isEmpty())
+                    .forEach(semesterSubjects -> {
+                        completeData(semesterSubjects);
+                        System.out.println("Rating for the " + semesterSubjects.getName() + " semester is " + countRating(semesterSubjects));
                     });
         }
     }
 
-    public static Map<String, Set<String>> checkNewDocuments() throws AuthenticationException, IOException {
+    public static Set<SubjectData> checkNewDocuments (String login, String password) throws AuthenticationException, IOException {
         LstuClient lstuClient = new LstuClient();
-        lstuClient.login("s11916327", "f7LLDSJibCw8QNGeR6");
-        Map<String, Set<String>> actualDocuments = lstuClient.getDocumentNames("2021-В");
+        lstuClient.login(login, password);
+        login = password = null;
+
+        final Set<SubjectData> oldDocuments
+                = readFile(SUBJECTS_DATA_FILENAME, new TypeReference<>() {});
+
+        Set<SubjectData> actualDocuments = lstuClient.getDocumentNames("2021-В");
         lstuClient.logout();
 
-        final Map<String, Set<String>> oldDocuments
-                = readFile(DOCUMENT_NAMES_DATA_FILENAME, new TypeReference<>() {});
-
         if (!actualDocuments.isEmpty())
-            writeFile(DOCUMENT_NAMES_DATA_FILENAME, actualDocuments);
+            writeFile(SUBJECTS_DATA_FILENAME, actualDocuments);
 
         if (oldDocuments != null) {
-            return actualDocuments.entrySet().stream()
-                    .map(entry -> {
-                        final String semester = entry.getKey();
-                        final Set<String> documents = entry.getValue();
-                        if (oldDocuments.containsKey(semester))
-                            documents.removeAll(oldDocuments.get(semester));
-                        return new AbstractMap.SimpleEntry<>(semester, documents);})
-                    .filter(entry -> !entry.getValue().isEmpty())
-                    .collect(Collectors.toMap(
-                            AbstractMap.SimpleEntry::getKey,
-                            AbstractMap.SimpleEntry::getValue));
+            Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
+            for (SubjectData data : oldDocuments) {
+                oldDocumentsMap.put(data.getSubjectName(), data);
+            }
+            return actualDocuments.stream()
+                    .peek(subjectData -> {
+                        final String semester = subjectData.getSubjectName();
+                        final Set<String> documents = subjectData.getDocumentNames();
+                        if (oldDocuments.contains(subjectData))
+                            documents.removeAll(oldDocumentsMap.get(semester).getDocumentNames());
+                    })
+                    .filter(subjectData -> !subjectData.getDocumentNames().isEmpty())
+                    .collect(Collectors.toSet());
         } else {
             return actualDocuments;
         }
     }
 
-    private static void writeFile (String filename, Map<String, Set<String>> oldDocuments) throws IOException {
-        objectMapper.writeValue(new File(filename), oldDocuments);
-    }
-
-    public static void main (String[] args) throws AuthenticationException, IOException {
+    public static void checkNewDocumentsUsage(String login, String password) throws IOException, AuthenticationException {
         System.out.println("--- Список новых документов по предметам ---");
-        checkNewDocuments().forEach((semesterName, documentNames) -> {
-            System.out.println(semesterName+":");
-            documentNames.forEach(
+        checkNewDocuments(login, password).forEach(subjectData -> {
+            System.out.println(subjectData.getSubjectName()+":");
+            subjectData.getDocumentNames().forEach (
                     documentName -> System.out.print("\""+documentName+"\" "));
             System.out.println();
         });
+    }
+
+    public static void main (String[] args) throws AuthenticationException, IOException {
+        checkNewDocumentsUsage("s11916327", "f7LLDSJibCw8QNGeR6");
     }
 }

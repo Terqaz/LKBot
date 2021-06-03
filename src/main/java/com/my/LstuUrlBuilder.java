@@ -1,8 +1,10 @@
-package com.my.utils;
+package com.my;
 
 import org.apache.http.client.utils.URIBuilder;
 
 import java.net.URISyntaxException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class LstuUrlBuilder {
 
@@ -39,6 +41,19 @@ public class LstuUrlBuilder {
     public static String buildGetSemestersUrl () {
         return buildUrl(getLstuOriginUriBuilder()
                 .setPath("education/0/"));
+    }
+
+    public static String buildGetNextMessages(String group, String discipline, String semester, Date date) {
+        final URIBuilder builder = getLstuOriginUriBuilder()
+                .setPath("ajax.handler.php")
+                .addParameter("get_msg", "1")
+                .addParameter("group", group)
+                .addParameter("discipline", discipline)
+                .addParameter("semester", semester);
+                if (date != null)
+                    builder.addParameter("last_msg",
+                            new SimpleDateFormat("d.M.y+H:m").format(date));
+        return buildUrl(builder);
     }
 
     public static String buildGetByLocalUrl (String localRef) {

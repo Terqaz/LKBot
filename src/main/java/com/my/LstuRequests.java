@@ -1,4 +1,4 @@
-package com.my.utils;
+package com.my;
 
 import org.jsoup.Connection;
 import org.jsoup.Connection.Response;
@@ -42,7 +42,7 @@ public class LstuRequests {
     private Connection getOriginSessionConnection(String url) {
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
-                .header("Accept", "text/html")
+                .header("Accept", "*/*")
                 .header("Connection", "keep-alive")
                 .cookie("PHPSESSID", phpSessId);
     }
@@ -70,10 +70,19 @@ public class LstuRequests {
                 .method(Connection.Method.GET));
     }
 
-    public Document openPage (String url) {
+    public Document get (String url) {
         try {
             return getOriginSessionConnection(url)
                     .get();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public Document post (String url) {
+        try {
+            return getOriginSessionConnection(url)
+                    .post();
         } catch (IOException e) {
             return null;
         }

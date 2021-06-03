@@ -1,8 +1,6 @@
 package com.my;
 
 import com.my.exceptions.ConnectionAttemptsException;
-import com.my.utils.LstuRequests;
-import com.my.utils.LstuUrlBuilder;
 import org.apache.http.auth.AuthenticationException;
 import org.jsoup.Connection.Response;
 import org.jsoup.nodes.Document;
@@ -10,13 +8,18 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class LstuClient {
 
     public static final String FAILED_LK_LOGIN = "Failed LK login";
     public static final String LOGGED_IN_BEFORE = "You must be logged in before";
     private static final int ATTEMPTS_COUNT = 8;
+    private static final String UNKNOWN_ACADEMIC_NAME = "*УТОЧНИТЕ ИМЯ*";
 
     private final LstuRequests lstuRequests = new LstuRequests();
 
@@ -68,39 +71,39 @@ public class LstuClient {
         System.out.println("Logout complete");
     }
 
-    public List<SemesterData> getSemestersData () throws AuthenticationException {
+    public List<SemesterSubjects> getSemestersData () throws AuthenticationException {
         if (lstuRequests.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
-        Document document = lstuRequests.openPage(
+        Document document = lstuRequests.get(
                 LstuUrlBuilder.buildGetSemestersUrl());
 
         final Elements htmlSemestersData = document.select("ul.ul-main > li");
-        List<SemesterData> semestersData = new ArrayList<>();
+        List<SemesterSubjects> semestersData = new ArrayList<>();
 
         int semesterNumber = htmlSemestersData.size();
         for (Element htmlSemesterData : htmlSemestersData) {
-            SemesterData semesterData = getSemesterData(htmlSemesterData);
-            semesterData.setNumber(semesterNumber);
+            SemesterSubjects semesterSubjects = getSemesterData(htmlSemesterData);
+            semesterSubjects.setNumber(semesterNumber);
             semesterNumber--;
-            semestersData.add(semesterData);
+            semestersData.add(semesterSubjects);
         }
         return semestersData;
     }
 
-    private SemesterData getSemesterData (Element element) {
-        final SemesterData semesterData = new SemesterData();
-        semesterData.setName(element.text());
+    private SemesterSubjects getSemesterData (Element element) {
+        final SemesterSubjects semesterSubjects = new SemesterSubjects();
+        semesterSubjects.setName(element.text());
         List<Subject> subjects = getSubjects(element.select("a").attr("href"));
-        semesterData.setSubjects(subjects);
-        return semesterData;
+        semesterSubjects.setSubjects(subjects);
+        return semesterSubjects;
     }
 
     private List<Subject> getSubjects (String localRef) {
         Document subjectsPage = null;
         Elements htmlSubjectsTableColumnNames = null;
         for (int attemptsLeft = 0; attemptsLeft < ATTEMPTS_COUNT; attemptsLeft++) {
-            subjectsPage = lstuRequests.openPage(
+            subjectsPage = lstuRequests.get(
                     LstuUrlBuilder.buildGetByLocalUrl(localRef));
             htmlSubjectsTableColumnNames = subjectsPage.select("div.table-responsive").select("th");
             if (!htmlSubjectsTableColumnNames.isEmpty())
@@ -164,27 +167,119 @@ public class LstuClient {
     }
 
     // Map of document names for all subjects
-    public Map<String, Set<String>> getDocumentNames (String semesterName) throws AuthenticationException {
+    public Set<SubjectData> getDocumentNames (String semesterName) throws AuthenticationException {
         if (lstuRequests.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
         }
-        String semesterLink = getSemesterLink(semesterName);
-        final Document semesterDataPage = lstuRequests.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
-        final Elements htmlSubjectsLinks = semesterDataPage.select("li.submenu.level3 > a");
+        return Stream.of(getSemesterLink(semesterName))
+                .map(semesterLink -> lstuRequests.get(LstuUrlBuilder.buildGetByLocalUrl(semesterLink)))
+                .flatMap(semesterDataPage -> semesterDataPage.select("li.submenu.level3 > a").stream()
+                        .map(htmlLink -> {
+                            String subjectLink = htmlLink.attr("href");
+                            final Document subjectDataPage = lstuRequests.get(
+                                    LstuUrlBuilder.buildGetByLocalUrl(subjectLink));
 
-        Map<String, Set<String>> documentNames = new HashMap<>();
-        htmlSubjectsLinks.forEach(subjectLink -> {
-            String link = subjectLink.attr("href");
-            String name = subjectLink.text();
-            final Set<String> semesterDocumentNames = getSemesterDocumentNames(link);
-            if (!semesterDocumentNames.isEmpty())
-                documentNames.put(name, semesterDocumentNames);
+                            final List<MessageData> messages = loadAllMessages(subjectLink);
+                            return new SubjectData(
+                                    htmlLink.text(),
+                                    new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
+                                    getLastMessageDate(messages),
+                                    findPrimaryAcademic(messages)
+                            );
+                        }))
+                .filter(subjectData -> !subjectData.getDocumentNames().isEmpty())
+                .collect(Collectors.toSet());
+    }
+
+    // TODO Добавить функционал с сообщениями
+    //
+    //    Приложение определяет основного преподавателя как человека, отправившего наибольшее количество сообщений.
+    //    Если неверно определило, то
+    //      предложить двух первых людей по частоте сообщений после преподавателя
+    //      или самостоятельный добавление
+    //    Если преподавателей несколько, то
+    //      предложить четырех первых людей по частоте сообщений после преподавателя с выбором нескольких
+    //      или самостоятельное добавление
+
+    // TODO в последующие разы должен загружать пока не наткнется на прошлое последнее сообщение
+    private List<MessageData> loadAllMessages (String subjectLink) {
+        final String[] pathSegments = subjectLink.split("/");
+        final List<MessageData> messageDataSet = new ArrayList<>();
+        Document pageWithMessages = lstuRequests.post(
+                LstuUrlBuilder.buildGetNextMessages(
+                        pathSegments[5], pathSegments[4], pathSegments[3],null));
+        do {
+            List<MessageData> messagesDataChunk = parseMessagesDataChunk(pageWithMessages);
+            if (messagesDataChunk.isEmpty()) break;
+            messageDataSet.addAll(messagesDataChunk);
+
+            pageWithMessages = lstuRequests.post(
+                    LstuUrlBuilder.buildGetNextMessages(
+                            pathSegments[5], pathSegments[4], pathSegments[3],
+                            getLastMessageDate(messagesDataChunk)));
+            // TODO исключить второй лишний вызов
+        } while (pageWithMessages.select(".stop-scroll").first() == null);
+        return messageDataSet;
+    }
+
+    private Date getLastMessageDate (List<MessageData> messagesDataChunk) {
+        if (!messagesDataChunk.isEmpty()) {
+            return messagesDataChunk.get(messagesDataChunk.size() - 1).getDate();
+        } else {
+            return new Date();
+        }
+    }
+
+    // TODO test
+    private String findPrimaryAcademic(List<MessageData> messages) {
+        if (messages.isEmpty())
+            return UNKNOWN_ACADEMIC_NAME;
+        else
+            return messages.stream()
+                    .collect(Collectors.groupingBy(
+                            MessageData::getSender,
+                            Collectors.counting())
+                    )
+                    .entrySet().stream().max(Map.Entry.comparingByValue())
+                    .get().getKey();
+    }
+
+    // TODO
+    private Set<String> findSecondaryAcademics(Elements messages) {
+        return null;
+    }
+
+    private List<MessageData> parseMessagesDataChunk(Document pageWithMessages) {
+        final List<String> commentsList = pageWithMessages
+                .select("div.comment__body > .row")
+                .eachText();
+        final Iterator<String> comments = commentsList.iterator();
+
+        final List<String> sendersList = pageWithMessages
+                .select("div.comment__body > p > strong").eachText();
+        final Iterator<String> senders = sendersList.iterator();
+
+        final Stream<Date> dateStream = Stream.of(pageWithMessages
+                .select("div.comment__block")
+                .attr("data-msg")).map(htmlDates -> {
+            try {
+                return new SimpleDateFormat("d.M.y H:m")
+                        .parse(htmlDates);
+            } catch (ParseException e) {
+                return new Date(System.currentTimeMillis());
+            }
         });
-        return documentNames;
+        final Iterator<Date> dates = dateStream.iterator();
+
+        List<MessageData> messageDataList = new ArrayList<>();
+        while (comments.hasNext() && senders.hasNext() && dates.hasNext()) {
+            messageDataList.add(new MessageData(comments.next(), senders.next(), dates.next()));
+        }
+        return messageDataList;
     }
 
     private String getSemesterLink(String semesterName) {
-        Document semestersListPage = lstuRequests.openPage(
+        Document semestersListPage = lstuRequests.get(
                 LstuUrlBuilder.buildGetSemestersUrl());
         final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
         for (Element link : htmlSemestersLinks) {
@@ -195,8 +290,8 @@ public class LstuClient {
         return null;
     }
 
-    private Set<String> getSemesterDocumentNames(String semesterLink) {
-        final Document subjectDataPage = lstuRequests.openPage(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
+    private Set<String> getSemesterDocumentNamesAndLastMessage (String semesterLink) {
+        final Document subjectDataPage = lstuRequests.get(LstuUrlBuilder.buildGetByLocalUrl(semesterLink));
         return new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText());
     }
 }
