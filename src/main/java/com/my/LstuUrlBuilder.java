@@ -52,7 +52,7 @@ public class LstuUrlBuilder {
                 .addParameter("semester", semester);
                 if (date != null)
                     builder.addParameter("last_msg",
-                            new SimpleDateFormat("d.M.y+H:m").format(date));
+                            new SimpleDateFormat("dd.MM.yyyy+HH:mm").format(date));
         return buildUrl(builder);
     }
 

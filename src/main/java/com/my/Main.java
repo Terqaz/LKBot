@@ -149,7 +149,7 @@ public class Main {
         }
     }
 
-    public static Set<SubjectData> checkNewDocuments (String login, String password) throws AuthenticationException, IOException {
+    public static Set<SubjectData> checkNewDocuments (String semester, String login, String password) throws AuthenticationException, IOException {
         LstuClient lstuClient = new LstuClient();
         lstuClient.login(login, password);
         login = password = null;
@@ -157,7 +157,7 @@ public class Main {
         final Set<SubjectData> oldDocuments
                 = readFile(SUBJECTS_DATA_FILENAME, new TypeReference<>() {});
 
-        Set<SubjectData> actualDocuments = lstuClient.getDocumentNames("2021-В");
+        Set<SubjectData> actualDocuments = lstuClient.getDocumentNames(semester);
         lstuClient.logout();
 
         if (!actualDocuments.isEmpty())
@@ -170,10 +170,10 @@ public class Main {
             }
             return actualDocuments.stream()
                     .peek(subjectData -> {
-                        final String semester = subjectData.getSubjectName();
+                        final String subjectName = subjectData.getSubjectName();
                         final Set<String> documents = subjectData.getDocumentNames();
                         if (oldDocuments.contains(subjectData))
-                            documents.removeAll(oldDocumentsMap.get(semester).getDocumentNames());
+                            documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
                     })
                     .filter(subjectData -> !subjectData.getDocumentNames().isEmpty())
                     .collect(Collectors.toSet());
@@ -182,9 +182,9 @@ public class Main {
         }
     }
 
-    public static void checkNewDocumentsUsage(String login, String password) throws IOException, AuthenticationException {
+    public static void checkNewDocumentsUsage (String semester, String login, String password) throws IOException, AuthenticationException {
         System.out.println("--- Список новых документов по предметам ---");
-        checkNewDocuments(login, password).forEach(subjectData -> {
+        checkNewDocuments(semester, login, password).forEach(subjectData -> {
             System.out.println(subjectData.getSubjectName()+":");
             subjectData.getDocumentNames().forEach (
                     documentName -> System.out.print("\""+documentName+"\" "));
@@ -193,6 +193,6 @@ public class Main {
     }
 
     public static void main (String[] args) throws AuthenticationException, IOException {
-        checkNewDocumentsUsage("s11916327", "f7LLDSJibCw8QNGeR6");
+        checkNewDocumentsUsage("2020-В","s11916327", "f7LLDSJibCw8QNGeR6");
     }
 }

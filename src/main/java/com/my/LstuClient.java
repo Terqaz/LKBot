@@ -259,17 +259,19 @@ public class LstuClient {
                 .select("div.comment__body > p > strong").eachText();
         final Iterator<String> senders = sendersList.iterator();
 
-        final Stream<Date> dateStream = Stream.of(pageWithMessages
-                .select("div.comment__block")
-                .attr("data-msg")).map(htmlDates -> {
-            try {
-                return new SimpleDateFormat("d.M.y H:m")
-                        .parse(htmlDates);
-            } catch (ParseException e) {
-                return new Date(System.currentTimeMillis());
-            }
-        });
-        final Iterator<Date> dates = dateStream.iterator();
+        final List<Date> datesList = pageWithMessages
+                .select("div.comment__block").stream()
+                .map(htmlCommentBlock -> htmlCommentBlock.attr("data-msg"))
+                .map(htmlDate -> {
+                    try {
+                        return new SimpleDateFormat("dd.MM.yyyy HH:mm")
+                                .parse(htmlDate);
+                    } catch (ParseException e) {
+                        return new Date(System.currentTimeMillis());
+                    }
+        }).collect(Collectors.toList());
+
+        final Iterator<Date> dates = datesList.iterator();
 
         List<MessageData> messageDataList = new ArrayList<>();
         while (comments.hasNext() && senders.hasNext() && dates.hasNext()) {
