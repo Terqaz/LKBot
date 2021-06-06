@@ -124,6 +124,7 @@ public class Main {
 
         try {
             return objectMapper.readValue(new File(filename), typeReference);
+            // MismatchedInputException?
         } catch (FileNotFoundException e) {
             return null;
         }
@@ -149,7 +150,7 @@ public class Main {
         }
     }
 
-    public static Set<SubjectData> checkNewDocuments (String semester, String login, String password) throws AuthenticationException, IOException {
+    public static Set<SubjectData> checkNewInfo(String semester, String login, String password) throws AuthenticationException, IOException {
         LstuClient lstuClient = new LstuClient();
         lstuClient.login(login, password);
         login = password = null;
@@ -182,9 +183,9 @@ public class Main {
         }
     }
 
-    public static void checkNewDocumentsUsage (String semester, String login, String password) throws IOException, AuthenticationException {
+    public static void checkNewInfoUsage(String semester, String login, String password) throws IOException, AuthenticationException {
         System.out.println("--- Список новых документов по предметам ---");
-        checkNewDocuments(semester, login, password).forEach(subjectData -> {
+        checkNewInfo(semester, login, password).forEach(subjectData -> {
             System.out.println(subjectData.getSubjectName()+":");
             subjectData.getDocumentNames().forEach (
                     documentName -> System.out.print("\""+documentName+"\" "));
@@ -193,6 +194,6 @@ public class Main {
     }
 
     public static void main (String[] args) throws AuthenticationException, IOException {
-        checkNewDocumentsUsage("2020-В","s11916327", "f7LLDSJibCw8QNGeR6");
+        checkNewInfoUsage("2020-В","s11916327", "f7LLDSJibCw8QNGeR6");
     }
 }

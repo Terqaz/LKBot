@@ -193,7 +193,7 @@ public class LstuClient {
 
     // TODO Добавить функционал с сообщениями
     //
-    //    Приложение определяет основного преподавателя как человека, отправившего наибольшее количество сообщений.
+    //+    Приложение определяет основного преподавателя как человека, отправившего наибольшее количество сообщений.
     //    Если неверно определило, то
     //      предложить двух первых людей по частоте сообщений после преподавателя
     //      или самостоятельный добавление
@@ -204,22 +204,22 @@ public class LstuClient {
     // TODO в последующие разы должен загружать пока не наткнется на прошлое последнее сообщение
     private List<MessageData> loadAllMessages (String subjectLink) {
         final String[] pathSegments = subjectLink.split("/");
-        final List<MessageData> messageDataSet = new ArrayList<>();
-        Document pageWithMessages = lstuRequests.post(
-                LstuUrlBuilder.buildGetNextMessages(
-                        pathSegments[5], pathSegments[4], pathSegments[3],null));
+        final List<MessageData> messageDataList = new ArrayList<>();
+        Document pageWithMessages;
+        Date lastMessageDate = null;
         do {
-            List<MessageData> messagesDataChunk = parseMessagesDataChunk(pageWithMessages);
-            if (messagesDataChunk.isEmpty()) break;
-            messageDataSet.addAll(messagesDataChunk);
-
             pageWithMessages = lstuRequests.post(
                     LstuUrlBuilder.buildGetNextMessages(
                             pathSegments[5], pathSegments[4], pathSegments[3],
-                            getLastMessageDate(messagesDataChunk)));
-            // TODO исключить второй лишний вызов
+                            lastMessageDate));
+            List<MessageData> messagesDataChunk = parseMessagesDataChunk(pageWithMessages);
+            if (messagesDataChunk.isEmpty())
+                break;
+            messageDataList.addAll(messagesDataChunk);
+            lastMessageDate = getLastMessageDate(messagesDataChunk);
+
         } while (pageWithMessages.select(".stop-scroll").first() == null);
-        return messageDataSet;
+        return messageDataList;
     }
 
     private Date getLastMessageDate (List<MessageData> messagesDataChunk) {
@@ -250,16 +250,15 @@ public class LstuClient {
     }
 
     private List<MessageData> parseMessagesDataChunk(Document pageWithMessages) {
-        final List<String> commentsList = pageWithMessages
+        final Iterator<String> comments = pageWithMessages
                 .select("div.comment__body > .row")
-                .eachText();
-        final Iterator<String> comments = commentsList.iterator();
+                .eachText().iterator();
 
-        final List<String> sendersList = pageWithMessages
-                .select("div.comment__body > p > strong").eachText();
-        final Iterator<String> senders = sendersList.iterator();
+        final Iterator<String> senders = pageWithMessages
+                .select("div.comment__body > p > strong")
+                .eachText().iterator();
 
-        final List<Date> datesList = pageWithMessages
+        final Iterator<Date> dates = pageWithMessages
                 .select("div.comment__block").stream()
                 .map(htmlCommentBlock -> htmlCommentBlock.attr("data-msg"))
                 .map(htmlDate -> {
@@ -269,13 +268,16 @@ public class LstuClient {
                     } catch (ParseException e) {
                         return new Date(System.currentTimeMillis());
                     }
-        }).collect(Collectors.toList());
-
-        final Iterator<Date> dates = datesList.iterator();
+                }).collect(Collectors.toList())
+                .iterator();
 
         List<MessageData> messageDataList = new ArrayList<>();
-        while (comments.hasNext() && senders.hasNext() && dates.hasNext()) {
-            messageDataList.add(new MessageData(comments.next(), senders.next(), dates.next()));
+        while (comments.hasNext()) {
+            try {
+                messageDataList.add(new MessageData(comments.next(), senders.next(), dates.next()));
+            } catch (NoSuchElementException ignored) {
+                break;
+            }
         }
         return messageDataList;
     }
