@@ -15,17 +15,15 @@ public class LstuAuthService {
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
-    public void login (String login, String password) throws AuthenticationException {
+    public boolean login (String login, String password) throws AuthenticationException {
         try {
-            auth(login, password);
-        } catch (AuthenticationException e) {
-            throw e;
+            return auth(login, password);
         } catch (Exception e) {
             throw new AuthenticationException(FAILED_LK_LOGIN);
         }
     }
 
-    private void auth (String login, String password) throws IOException, AuthenticationException {
+    private boolean auth (String login, String password) throws IOException {
 
         final Response firstResponse = lstuClient.openLoginPage();
 
@@ -43,11 +41,7 @@ public class LstuAuthService {
                 LstuUrlBuilder.buildAuthUrl(login, password, sessId));
 
         final String jsonResponse = response.parse().body().text();
-        if (jsonResponse.startsWith("{\"SUCCESS\":\"1\"")) {
-            System.out.println("Login complete");
-        } else {
-            throw new AuthenticationException(FAILED_LK_LOGIN);
-        }
+        return jsonResponse.startsWith("{\"SUCCESS\":\"1\"");
     }
 
     public void logout () throws AuthenticationException {

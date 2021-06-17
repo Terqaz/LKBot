@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -22,6 +23,7 @@ public class SubjectData {
     private List<MessageData> messagesData;
     private String primaryAcademic;
     private Set<String> secondaryAcademics;
+    private Date lastCheckDate;
 
     @Override
     public boolean equals (Object o) {

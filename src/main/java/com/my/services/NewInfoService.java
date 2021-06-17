@@ -161,7 +161,7 @@ public class NewInfoService {
     //      предложить трех первых людей по частоте сообщений после преподавателя
     //      или самостоятельный добавление
     //    Добавить дополнительных преподавателей
-    private String findPrimaryAcademic(List<MessageData> messages) {
+    public static String findPrimaryAcademic(List<MessageData> messages) {
         if (messages.isEmpty())
             return UNKNOWN_ACADEMIC_NAME;
         else
