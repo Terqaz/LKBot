@@ -168,8 +168,6 @@ public class Main {
     public static Set<SubjectData> checkNewInfo(String semester) throws AuthenticationException, IOException {
         final Date checkDate = new Date();
 
-        final NewInfoService newInfoService = new NewInfoService();
-
         Info oldInfo;
         try {
             oldInfo = readFile(SUBJECTS_DATA_FILENAME, new TypeReference<>() {});
@@ -177,15 +175,18 @@ public class Main {
             oldInfo = null;
         }
 
+        final NewInfoService newInfoService = new NewInfoService();
         Set<SubjectData> newSubjectsData = (oldInfo == null) ?
                 newInfoService.getInfoFirstTime(semester) :
-                newInfoService.getNewInfo(semester, oldInfo.getLastCheckDate(), oldInfo.getSubjectsData());
+                newInfoService.getNewInfo(semester, oldInfo.getLastCheckDate());
 
         if (!newSubjectsData.isEmpty()) {
             writeFile(SUBJECTS_DATA_FILENAME, new Info(checkDate, newSubjectsData));
         }
 
-        return newSubjectsData;
+        return (oldInfo != null) ?
+                NewInfoService.removeOldDocuments(oldInfo.getSubjectsData(), newSubjectsData) :
+                newSubjectsData;
     }
 
     public static void checkNewInfoUsage(String semester) throws IOException, AuthenticationException {

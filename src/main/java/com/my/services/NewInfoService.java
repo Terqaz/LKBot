@@ -28,12 +28,11 @@ public class NewInfoService {
     }
 
     // Получить все выложенные преподавателями документы и последние сообщения
-    public Set<SubjectData> getNewInfo (String semesterName, Date lastCheckDate, Set<SubjectData> oldData) throws AuthenticationException {
-        final Set<SubjectData> newData = getInfo(semesterName, lastCheckDate);
-        return removeOldDocuments(oldData, newData);
+    public Set<SubjectData> getNewInfo (String semesterName, Date lastCheckDate) throws AuthenticationException {
+        return getInfo(semesterName, lastCheckDate);
     }
 
-    private static Set<SubjectData> removeOldDocuments (Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
+    public static Set<SubjectData> removeOldDocuments (Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
         Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
         for (SubjectData data : oldSubjectsData) {
             oldDocumentsMap.put(data.getSubjectName(), data);
