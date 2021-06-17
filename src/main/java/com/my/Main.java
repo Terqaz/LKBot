@@ -2,6 +2,13 @@ package com.my;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.my.services.LstuAuthService;
+import com.my.services.NewInfoService;
+import com.my.services.RatingCountService;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import org.apache.http.auth.AuthenticationException;
 
 import java.io.File;
@@ -121,26 +128,24 @@ public class Main {
 
     private static <T> T readFile (String filename, TypeReference<T> typeReference)
             throws IOException {
-
-        try {
-            return objectMapper.readValue(new File(filename), typeReference);
-            // MismatchedInputException?
-        } catch (FileNotFoundException e) {
-            return null;
-        }
+        return objectMapper.readValue(new File(filename), typeReference);
+        // MismatchedInputException?
     }
 
     //TODO доделать
     public static void countRating() throws AuthenticationException, IOException {
-        List<SemesterSubjects> semestersData
-                = readFile(SEMESTERS_DATA_FILENAME, new TypeReference<>() {});
+        List<SemesterSubjects> semestersData = null;
+        try {
+            semestersData = readFile(SEMESTERS_DATA_FILENAME, new TypeReference<>() {});
+        } catch (FileNotFoundException ignored) {}
         semestersData.forEach(Main::completeData);
 
         if (semestersData.isEmpty()) {
-            LstuClient lstuClient = new LstuClient();
-            lstuClient.login("s11916327", "f7LLDSJibCw8QNGeR6");
-            semestersData = lstuClient.getSemestersData();
-            lstuClient.logout();
+            RatingCountService ratingCountService = new RatingCountService();
+            final LstuAuthService lstuAuthService = new LstuAuthService();
+            lstuAuthService.login("s11916327", "f7LLDSJibCw8QNGeR6");
+            semestersData = ratingCountService.getSemestersData();
+            lstuAuthService.logout();
             semestersData.stream()
                     .filter(semesterSubjects -> !semesterSubjects.getSubjects().isEmpty())
                     .forEach(semesterSubjects -> {
@@ -150,42 +155,42 @@ public class Main {
         }
     }
 
-    public static Set<SubjectData> checkNewInfo(String semester, String login, String password) throws AuthenticationException, IOException {
-        LstuClient lstuClient = new LstuClient();
-        lstuClient.login(login, password);
-        login = password = null;
-
-        final Set<SubjectData> oldDocuments
-                = readFile(SUBJECTS_DATA_FILENAME, new TypeReference<>() {});
-
-        Set<SubjectData> actualDocuments = lstuClient.getDocumentNames(semester);
-        lstuClient.logout();
-
-        if (!actualDocuments.isEmpty())
-            writeFile(SUBJECTS_DATA_FILENAME, actualDocuments);
-
-        if (oldDocuments != null) {
-            Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
-            for (SubjectData data : oldDocuments) {
-                oldDocumentsMap.put(data.getSubjectName(), data);
-            }
-            return actualDocuments.stream()
-                    .peek(subjectData -> {
-                        final String subjectName = subjectData.getSubjectName();
-                        final Set<String> documents = subjectData.getDocumentNames();
-                        if (oldDocuments.contains(subjectData))
-                            documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
-                    })
-                    .filter(subjectData -> !subjectData.getDocumentNames().isEmpty())
-                    .collect(Collectors.toSet());
-        } else {
-            return actualDocuments;
-        }
+    @Data
+    @NoArgsConstructor
+    @RequiredArgsConstructor
+    private static class Info {
+        @NonNull
+        Date lastCheckDate;
+        @NonNull
+        Set<SubjectData> subjectsData;
     }
 
-    public static void checkNewInfoUsage(String semester, String login, String password) throws IOException, AuthenticationException {
+    public static Set<SubjectData> checkNewInfo(String semester) throws AuthenticationException, IOException {
+        final Date checkDate = new Date();
+
+        final NewInfoService newInfoService = new NewInfoService();
+
+        Info oldInfo;
+        try {
+            oldInfo = readFile(SUBJECTS_DATA_FILENAME, new TypeReference<>() {});
+        } catch (FileNotFoundException e) {
+            oldInfo = null;
+        }
+
+        Set<SubjectData> newSubjectsData = (oldInfo == null) ?
+                newInfoService.getInfoFirstTime(semester) :
+                newInfoService.getNewInfo(semester, oldInfo.getLastCheckDate(), oldInfo.getSubjectsData());
+
+        if (!newSubjectsData.isEmpty()) {
+            writeFile(SUBJECTS_DATA_FILENAME, new Info(checkDate, newSubjectsData));
+        }
+
+        return newSubjectsData;
+    }
+
+    public static void checkNewInfoUsage(String semester) throws IOException, AuthenticationException {
         System.out.println("--- Список новых документов по предметам ---");
-        checkNewInfo(semester, login, password).forEach(subjectData -> {
+        checkNewInfo(semester).forEach(subjectData -> {
             System.out.println(subjectData.getSubjectName()+":");
             subjectData.getDocumentNames().forEach (
                     documentName -> System.out.print("\""+documentName+"\" "));
@@ -194,6 +199,9 @@ public class Main {
     }
 
     public static void main (String[] args) throws AuthenticationException, IOException {
-        checkNewInfoUsage("2020-В","s11916327", "f7LLDSJibCw8QNGeR6");
+        final LstuAuthService lstuAuthService = new LstuAuthService();
+        lstuAuthService.login("s11916327", "f7LLDSJibCw8QNGeR6");
+        checkNewInfoUsage("2021-В");
+        lstuAuthService.logout();
     }
 }

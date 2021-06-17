@@ -16,7 +16,7 @@ public class LstuUrlBuilder {
                 .setHost(LSTU_HOST_NAME);
     }
 
-    private static String buildUrl(URIBuilder uriBuilder) {
+    private static String finallyUrlBuild (URIBuilder uriBuilder) {
         try {
             return uriBuilder.build().toString();
         } catch (URISyntaxException ignored) {
@@ -25,7 +25,7 @@ public class LstuUrlBuilder {
     }
 
     public static String buildAuthUrl (String login, String password, String sessId) {
-        return buildUrl(getLstuOriginUriBuilder()
+        return finallyUrlBuild(getLstuOriginUriBuilder()
                 .setPath("index.php")
                 .addParameter("AUTH_FORM", "1")
                 .addParameter("sessid", sessId)
@@ -34,16 +34,16 @@ public class LstuUrlBuilder {
     }
 
     public static String buildLogoutUrl () {
-        return buildUrl(getLstuOriginUriBuilder()
+        return finallyUrlBuild(getLstuOriginUriBuilder()
                 .addParameter("logout", "Y"));
     }
 
-    public static String buildGetSemestersUrl () {
-        return buildUrl(getLstuOriginUriBuilder()
+    public static String buildSemestersUrl () {
+        return finallyUrlBuild(getLstuOriginUriBuilder()
                 .setPath("education/0/"));
     }
 
-    public static String buildGetNextMessages(String group, String discipline, String semester, Date date) {
+    public static String buildNextMessagesUrl (String group, String discipline, String semester, Date date) {
         final URIBuilder builder = getLstuOriginUriBuilder()
                 .setPath("ajax.handler.php")
                 .addParameter("get_msg", "1")
@@ -53,11 +53,11 @@ public class LstuUrlBuilder {
                 if (date != null)
                     builder.addParameter("last_msg",
                             new SimpleDateFormat("dd.MM.yyyy+HH:mm").format(date));
-        return buildUrl(builder);
+        return finallyUrlBuild(builder);
     }
 
-    public static String buildGetByLocalUrl (String localRef) {
-        return buildUrl(getLstuOriginUriBuilder()
+    public static String buildByLocalUrl (String localRef) {
+        return finallyUrlBuild(getLstuOriginUriBuilder()
                 .setPath(localRef));
     }
 }
