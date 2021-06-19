@@ -44,7 +44,7 @@ public class NewInfoService {
                     if (oldSubjectsData.contains(subjectData))
                         documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
                 })
-                .filter(subjectData -> !subjectData.getDocumentNames().isEmpty())
+                .filter(subjectData -> !(subjectData.getDocumentNames().isEmpty() || subjectData.getMessagesData().isEmpty()))
                 .collect(Collectors.toSet());
     }
 

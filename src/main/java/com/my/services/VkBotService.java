@@ -36,7 +36,7 @@ public class VkBotService {
                 .execute();
     }
 
-    public KeyboardButton generateButton (String text, KeyboardButtonColor color) {
+    public static KeyboardButton generateButton (String text, KeyboardButtonColor color) {
         return new KeyboardButton()
                 .setAction(new KeyboardButtonAction()
                         .setLabel(text)
