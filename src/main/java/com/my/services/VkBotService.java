@@ -20,20 +20,29 @@ public class VkBotService {
         this.groupActor = groupActor;
     }
 
-    public void sendMessageTo (Integer userId, String message) throws ClientException, ApiException {
-        vk.messages().send(groupActor)
-                .message(message)
-                .userId(userId)
-                .randomId(random.nextInt(10000))
-                .execute();
+    public void sendMessageTo (Integer userId, String message) {
+        try {
+            vk.messages().send(groupActor)
+                    .message(message)
+                    .userId(userId)
+                    .randomId(random.nextInt(10000))
+                    .execute();
+        } catch (ApiException | ClientException e) {
+            e.printStackTrace();
+        }
     }
-    public void sendMessageTo (Integer userId, Keyboard keyboard, String message) throws ClientException, ApiException {
-        vk.messages().send(groupActor)
-                .message(message)
-                .userId(userId)
-                .randomId(random.nextInt(10000))
-                .keyboard(keyboard)
-                .execute();
+
+    public void sendMessageTo (Integer userId, Keyboard keyboard, String message) {
+        try {
+            vk.messages().send(groupActor)
+                    .message(message)
+                    .userId(userId)
+                    .randomId(random.nextInt(10000))
+                    .keyboard(keyboard)
+                    .execute();
+        } catch (ApiException | ClientException e) {
+            e.printStackTrace();
+        }
     }
 
     public static KeyboardButton generateButton (String text, KeyboardButtonColor color) {

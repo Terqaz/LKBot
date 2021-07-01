@@ -44,10 +44,7 @@ public class LstuAuthService {
         return jsonResponse.startsWith("{\"SUCCESS\":\"1\"");
     }
 
-    public void logout () throws AuthenticationException {
-        if (lstuClient.isNotLoggedIn()) {
-            throw new AuthenticationException(LOGGED_IN_BEFORE);
-        }
+    public void logout () {
         try {
             lstuClient.executeLogoutRequest(
                     LstuUrlBuilder.buildLogoutUrl());

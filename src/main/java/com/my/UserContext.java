@@ -1,5 +1,6 @@
 package com.my;
 
+import com.my.exceptions.UserTriesLimitExhaustedException;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -11,9 +12,12 @@ public class UserContext {
     Integer userId;
     @NonNull
     String groupName;
-    int loginTries = 0;
+    int triesCount = 0;
 
-    public void incrementLoginTries() {
-        loginTries++;
+    public void incrementTriesCount () {
+        triesCount++;
+        if (triesCount > 4) {
+            throw new UserTriesLimitExhaustedException("User with id:" + userId + "has a problem");
+        }
     }
 }

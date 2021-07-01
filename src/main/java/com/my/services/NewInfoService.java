@@ -32,22 +32,6 @@ public class NewInfoService {
         return getInfo(semesterName, lastCheckDate);
     }
 
-    public static Set<SubjectData> removeOldDocuments (Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
-        Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
-        for (SubjectData data : oldSubjectsData) {
-            oldDocumentsMap.put(data.getSubjectName(), data);
-        }
-        return newSubjectsData.stream()
-                .peek(subjectData -> {
-                    final String subjectName = subjectData.getSubjectName();
-                    final Set<String> documents = subjectData.getDocumentNames();
-                    if (oldSubjectsData.contains(subjectData))
-                        documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
-                })
-                .filter(subjectData -> !(subjectData.getDocumentNames().isEmpty() || subjectData.getMessagesData().isEmpty()))
-                .collect(Collectors.toSet());
-    }
-
     private Set<SubjectData> getInfo (String semesterName, Date lastCheckDate) throws AuthenticationException {
         if (lstuClient.isNotLoggedIn()) {
             throw new AuthenticationException(LOGGED_IN_BEFORE);
@@ -86,6 +70,7 @@ public class NewInfoService {
     }
 
     // TODO в последующие разы должен загружать пока не наткнется на прошлое последнее сообщение
+
     private List<MessageData> loadMessagesAfterDate (String subjectLink, Date lastCheckDate) {
         final String[] pathSegments = subjectLink.split("/");
         final List<MessageData> messageDataList = new ArrayList<>();
@@ -109,7 +94,6 @@ public class NewInfoService {
         } while (pageWithMessages.select(".stop-scroll").first() == null);
         return messageDataList;
     }
-
     private List<MessageData> parseMessagesDataChunk(Document pageWithMessages, Date lastCheckDate) {
         final Iterator<String> comments = pageWithMessages
                 .select("div.comment__body > .row")
@@ -152,6 +136,23 @@ public class NewInfoService {
         } else {
             return new Date();
         }
+    }
+
+    public static List<SubjectData> removeOldDocuments (Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
+        Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
+        for (SubjectData data : oldSubjectsData) {
+            oldDocumentsMap.put(data.getSubjectName(), data);
+        }
+        return newSubjectsData.stream()
+                .peek(subjectData -> {
+                    final String subjectName = subjectData.getSubjectName();
+                    final Set<String> documents = subjectData.getDocumentNames();
+                    if (oldSubjectsData.contains(subjectData))
+                        documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
+                })
+                .filter(subjectData -> !(subjectData.getDocumentNames().isEmpty() || subjectData.getMessagesData().isEmpty()))
+                .sorted(Comparator.comparing(SubjectData::getSubjectName))
+                .collect(Collectors.toList());
     }
 
     // TODO Добавить функционал с сообщениями
