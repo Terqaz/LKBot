@@ -11,7 +11,6 @@ import java.io.IOException;
 public class LstuAuthService {
 
     public static final String FAILED_LK_LOGIN = "Failed LK login";
-    public static final String LOGGED_IN_BEFORE = "You must be logged in before";
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
 

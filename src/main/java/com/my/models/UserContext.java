@@ -1,4 +1,4 @@
-package com.my;
+package com.my.models;
 
 import com.my.exceptions.UserTriesLimitExhaustedException;
 import lombok.Data;

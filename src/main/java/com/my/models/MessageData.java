@@ -1,4 +1,4 @@
-package com.my;
+package com.my.models;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;

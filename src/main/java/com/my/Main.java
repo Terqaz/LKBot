@@ -3,6 +3,9 @@ package com.my;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.exceptions.UserTriesLimitExhaustedException;
+import com.my.models.MessageData;
+import com.my.models.SubjectData;
+import com.my.models.UserContext;
 import com.my.services.LstuAuthService;
 import com.my.services.NewInfoService;
 import com.my.services.VkBotService;
@@ -189,7 +192,7 @@ public class Main {
             lstuAuthService.logout();
             String report = makeSubjectsInfoReport(newSubjectData);
             userContexts.values().stream()
-                    .filter(userContext -> userContext.groupName.equals(checkingGroup))
+                    .filter(userContext -> userContext.getGroupName().equals(checkingGroup))
                     .map(UserContext::getUserId)
                     .forEach(userId1 -> vkBotService.sendMessageTo(userId1, report));
         }
@@ -435,12 +438,4 @@ public class Main {
         final String[] chunks = name.split(" ");
         return chunks[0] + " " + chunks[1].charAt(0) + chunks[2].charAt(0);
     }
-
-    // TODO дополнительно просмотр ФИО преподавателей через их личную страницу
-    // проверка свежей информации сразу же по просьбе по одному предмету
-    //> автопроверка ЛК через разные интервалы: два раза в день - самое редкое, по желанию: каждые 30 минут
-    // Добавить защиту паролей и данных
-    // Удаление сообщения с данными для входа
-    //? Добавить код доступа к данным группы
-    // Автоопределение семестра и оповещение об изменении сканируемого семестра
 }

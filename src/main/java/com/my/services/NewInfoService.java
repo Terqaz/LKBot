@@ -2,8 +2,8 @@ package com.my.services;
 
 import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
-import com.my.MessageData;
-import com.my.SubjectData;
+import com.my.models.MessageData;
+import com.my.models.SubjectData;
 import org.apache.http.auth.AuthenticationException;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
