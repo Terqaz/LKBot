@@ -2,7 +2,6 @@ package com.my.services;
 
 import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
-import org.apache.http.auth.AuthenticationException;
 import org.jsoup.Connection.Response;
 import org.jsoup.nodes.Document;
 
@@ -10,15 +9,13 @@ import java.io.IOException;
 
 public class LstuAuthService {
 
-    public static final String FAILED_LK_LOGIN = "Failed LK login";
-
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
-    public boolean login (String login, String password) throws AuthenticationException {
+    public boolean login (String login, String password) {
         try {
             return auth(login, password);
         } catch (Exception e) {
-            throw new AuthenticationException(FAILED_LK_LOGIN);
+            return false;
         }
     }
 

@@ -15,8 +15,11 @@ import java.util.Set;
 @NoArgsConstructor
 @RequiredArgsConstructor
 public class SubjectData {
+    private int id;
     @NonNull
     private String subjectName;
+    @NonNull
+    private String localUrl;
     @NonNull
     private Set<String> documentNames;
     @NonNull

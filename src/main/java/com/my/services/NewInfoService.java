@@ -4,7 +4,6 @@ import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
-import org.apache.http.auth.AuthenticationException;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -20,46 +19,59 @@ public class NewInfoService {
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
     private static final String UNKNOWN_ACADEMIC_NAME = "*УТОЧНИТЕ ИМЯ*";
-    public static final String LOGGED_IN_BEFORE = "You must be logged in before";
 
 
-    public Set<SubjectData> getInfoFirstTime (String semesterName) throws AuthenticationException {
-        return getInfo(semesterName, new Date(1));
+    public List<SubjectData> getSubjectsDataFirstTime (String semesterName) {
+        final List<SubjectData> subjectsData = getHtmlSubjectsLinks(semesterName)
+                .map(htmlSubjectLink -> getSubjectDataByHtmlLink(htmlSubjectLink, new Date(1)))
+                .filter(subjectData -> !subjectData.getDocumentNames().isEmpty() && !subjectData.getMessagesData().isEmpty())
+                .sorted(Comparator.comparing(SubjectData::getSubjectName))
+                .collect(Collectors.toList());
+        return addIds(subjectsData);
     }
 
-    // Получить все выложенные преподавателями документы и последние сообщения
-    public Set<SubjectData> getNewInfo (String semesterName, Date lastCheckDate) throws AuthenticationException {
-        return getInfo(semesterName, lastCheckDate);
-    }
-
-    private Set<SubjectData> getInfo (String semesterName, Date lastCheckDate) throws AuthenticationException {
-        if (lstuClient.isNotLoggedIn()) {
-            throw new AuthenticationException(LOGGED_IN_BEFORE);
-        }
+    private Stream<Element> getHtmlSubjectsLinks(String semesterName) {
         return Stream.of(getSemesterLink(semesterName))
                 .map(semesterLink -> lstuClient.get(LstuUrlBuilder.buildByLocalUrl(semesterLink)))
-                .flatMap(semesterDataPage -> semesterDataPage.select("li.submenu.level3 > a").stream()
-                        .map(htmlSubjectLink -> {
-                            String subjectLink = htmlSubjectLink.attr("href");
-                            final Document subjectDataPage = lstuClient.get(
-                                    LstuUrlBuilder.buildByLocalUrl(subjectLink));
+                .flatMap(semesterDataPage -> semesterDataPage.select("li.submenu.level3 > a").stream());
+    }
 
-                            final List<MessageData> messages =
-                                    loadMessagesAfterDate(subjectLink, lastCheckDate);
+    public List<SubjectData> getNewSubjectsData (List<SubjectData> oldSubjectsData, Date lastCheckDate) {
+        final List<SubjectData> subjectsData = oldSubjectsData.stream()
+                .map(subjectData -> getNewSubjectData(subjectData.getSubjectName(), subjectData.getLocalUrl(), lastCheckDate))
+                .sorted(Comparator.comparing(SubjectData::getSubjectName))
+                .collect(Collectors.toList());
+        return addIds(subjectsData);
+    }
 
-                            return new SubjectData(
-                                    htmlSubjectLink.text(),
-                                    new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
-                                    messages
-                            );
-                        }))
-                .filter(subjectData -> !subjectData.getDocumentNames().isEmpty())
-                .collect(Collectors.toSet());
+    private List<SubjectData> addIds (List<SubjectData> subjectsData) {
+        var id = 1;
+        for (SubjectData subjectData : subjectsData) {
+            subjectData.setId(id++);
+        }
+        return subjectsData;
+    }
+
+    private SubjectData getSubjectDataByHtmlLink (Element htmlSubjectLink, Date lastCheckDate) {
+        return getNewSubjectData(htmlSubjectLink.text(), htmlSubjectLink.attr("href"), lastCheckDate);
+    }
+
+    public SubjectData getNewSubjectData(String subjectName, String localUrl, Date lastCheckDate) {
+        final Document subjectDataPage = lstuClient.get(
+                LstuUrlBuilder.buildByLocalUrl(localUrl));
+
+        final List<MessageData> messages = loadMessagesAfterDate(localUrl, lastCheckDate);
+
+        return new SubjectData(
+                subjectName,
+                localUrl,
+                new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
+                messages
+        );
     }
 
     private String getSemesterLink(String semesterName) {
-        Document semestersListPage = lstuClient.get(
-                LstuUrlBuilder.buildSemestersUrl());
+        Document semestersListPage = lstuClient.get(LstuUrlBuilder.buildSemestersUrl());
         final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
         for (Element link : htmlSemestersLinks) {
             if (link.text().equals(semesterName)) {
@@ -68,8 +80,6 @@ public class NewInfoService {
         }
         return null;
     }
-
-    // TODO в последующие разы должен загружать пока не наткнется на прошлое последнее сообщение
 
     private List<MessageData> loadMessagesAfterDate (String subjectLink, Date lastCheckDate) {
         final String[] pathSegments = subjectLink.split("/");
@@ -94,6 +104,7 @@ public class NewInfoService {
         } while (pageWithMessages.select(".stop-scroll").first() == null);
         return messageDataList;
     }
+
     private List<MessageData> parseMessagesDataChunk(Document pageWithMessages, Date lastCheckDate) {
         final Iterator<String> comments = pageWithMessages
                 .select("div.comment__body > .row")
@@ -151,10 +162,8 @@ public class NewInfoService {
                         documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
                 })
                 .filter(subjectData -> !(subjectData.getDocumentNames().isEmpty() || subjectData.getMessagesData().isEmpty()))
-                .sorted(Comparator.comparing(SubjectData::getSubjectName))
                 .collect(Collectors.toList());
     }
-
     // TODO Добавить функционал с сообщениями
     //
     //+   Приложение определяет основного преподавателя как человека, отправившего наибольшее количество сообщений.
@@ -162,6 +171,7 @@ public class NewInfoService {
     //      предложить трех первых людей по частоте сообщений после преподавателя
     //      или самостоятельный добавление
     //    Добавить дополнительных преподавателей
+
     public static String findPrimaryAcademic(List<MessageData> messages) {
         if (messages.isEmpty())
             return UNKNOWN_ACADEMIC_NAME;
@@ -174,8 +184,8 @@ public class NewInfoService {
                     .entrySet().stream().max(Map.Entry.comparingByValue())
                     .get().getKey();
     }
-
     // TODO
+
     private Set<String> findSecondaryAcademics(Elements messages) {
         return null;
     }

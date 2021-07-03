@@ -25,10 +25,10 @@ public class VkBotService {
 
     private static final Random random = new Random();
 
-    TransportClient transportClient;
+    private static TransportClient transportClient;
     private static VkApiClient vk;
     private static GroupActor groupActor;
-    private Integer ts;
+    private static Integer ts;
 
     private VkBotService () {
         transportClient = new HttpTransportClient();

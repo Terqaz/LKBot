@@ -18,7 +18,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import org.apache.http.auth.AuthenticationException;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,6 +55,16 @@ public class Main {
                             VkBotService.generateButton("Ладно, отдыхай", KeyboardButtonColor.NEGATIVE))
             ));
 
+    private static final String BASIC_COMMANDS =
+            "Узнать самую свежую информацию по предмету:\n" +
+            "Предмет n (n - номер в списке выше)\n" +
+            "Узнать последнюю проверенную информацию по всем предметам:\n" +
+            "Предметы\n" +
+            "Узнать самую новую информацию по всем предметам:\n" +
+            "Обнови предметы\n" +
+            "Показать эти команды:\n" +
+            "Команды\n";
+
     private static String scannedSemester;
     private static Date lastGlobalCheckDate;
 
@@ -81,7 +90,7 @@ public class Main {
         private List<SubjectData> subjectsData;
     }
 
-    public static void main (String[] args) throws InterruptedException, AuthenticationException {
+    public static void main (String[] args) throws InterruptedException {
         lastGlobalCheckDate = new Date();
 
         vkBotService.updateTs();
@@ -89,23 +98,26 @@ public class Main {
             final List<Message> messages = vkBotService.getNewMessages();
             if (!messages.isEmpty()) {
                 for (Message message : messages) {
+
                     System.out.println(message.toString());
                     final Integer userId = message.getFromId();
+
                     try {
                         executeBotDialog(userId, message.getText());
+
                     } catch (UserTriesLimitExhaustedException e) {
                         vkBotService.sendMessageTo(ADMIN_VK_ID, "Проблема у пользователя: vk.com/id" + userId);
                         userContexts.get(userId).setTriesCount(0);
                         vkBotService.sendMessageTo(userId, "Я написал своему создателю о твоей проблеме. Ожидай его сообщения ;-)");
+
                     } catch (Exception e) {
                         userContexts.get(userId).incrementTriesCount();
                     }
 
                     if (new Date().getTime() > lastGlobalCheckDate.getTime() + HALF_DAY) {
                         lastGlobalCheckDate = new Date();
-                        plannedSubjectsInfoUpdate(vkBotService);
+                        plannedSubjectsDataUpdate();
                     }
-                    actualizeScannedSemester();
                 }
             }
             vkBotService.updateTs();
@@ -121,35 +133,39 @@ public class Main {
                 if (!groupLoggedUser.containsKey(groupName)) {
                     newUserAndGroupMessage(userId);
                 } else {
-                    newUserOldGroupMessages(userId, groupName, lastGlobalCheckDate);
+                    newUserOldGroupMessages(userId, groupName);
                 }
-
-            } else if (messageText.equals("Обнови предметы")) {
-                updateSubjectsInfoWarningMessage(userId);
 
             } else {
                 final UserContext userContext = userContexts.get(userId);
+                messageText = messageText.toLowerCase();
 
-                if (messageText.startsWith("Предмет ")) {
-                    getSubjectInfoMessage(userId, userContext, messageText);
+                if (messageText.startsWith("предмет ")) {
+                    getActualSubjectDataMessage(userId, userContext, messageText);
 
-                } else if (messageText.equals("Предметы")) {
-                    getSubjectsInfoMessage(userId, userContext);
+                } else if (messageText.equals("предметы")) {
+                    getSubjectsDataMessage(userId, userContext);
 
-                } else if (messageText.equals("Сканируй все равно")) {
-                    updateSubjectInfoMessages(userId, userContext);
+                } else if (messageText.equals("обнови предметы")) {
+                    updateSubjectsDataWarningMessage(userId);
 
-                } else if (messageText.equals("Ладно, отдыхай")) {
+                } else if (messageText.equals("сканируй все равно")) {
+                    updateSubjectsDataMessages(userId, userContext);
+
+                } else if (messageText.startsWith("команды")) {
+                    vkBotService.sendMessageTo(userId, BASIC_COMMANDS);
+
+                } else if (messageText.equals("ладно, отдыхай")) {
                     vkBotService.sendMessageTo(userId, "Спасибо тебе, человек!");
 
-                } else if (messageText.equals("Я готов на все ради своей группы!")) {
+                } else if (messageText.equals("я готов на все ради своей группы!")) {
                     vkBotService.sendMessageTo(userId,
                             "Хорошо, смельчак. Пиши свои данные вот так:\n" +
                                     "Хочу войти в ЛК\n" +
                                     "Мой_логин\n" +
                                     "Мой_пароль");
 
-                } else if (messageText.startsWith("Хочу войти в ЛК")) {
+                } else if (messageText.startsWith("хочу войти в лк")) {
                     tryToLoginMessages(userId, userContext, messageText);
 
 //                 } else if (messageText.startsWith("Обнови")) {
@@ -162,41 +178,43 @@ public class Main {
                     vkBotService.sendMessageTo(userId, "Напиши из какой ты группы (например: \"Я из ПИ-19\"):");
 
                 } else {
-                    vkBotService.sendMessageTo(userId, "Ты говоришь будто на другом языке! Прочитай внимательнее, что я хочу узнать");
+                    vkBotService.sendMessageTo(userId, "Я не понял твою команду");
                 }
             }
-        } catch (ApiException | ClientException | AuthenticationException | IOException e) {
+        } catch (ApiException | ClientException e) {
             e.printStackTrace();
         }
     }
 
-    private static void plannedSubjectsInfoUpdate (VkBotService vkBotService) throws AuthenticationException {
-        for (String checkingGroup : groupLoggedUser.keySet()) {
-            LoggedUser loggedUser = groupLoggedUser.get(checkingGroup);
+    private static void plannedSubjectsDataUpdate () {
+        final var newSemesterName = checkNewScannedSemester();
+        groupLoggedUser.keySet().forEach(checkingGroup -> {
+            var loggedUser = groupLoggedUser.get(checkingGroup);
+            if (lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
+                final List<SubjectData> newSubjectData;
 
-            try {
-                lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword());
-            } catch (AuthenticationException e) {
-                plannedLoginFailedMessage(loggedUser.getUserId());
+                if (scannedSemester.equals(newSemesterName)) {
+                    newSubjectData = checkNewSubjectsData(checkingGroup);
+                } else {
+                    scannedSemester = newSemesterName;
+                    newSubjectData = getSubjectsDataFirstTime(checkingGroup);
+                }
+
+                lstuAuthService.logout();
+                String report = makeSubjectsDataReport(newSubjectData);
+                userContexts.values().stream()
+                        .filter(userContext -> userContext.getGroupName().equals(checkingGroup))
+                        .map(UserContext::getUserId)
+                        .forEach(userId1 -> vkBotService.sendMessageTo(userId1, report));
+            } else {
+                vkBotService.sendMessageTo(loggedUser.getUserId(),
+                        "Не удалось обновить данные из ЛК по следующей причине:\n" +
+                                "Необходимо обновить данные для входа");
             }
-
-            final List<SubjectData> newSubjectData = checkNewInfo(checkingGroup);
-            lstuAuthService.logout();
-            String report = makeSubjectsInfoReport(newSubjectData);
-            userContexts.values().stream()
-                    .filter(userContext -> userContext.getGroupName().equals(checkingGroup))
-                    .map(UserContext::getUserId)
-                    .forEach(userId1 -> vkBotService.sendMessageTo(userId1, report));
-        }
+        });
     }
 
-    private static void plannedLoginFailedMessage (Integer userId) {
-        vkBotService.sendMessageTo(userId,
-                "Не удалось обновить ЛК по следующей причине:\n" +
-                        "Необходимо обновить данные для входа");
-    }
-
-    private static void newUserAndGroupMessage (Integer userId) throws ClientException, ApiException {
+    private static void newUserAndGroupMessage (Integer userId) {
         vkBotService.sendMessageTo(userId, keyboard1,
                 "Я еще не могу смотреть данные из твоей группы\n" +
                         "Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию для всей этой группы\n" +
@@ -207,203 +225,88 @@ public class Main {
                         "И обратиться к этому человеку за помощью (ну, почти всегда): https://vk.com/terqaz");
     }
 
-    private static void newUserOldGroupMessages (Integer userId, String groupName, Date lastGlobalCheckDate)
-            throws ClientException, ApiException {
-        Info info = readSubjectsDataFile(groupName);
+    private static void newUserOldGroupMessages (Integer userId, String groupName) {
+        vkBotService.sendMessageTo(userId,"О, я знаю эту группу!");
+        newUserSubjectsListMessage(userId, groupName, null);
+    }
 
-        StringBuilder stringBuilder = new StringBuilder("О, я знаю эту группу!\n" +
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам\n" +
-                "(глобальное обновление было в" +
-                formatDate(lastGlobalCheckDate) + "):\n");
-        int i = 1;
-        for (SubjectData subjectData : info.getSubjectsData()) {
-            stringBuilder.append(i).append(" ").append(subjectData.getSubjectName()).append("\n");
-            i++;
+    private static void newUserSubjectsListMessage (Integer userId, String groupName, Info info) {
+        if (info == null)
+            info = readSubjectsDataFile(groupName);
+
+        var stringBuilder = new StringBuilder("Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам\n" +
+                "(обновление было в" + formatDate(info.getLastCheckDate()) + "):\n");
+        for (SubjectData data : info.getSubjectsData()) {
+            stringBuilder.append(data.getId()).append(" ").append(data.getSubjectName()).append("\n");
         }
         vkBotService.sendMessageTo(userId, stringBuilder.toString());
-        vkBotService.sendMessageTo(userId,
-                "Чтобы узнать самую свежую информацию по предмету скажи:\n" +
-                        "Предмет n (n - номер в списке выше)\n" +
-                        "Чтобы узнать последнюю проверенную информацию по всем предметам скажи:\n" +
-                        "Предметы\n" +
-                        "Чтобы узнать самую новую информацию по всем предметам скажи:\n" +
-                        "Обнови предметы\n" +
-                        "Чтобы показать эту справку скажи:\n" +
-                        "Справка\n");
+        vkBotService.sendMessageTo(userId,"Теперь ты можешь использовать эти команды:\n" + BASIC_COMMANDS);
     }
 
-    private static void getSubjectInfoMessage (Integer userId, UserContext userContext, String messageText) {
-        final int subjectIndex = Integer.parseInt(messageText.substring(8));
+    private static void getActualSubjectDataMessage (Integer userId, UserContext userContext, String messageText) {
+        var subjectIndex = Integer.parseInt(messageText.substring(8));
+
         Info info = readSubjectsDataFile(userContext.getGroupName());
-        vkBotService.sendMessageTo(userId, makeSubjectsInfoReport(
-                info.getSubjectsData().subList(subjectIndex, subjectIndex+1)));
 
+        final SubjectData oldSubjectData = info.getSubjectsData().stream()
+                .filter(subjectData1 -> subjectData1.getId() == subjectIndex).findFirst().orElse(null);
+
+        final LoggedUser loggedUser = groupLoggedUser.get(userContext.getGroupName());
+
+        if (lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
+            final SubjectData newSubjectData = newInfoService.getNewSubjectData(
+                    oldSubjectData.getSubjectName(), oldSubjectData.getLocalUrl(), info.getLastCheckDate());
+
+            vkBotService.sendMessageTo(userId,
+                    makeSubjectsDataReport(Collections.singletonList(newSubjectData)));
+        } else {
+            loginFailedMessages(userId, loggedUser);
+        }
     }
 
-    private static void getSubjectsInfoMessage (Integer userId, UserContext userContext) {
+    private static void getSubjectsDataMessage (Integer userId, UserContext userContext) {
         Info info = readSubjectsDataFile(userContext.getGroupName());
-        vkBotService.sendMessageTo(userId, makeSubjectsInfoReport(info.getSubjectsData()));
-
+        vkBotService.sendMessageTo(userId, makeSubjectsDataReport(info.getSubjectsData()));
     }
 
-    private static void updateSubjectsInfoWarningMessage (Integer userId)
-            throws ClientException, ApiException {
+    private static void updateSubjectsDataWarningMessage (Integer userId) {
         vkBotService.sendMessageTo(userId, keyboard2,
                 "Это самая долгая операция. Я итак выполняю ее регулярно\n" +
                         "Я такой же ленивый как и ты, человек. Может мне не стоит сканировать весь ЛК?");
     }
 
-    private static void updateSubjectInfoMessages (Integer userId, UserContext userContext)
-            throws ClientException, ApiException, AuthenticationException, IOException {
+    private static void updateSubjectsDataMessages (Integer userId, UserContext userContext)
+            throws ClientException, ApiException {
         vkBotService.sendMessageTo(userId,
                 "Ладно, уговорил. Можешь пока отдохнуть\n" +
                         "Я тебе напишу, как проверю");
-        final LoggedUser loggedUser1 = groupLoggedUser.get(userContext.getGroupName());
-        if (lstuAuthService.login(loggedUser1.getLogin(), loggedUser1.getPassword())) {
-            final List<SubjectData> newSubjectData = checkNewInfo(userContext.getGroupName());
+
+        var loggedUser = groupLoggedUser.get(userContext.getGroupName());
+
+        if (lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
+            final List<SubjectData> newSubjectData = checkNewSubjectsData(userContext.getGroupName());
             lstuAuthService.logout();
-            vkBotService.sendMessageTo(userId, makeSubjectsInfoReport(newSubjectData));
+            vkBotService.sendMessageTo(userId, makeSubjectsDataReport(newSubjectData));
         } else {
-            vkBotService.sendMessageTo(userId,
-                    "Мне не удалось проверить данные твоей группы \n" +
-                            "Человек, вошедший от имени группы изменил свой пароль. Я скажу ему об этом сам\n" +
-                            "Когда он введет новый пароль, напиши мне еще раз");
-            final LoggedUser loggedUser = groupLoggedUser.get(userContext.getGroupName());
-            loggedUser.passwordNotActual = true;
-            vkBotService.sendMessageTo(loggedUser.getUserId(),
-                    "Привет. Человек из твоей группы не смог зайти в лк. Скажи мне новые данные для входа так:\n" +
-                            "Хочу войти в ЛК\n" +
-                            "Мой_логин\n" +
-                            "Мой_пароль");
+            loginFailedMessages(userId, loggedUser);
         }
     }
 
-    private static void tryToLoginMessages (Integer userId, UserContext userContext, String messageText)
-            throws AuthenticationException {
-        final String[] chunks = messageText.split("\n");
-        String login = chunks[1];
-        String password = chunks[2];
-
-        var loggedUser = new LoggedUser(userId, login, password);
-        groupLoggedUser.put(
-                userContext.getGroupName(),
-                loggedUser
-        );
-
-        vkBotService.sendMessageTo(userId, "Пробую зайти в твой ЛК...");
-        if (lstuAuthService.login(login, password)) {
-            userContext.setTriesCount(0);
-            if (!loggedUser.getPasswordNotActual()) {
-                newGroupLoggedMessages(userId, userContext);
-            } else {
-                loggedUser.passwordNotActual = false;
-                vkBotService.sendMessageTo(userId, "Спасибо, что обновил данные :-)");
-            }
-            lstuAuthService.logout();
-        } else {
-            newGroupLoggedErrorMessages(userId, userContext);
-        }
-    }
-
-    private static void newGroupLoggedMessages (Integer userId, UserContext userContext)
-            throws AuthenticationException {
-        vkBotService.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
+    private static void loginFailedMessages (Integer userId, LoggedUser loggedUser) {
         vkBotService.sendMessageTo(userId,
-                "Ой, извини, случайно вырвалось)\n" +
-                        "Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК\n" +
-                        "Тебе нужно просто позвать их пообщаться со мной\n" +
-                        "Но позволь я сначала проверю твой ЛК"); //и попытаюсь определить преподавателей...");
+                "Мне не удалось проверить данные твоей группы \n" +
+                        "Человек, вошедший от имени группы изменил свой пароль. Я скажу ему об этом сам\n" +
+                        "Когда он введет новый пароль, напиши мне еще раз");
 
-        getInfoFirstTime("2021-В", userContext.getGroupName());
-        StringBuilder stringBuilder = new StringBuilder("Преподаватели:\n");
-        int i = 1;
-        for (SubjectData subjectData : getInfoFirstTime("2021-В", userContext.getGroupName())) {
-            stringBuilder.append(i).append(" ").append(subjectData.getSubjectName()).append("\n")
-                    .append("- ").append(NewInfoService.findPrimaryAcademic(subjectData.getMessagesData())).append("\n");
-            i++;
-        }
-        vkBotService.sendMessageTo(userId, stringBuilder.toString());
-        vkBotService.sendMessageTo(userId,
-                "Если я неправильно отгадал преподавателя, то укажи нового вот так:\n" +
-                        "Обнови 3 Иванов Иван Иванович");
+        loggedUser.passwordNotActual = true;
+        vkBotService.sendMessageTo(loggedUser.getUserId(),
+                "Привет. Человек из твоей группы не смог зайти в лк. Скажи мне новые данные для входа так:\n" +
+                        "Хочу войти в ЛК\n" +
+                        "Мой_логин\n" +
+                        "Мой_пароль");
     }
 
-    private static void newGroupLoggedErrorMessages (Integer userId, UserContext userContext) {
-        vkBotService.sendMessageTo(userId,
-                "Что-то пошло не так. \n" +
-                        "Либо твои логин и пароль неправильные, либо я неправильно их прочитал.\n" +
-                        "Если после четырех попыток не получится зайти, то я сам напишу своему создателю о твоей проблеме.");
-
-        userContext.incrementTriesCount();
-    }
-
-    private static Info readSubjectsDataFile (String groupName) {
-        try {
-            return objectMapper.readValue(SUBJECTS_DATA_FILENAME_PREFIX + groupName + ".json", new TypeReference<>() {});
-        } catch (Exception e) { //JsonProcessingException
-            return null;
-        }
-    }
-
-    public static Set<SubjectData> getInfoFirstTime (String semester, @NonNull String groupName) throws AuthenticationException {
-        final Date checkDate = new Date();
-
-        Set<SubjectData> newSubjectsData = newInfoService.getInfoFirstTime(semester);
-
-        if (!newSubjectsData.isEmpty()) {
-            writeSubjectsInfo(newSubjectsData, groupName, checkDate);
-        }
-        return newSubjectsData;
-    }
-
-    private static void writeSubjectsInfo (Set<SubjectData> newSubjectsData, @NonNull String groupName, Date checkDate) {
-        try {
-            objectMapper.writeValue(
-                    new File(SUBJECTS_DATA_FILENAME_PREFIX + groupName + ".json"),
-                    new Info(checkDate, newSubjectsData.stream()
-                            .sorted(Comparator.comparing(SubjectData::getSubjectName))
-                            .collect(Collectors.toList())));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static void actualizeScannedSemester () {
-        Calendar now = new GregorianCalendar();
-        Calendar autumnSemesterStart = new GregorianCalendar();
-        autumnSemesterStart.set(Calendar.MONTH, 8);
-        autumnSemesterStart.set(Calendar.DAY_OF_MONTH, 1);
-
-        Calendar springSemesterStart = new GregorianCalendar();
-        springSemesterStart.set(Calendar.MONTH, 2);
-        springSemesterStart.set(Calendar.DAY_OF_MONTH, 15);
-
-        final int year = now.get(Calendar.YEAR) - 1900;
-        if (now.after(springSemesterStart) && now.before(autumnSemesterStart))
-            scannedSemester = year + "-В";
-        else
-            scannedSemester = year + "-О";
-    }
-
-    public static List<SubjectData> checkNewInfo (@NonNull String groupName) throws AuthenticationException {
-        final Date checkDate = new Date();
-
-        Info oldInfo = readSubjectsDataFile(groupName);
-        Set<SubjectData> newSubjectsData = newInfoService.getNewInfo(scannedSemester, oldInfo.getLastCheckDate());
-
-        if (!newSubjectsData.isEmpty()) {
-            writeSubjectsInfo(newSubjectsData, groupName, checkDate);
-        }
-
-        return NewInfoService.removeOldDocuments(new HashSet<>(oldInfo.getSubjectsData()), newSubjectsData);
-    }
-
-    // TODO
-    private static void updateAcademicName (String group, Integer academicNumber, String academicName) {
-
-    }
-
-    private static String makeSubjectsInfoReport (List<SubjectData> subjectsData) {
+    private static String makeSubjectsDataReport (List<SubjectData> subjectsData) {
         StringBuilder builder = new StringBuilder();
         StringBuilder partBuilder = new StringBuilder();
         for (SubjectData data : subjectsData) {
@@ -448,5 +351,136 @@ public class Main {
     private static String makeShortSenderName (String name) {
         final String[] chunks = name.split(" ");
         return chunks[0] + " " + chunks[1].charAt(0) + chunks[2].charAt(0);
+    }
+
+    private static void tryToLoginMessages (Integer userId, UserContext userContext, String messageText) {
+        final String[] chunks = messageText.split("\n");
+        String login = chunks[1];
+        String password = chunks[2];
+
+        var loggedUser = new LoggedUser(userId, login, password);
+        groupLoggedUser.put(
+                userContext.getGroupName(),
+                loggedUser
+        );
+
+        vkBotService.sendMessageTo(userId, "Пробую зайти в твой ЛК...");
+        if (lstuAuthService.login(login, password)) {
+            userContext.setTriesCount(0);
+            if (!loggedUser.getPasswordNotActual()) {
+                newGroupLoggedMessages(userId, userContext);
+            } else {
+                loggedUser.passwordNotActual = false;
+                vkBotService.sendMessageTo(userId, "Спасибо, что обновил данные :-)");
+            }
+            lstuAuthService.logout();
+        } else {
+            newGroupLoggedErrorMessages(userId, userContext);
+        }
+    }
+
+    private static void newGroupLoggedMessages (Integer userId, UserContext userContext) {
+        vkBotService.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
+        vkBotService.sendMessageTo(userId,
+                "Ой, извини, случайно вырвалось)\n" +
+                        "Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК\n" +
+                        "Тебе нужно просто позвать их пообщаться со мной\n" +
+                        "Но позволь я сначала проверю твой ЛК"); //и попытаюсь определить преподавателей...");
+
+        final List<SubjectData> subjectsData = getSubjectsDataFirstTime(userContext.getGroupName());
+        newUserSubjectsListMessage(userId, userContext.getGroupName(), new Info(lastGlobalCheckDate, subjectsData));
+//        StringBuilder stringBuilder = new StringBuilder("Преподаватели:\n");
+//        int i = 1;
+//        for (SubjectData subjectData : getInfoFirstTime("2021-В", userContext.getGroupName())) {
+//            stringBuilder.append(i).append(" ").append(subjectData.getSubjectName()).append("\n")
+//                    .append("- ").append(NewInfoService.findPrimaryAcademic(subjectData.getMessagesData())).append("\n");
+//            i++;
+//        }
+//        vkBotService.sendMessageTo(userId, stringBuilder.toString());
+//        vkBotService.sendMessageTo(userId,
+//                "Если я неправильно отгадал преподавателя, то укажи нового вот так:\n" +
+//                        "Обнови 3 Иванов Иван Иванович");
+    }
+
+    private static void newGroupLoggedErrorMessages (Integer userId, UserContext userContext) {
+        vkBotService.sendMessageTo(userId,
+                "Что-то пошло не так. \n" +
+                        "Либо твои логин и пароль неправильные, либо я неправильно их прочитал.\n" +
+                        "Если после четырех попыток не получится зайти, то я сам напишу своему создателю о твоей проблеме.");
+
+        userContext.incrementTriesCount();
+    }
+
+    private static String checkNewScannedSemester () {
+        Calendar now = new GregorianCalendar();
+        Calendar autumnSemesterStart = new GregorianCalendar();
+        autumnSemesterStart.set(Calendar.MONTH, 8);
+        autumnSemesterStart.set(Calendar.DAY_OF_MONTH, 1);
+
+        Calendar springSemesterStart = new GregorianCalendar();
+        springSemesterStart.set(Calendar.MONTH, 2);
+        springSemesterStart.set(Calendar.DAY_OF_MONTH, 15);
+
+        final int year = now.get(Calendar.YEAR) - 1900;
+        final String newSemesterName;
+        if (now.after(springSemesterStart) && now.before(autumnSemesterStart))
+            newSemesterName = year + "-В";
+        else
+            newSemesterName = year + "-О";
+
+        return newSemesterName;
+    }
+
+    public static List<SubjectData> getSubjectsDataFirstTime (@NonNull String groupName) {
+        final Date checkDate = new Date();
+
+        List<SubjectData> newSubjectsData = newInfoService.getSubjectsDataFirstTime(scannedSemester);
+
+        if (!newSubjectsData.isEmpty()) {
+            writeSubjectsData(newSubjectsData, groupName, checkDate);
+        }
+        return newSubjectsData;
+    }
+
+    public static List<SubjectData> checkNewSubjectsData (@NonNull String groupName) {
+        final Date checkDate = new Date();
+
+        Info oldInfo = readSubjectsDataFile(groupName);
+        List<SubjectData> newSubjectsData = newInfoService.getNewSubjectsData(oldInfo.getSubjectsData(), oldInfo.getLastCheckDate());
+
+        if (!newSubjectsData.isEmpty()) {
+            writeSubjectsData(newSubjectsData, groupName, checkDate);
+        }
+        return NewInfoService.removeOldDocuments(new HashSet<>(oldInfo.getSubjectsData()), new HashSet<>(newSubjectsData));
+    }
+
+    private static Info readSubjectsDataFile (String groupName) {
+        try {
+            return objectMapper.readValue(makeFileName(groupName), new TypeReference<>() {});
+        } catch (Exception e) { //JsonProcessingException
+            return null;
+        }
+    }
+
+    private static void writeSubjectsData (List<SubjectData> newSubjectsData, @NonNull String groupName, Date checkDate) {
+        try {
+            objectMapper.writeValue(
+                    new File(makeFileName(groupName)),
+                    new Info(checkDate, newSubjectsData.stream()
+                            .sorted(Comparator.comparing(SubjectData::getSubjectName))
+                            .collect(Collectors.toList())));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String makeFileName (String groupName) {
+        return SUBJECTS_DATA_FILENAME_PREFIX + groupName + "_" + scannedSemester + ".json";
+    }
+
+    // TODO
+
+    private static void updateAcademicName (String group, Integer academicNumber, String academicName) {
+
     }
 }
