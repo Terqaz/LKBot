@@ -59,7 +59,7 @@ public class VkBotService {
             vk.messages().send(groupActor)
                     .message(message)
                     .userId(userId)
-                    .randomId(random.nextInt(10000))
+                    .randomId(random.nextInt(Integer.MAX_VALUE))
                     .execute();
         } catch (ApiException | ClientException e) {
             e.printStackTrace();
@@ -71,7 +71,7 @@ public class VkBotService {
             vk.messages().send(groupActor)
                     .message(message)
                     .userId(userId)
-                    .randomId(random.nextInt(10000))
+                    .randomId(random.nextInt(Integer.MAX_VALUE))
                     .keyboard(keyboard)
                     .execute();
         } catch (ApiException | ClientException e) {

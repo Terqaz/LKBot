@@ -28,6 +28,10 @@ public class SubjectData {
     private Set<String> secondaryAcademics;
     private Date lastCheckDate;
 
+    public boolean isNotEmpty () {
+        return !documentNames.isEmpty() || !messagesData.isEmpty();
+    }
+
     @Override
     public boolean equals (Object o) {
         if (this == o) return true;

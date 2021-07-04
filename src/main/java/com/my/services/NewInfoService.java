@@ -18,13 +18,10 @@ public class NewInfoService {
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
-    private static final String UNKNOWN_ACADEMIC_NAME = "*УТОЧНИТЕ ИМЯ*";
-
-
     public List<SubjectData> getSubjectsDataFirstTime (String semesterName) {
         final List<SubjectData> subjectsData = getHtmlSubjectsLinks(semesterName)
                 .map(htmlSubjectLink -> getSubjectDataByHtmlLink(htmlSubjectLink, new Date(1)))
-                .filter(subjectData -> !subjectData.getDocumentNames().isEmpty() && !subjectData.getMessagesData().isEmpty())
+                .filter(SubjectData::isNotEmpty)
                 .sorted(Comparator.comparing(SubjectData::getSubjectName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
@@ -38,7 +35,8 @@ public class NewInfoService {
 
     public List<SubjectData> getNewSubjectsData (List<SubjectData> oldSubjectsData, Date lastCheckDate) {
         final List<SubjectData> subjectsData = oldSubjectsData.stream()
-                .map(subjectData -> getNewSubjectData(subjectData.getSubjectName(), subjectData.getLocalUrl(), lastCheckDate))
+                .map(subjectData ->
+                        getNewSubjectData(subjectData.getSubjectName(), subjectData.getLocalUrl(), lastCheckDate))
                 .sorted(Comparator.comparing(SubjectData::getSubjectName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
@@ -149,7 +147,9 @@ public class NewInfoService {
         }
     }
 
-    public static List<SubjectData> removeOldDocuments (Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
+    public static List<SubjectData> removeOldSubjectsDocuments (
+            Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
+
         Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
         for (SubjectData data : oldSubjectsData) {
             oldDocumentsMap.put(data.getSubjectName(), data);
@@ -161,32 +161,14 @@ public class NewInfoService {
                     if (oldSubjectsData.contains(subjectData))
                         documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
                 })
-                .filter(subjectData -> !(subjectData.getDocumentNames().isEmpty() || subjectData.getMessagesData().isEmpty()))
+                .filter(SubjectData::isNotEmpty)
                 .collect(Collectors.toList());
     }
-    // TODO Добавить функционал с сообщениями
-    //
-    //+   Приложение определяет основного преподавателя как человека, отправившего наибольшее количество сообщений.
-    //    Если неверно определило, то
-    //      предложить трех первых людей по частоте сообщений после преподавателя
-    //      или самостоятельный добавление
-    //    Добавить дополнительных преподавателей
 
-    public static String findPrimaryAcademic(List<MessageData> messages) {
-        if (messages.isEmpty())
-            return UNKNOWN_ACADEMIC_NAME;
-        else
-            return messages.stream()
-                    .collect(Collectors.groupingBy(
-                            MessageData::getSender,
-                            Collectors.counting())
-                    )
-                    .entrySet().stream().max(Map.Entry.comparingByValue())
-                    .get().getKey();
-    }
-    // TODO
+    public static SubjectData removeOldSubjectDocuments (
+            SubjectData oldSubjectData, SubjectData newSubjectData) {
 
-    private Set<String> findSecondaryAcademics(Elements messages) {
-        return null;
+        newSubjectData.getDocumentNames().removeAll(oldSubjectData.getDocumentNames());
+        return newSubjectData;
     }
 }
