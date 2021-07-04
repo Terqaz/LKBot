@@ -2,7 +2,6 @@ package com.my;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.my.exceptions.UserTriesLimitExhaustedException;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 import com.my.services.LstuAuthService;
@@ -22,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -44,8 +44,11 @@ public class Main {
                     Collections.singletonList(
                             VkBotService.generateButton("Я готов на все ради своей группы!", KeyboardButtonColor.POSITIVE)),
                     Collections.singletonList(
-                            VkBotService.generateButton("Лучше доверюсь своему старосте", KeyboardButtonColor.NEGATIVE))
+                            VkBotService.generateButton("Лучше скажу другому", KeyboardButtonColor.NEGATIVE)),
+                    Collections.singletonList(
+                            VkBotService.generateButton("Я ошибся при вводе группы", KeyboardButtonColor.DEFAULT))
             ));
+
     static final Keyboard keyboard2 = new Keyboard().setOneTime(true)
             .setButtons(Arrays.asList(
                     Collections.singletonList(
@@ -53,6 +56,9 @@ public class Main {
                     Collections.singletonList(
                             VkBotService.generateButton("Ладно, отдыхай", KeyboardButtonColor.NEGATIVE))
             ));
+
+    private static final Pattern groupNamePattern =
+            Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-){1,1}(п-)?\\d{2}(-\\d)?$");
 
     private static final String BASIC_COMMANDS =
             "-- Вывести список предметов:\n" +
@@ -65,6 +71,11 @@ public class Main {
             "Обнови предметы\n" +
             "-- Показать эти команды:\n" +
             "Команды";
+    
+    private static final String AUTH_COMMAND =
+            "Хочу войти в ЛК\n" +
+            "Мой_логин\n" +
+            "Мой_пароль";
 
     private static String scannedSemester;
     private static Date lastGlobalCheckDate;
@@ -89,14 +100,6 @@ public class Main {
         @NonNull
         String groupName;
         int lastSentMessageIndex = 0;
-        int triesCount = 0;
-
-        public void incrementTriesCount () {
-            triesCount++;
-            if (triesCount > 4) {
-                throw new UserTriesLimitExhaustedException("User with id:" + userId + "has a problem");
-            }
-        }
     }
 
     @Data
@@ -124,14 +127,8 @@ public class Main {
 
                     try {
                         executeBotDialog(userId, message.getText());
-
-                    } catch (UserTriesLimitExhaustedException e) {
-                        vkBotService.sendMessageTo(ADMIN_VK_ID, "Проблема у пользователя: vk.com/id" + userId);
-                        userContexts.get(userId).setTriesCount(0);
-                        vkBotService.sendMessageTo(userId, "Я написал своему создателю о твоей проблеме. Ожидай его сообщения ;-)");
-
                     } catch (Exception e) {
-                        userContexts.get(userId).incrementTriesCount();
+                        e.printStackTrace();
                     }
 
                     if (new Date().getTime() > lastGlobalCheckDate.getTime() + HALF_DAY) {
@@ -149,13 +146,17 @@ public class Main {
         try {
             if (messageText.startsWith("Я из ")) {
                 String groupName = messageText.substring(5);
-                userContexts.put(userId, new UserContext(userId, groupName));
-                if (!groupLoggedUser.containsKey(groupName)) {
-                    newUserAndGroupMessage(userId);
+                if (groupNamePattern.matcher(groupName).find()) {
+                    userContexts.put(userId, new UserContext(userId, groupName));
+                    if (!groupLoggedUser.containsKey(groupName)) {
+                        newUserAndGroupMessage(userId);
+                    } else {
+                        newUserOldGroupMessages(userId, groupName);
+                    }
                 } else {
-                    newUserOldGroupMessages(userId, groupName);
+                    vkBotService.sendMessageTo(userId,
+                    "Мне кажется, ты ввел неправильное имя для группы\n");
                 }
-
             } else {
                 final UserContext userContext = userContexts.get(userId);
                 messageText = messageText.toLowerCase();
@@ -185,9 +186,16 @@ public class Main {
                 } else if (messageText.equals("я готов на все ради своей группы!")) {
                     vkBotService.sendMessageTo(userId,
                             "Хорошо, смельчак. Пиши свои данные вот так:\n" +
-                                    "Хочу войти в ЛК\n" +
-                                    "Мой_логин\n" +
-                                    "Мой_пароль");
+                                    AUTH_COMMAND);
+
+                } else if (messageText.startsWith("лучше скажу другому")) {
+                    vkBotService.sendMessageTo(userId,
+                            "Хорошо. Когда он введет свой пароль ты сможешь использовать эти команды:\n" +
+                                    BASIC_COMMANDS);
+
+                } else if (messageText.startsWith("я ошибся при вводе группы")) {
+                    userContexts.remove(userId);
+                    vkBotService.sendMessageTo(userId, "Введи новое имя для группы (например: \"Я из ПИ-19\"):");
 
                 } else if (messageText.startsWith("хочу войти в лк")) {
                     tryToLoginMessages(userId, userContext, messageText);
@@ -298,7 +306,7 @@ public class Main {
                         "Нет новой информации по предмету " + newSubjectData.getSubjectName());
             }
         } else {
-            loginFailedMessages(userId, loggedUser);
+            repeatLoginFailedMessages(userId, loggedUser);
         }
     }
 
@@ -326,22 +334,59 @@ public class Main {
             lstuAuthService.logout();
             vkBotService.sendMessageTo(userId, makeSubjectsDataReport(newSubjectData));
         } else {
-            loginFailedMessages(userId, loggedUser);
+            repeatLoginFailedMessages(userId, loggedUser);
         }
     }
 
-    private static void loginFailedMessages (Integer userId, LoggedUser loggedUser) {
+    private static void newGroupLoggedMessages (Integer userId, UserContext userContext) {
+        vkBotService.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
         vkBotService.sendMessageTo(userId,
-                "Мне не удалось проверить данные твоей группы \n" +
-                        "Человек, вошедший от имени группы изменил свой пароль. Я скажу ему об этом сам\n" +
-                        "Когда он введет новый пароль, напиши мне еще раз");
+                "Ой, извини, случайно вырвалось)\n" +
+                        "Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК\n" +
+                        "Тебе нужно просто позвать их пообщаться со мной\n" +
+                        "Но позволь я сначала проверю твой ЛК"); //и попытаюсь определить преподавателей...");
 
+        final List<SubjectData> subjectsData = getSubjectsDataFirstTime(userContext.getGroupName());
+        newUserSubjectsListMessage(userId, new Info(lastGlobalCheckDate, subjectsData));
+//        StringBuilder stringBuilder = new StringBuilder("Преподаватели:\n");
+//        int i = 1;
+//        for (SubjectData subjectData : getInfoFirstTime("2021-В", userContext.getGroupName())) {
+//            stringBuilder.append(i).append(" ").append(subjectData.getSubjectName()).append("\n")
+//                    .append("- ").append(NewInfoService.findPrimaryAcademic(subjectData.getMessagesData())).append("\n");
+//            i++;
+//        }
+//        vkBotService.sendMessageTo(userId, stringBuilder.toString());
+//        vkBotService.sendMessageTo(userId,
+//                "Если я неправильно отгадал преподавателя, то укажи нового вот так:\n" +
+//                        "Обнови 3 Иванов Иван Иванович");
+    }
+
+    private static void newLoginFailedMessages (Integer userId) {
+        vkBotService.sendMessageTo(userId,
+                "Что-то пошло не так. \n" +
+                "Либо твои логин и пароль неправильные, либо я неправильно их прочитал");
+    }
+
+    private static void repeatLoginFailedMessages (Integer userId, LoggedUser loggedUser) {
         loggedUser.passwordNotActual = true;
-        vkBotService.sendMessageTo(loggedUser.getUserId(),
-                "Привет. Человек из твоей группы не смог зайти в лк. Скажи мне новые данные для входа так:\n" +
-                        "Хочу войти в ЛК\n" +
-                        "Мой_логин\n" +
-                        "Мой_пароль");
+
+        String messageToLoggedUser =
+                "Похоже ты забыл сказать мне новый пароль после обновления в ЛК\n" +
+                        "Скажи мне новые данные для входа так:\n" +
+                        AUTH_COMMAND;
+
+        // TODO Пусть бот сам напишет пользователю после обновления пароля
+        if (!userId.equals(loggedUser.getUserId())) {
+            vkBotService.sendMessageTo(userId,
+                    "Мне не удалось проверить данные твоей группы \n" +
+                            "Человек, вошедший от имени группы изменил свой пароль в ЛК и не сказал мне новый пароль\n" +
+                            "Я скажу ему об этом сам. Когда он введет новый пароль, напиши мне еще раз");
+
+            vkBotService.sendMessageTo(loggedUser.getUserId(), "Привет. " + messageToLoggedUser);
+        } else {
+            vkBotService.sendMessageTo(loggedUser.getUserId(), messageToLoggedUser);
+        }
+
     }
 
     private static String makeSubjectsDataReport (List<SubjectData> subjectsData) {
@@ -403,7 +448,6 @@ public class Main {
         );
         vkBotService.sendMessageTo(userId, "Пробую зайти в твой ЛК...");
         if (lstuAuthService.login(login, password)) {
-            userContext.setTriesCount(0);
             if (!loggedUser.getPasswordNotActual()) {
                 newGroupLoggedMessages(userId, userContext);
             } else {
@@ -412,40 +456,8 @@ public class Main {
             }
             lstuAuthService.logout();
         } else {
-            newGroupLoggedErrorMessages(userId, userContext);
+            newLoginFailedMessages(userId);
         }
-    }
-
-    private static void newGroupLoggedMessages (Integer userId, UserContext userContext) {
-        vkBotService.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
-        vkBotService.sendMessageTo(userId,
-                "Ой, извини, случайно вырвалось)\n" +
-                        "Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК\n" +
-                        "Тебе нужно просто позвать их пообщаться со мной\n" +
-                        "Но позволь я сначала проверю твой ЛК"); //и попытаюсь определить преподавателей...");
-
-        final List<SubjectData> subjectsData = getSubjectsDataFirstTime(userContext.getGroupName());
-        newUserSubjectsListMessage(userId, new Info(lastGlobalCheckDate, subjectsData));
-//        StringBuilder stringBuilder = new StringBuilder("Преподаватели:\n");
-//        int i = 1;
-//        for (SubjectData subjectData : getInfoFirstTime("2021-В", userContext.getGroupName())) {
-//            stringBuilder.append(i).append(" ").append(subjectData.getSubjectName()).append("\n")
-//                    .append("- ").append(NewInfoService.findPrimaryAcademic(subjectData.getMessagesData())).append("\n");
-//            i++;
-//        }
-//        vkBotService.sendMessageTo(userId, stringBuilder.toString());
-//        vkBotService.sendMessageTo(userId,
-//                "Если я неправильно отгадал преподавателя, то укажи нового вот так:\n" +
-//                        "Обнови 3 Иванов Иван Иванович");
-    }
-
-    private static void newGroupLoggedErrorMessages (Integer userId, UserContext userContext) {
-        vkBotService.sendMessageTo(userId,
-                "Что-то пошло не так. \n" +
-                        "Либо твои логин и пароль неправильные, либо я неправильно их прочитал.\n" +
-                        "Если после четырех попыток не получится зайти, то я сам напишу своему создателю о твоей проблеме.");
-
-        userContext.incrementTriesCount();
     }
 
     private static String checkNewScannedSemester () {
@@ -518,8 +530,10 @@ public class Main {
     }
 
     // TODO
-
     private static void updateAcademicName (String group, Integer academicNumber, String academicName) {
 
     }
+    
+    // TODO Люди в группе могут постоянно обновлять предметы из лк и поэтому не все могут увдеть изменения из прошлых
+    //    проверок. Поэтому в идеале: добавить для каждого пользователя свою историю просмотра
 }
