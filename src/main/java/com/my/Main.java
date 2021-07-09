@@ -225,16 +225,17 @@ public class Main {
                 final var oldSubjectsData = oldGroupData.getSubjectsData();
 
                 final List<SubjectData> newSubjectsData;
+                String report;
                 if (scannedSemester.equals(newSemesterName)) {
                     newSubjectsData = newInfoService.getNewSubjectsData(oldSubjectsData, oldGroupData.getLastCheckDate());
+                    report = makeSubjectsDataReport(NewInfoService.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
                 } else {
                     newSubjectsData = newInfoService.getSubjectsDataFirstTime(scannedSemester);
+                    report = "Данные теперь приходят из семестра " + newSemesterName + makeSubjectsDataReport(newSubjectsData);
                 }
                 lstuAuthService.logout();
-
                 updateGroupDataFile(oldGroupData, newSubjectsData, checkDate);
 
-                String report = makeSubjectsDataReport(NewInfoService.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
                 userContexts.values().stream()
                         .filter(userContext -> userContext.getGroupName().equals(checkingGroup))
                         .map(UserContext::getUserId)
