@@ -148,27 +148,22 @@ public class NewInfoService {
     }
 
     public static List<SubjectData> removeOldSubjectsDocuments (
-            Set<SubjectData> oldSubjectsData, Set<SubjectData> newSubjectsData) {
+            List<SubjectData> oldSubjectsData, List<SubjectData> newSubjectsData) {
 
         Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
         for (SubjectData data : oldSubjectsData) {
             oldDocumentsMap.put(data.getSubjectName(), data);
         }
+
+        Set<SubjectData> oldSubjectsDataSet = new HashSet<>(oldSubjectsData);
         return newSubjectsData.stream()
                 .peek(subjectData -> {
                     final String subjectName = subjectData.getSubjectName();
                     final Set<String> documents = subjectData.getDocumentNames();
-                    if (oldSubjectsData.contains(subjectData))
+                    if (oldSubjectsDataSet.contains(subjectData))
                         documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
                 })
                 .filter(SubjectData::isNotEmpty)
                 .collect(Collectors.toList());
-    }
-
-    public static SubjectData removeOldSubjectDocuments (
-            SubjectData oldSubjectData, SubjectData newSubjectData) {
-
-        newSubjectData.getDocumentNames().removeAll(oldSubjectData.getDocumentNames());
-        return newSubjectData;
     }
 }
