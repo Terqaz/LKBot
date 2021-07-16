@@ -12,11 +12,13 @@ public class LstuAuthService {
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
     public boolean login (String login, String password) {
-        try {
-            return auth(login, password);
-        } catch (Exception e) {
-            return false;
-        }
+        if (lstuClient.isNotLoggedIn()) {
+            try {
+                return auth(login, password);
+            } catch (Exception e) {
+                return false;
+            }
+        } else return true;
     }
 
     private boolean auth (String login, String password) throws IOException {

@@ -7,8 +7,6 @@ import com.my.models.SubjectData;
 import com.my.services.LstuAuthService;
 import com.my.services.NewInfoService;
 import com.my.services.VkBotService;
-import com.vk.api.sdk.exceptions.ApiException;
-import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.objects.messages.Keyboard;
 import com.vk.api.sdk.objects.messages.KeyboardButtonColor;
 import com.vk.api.sdk.objects.messages.Message;
@@ -30,12 +28,13 @@ public class Main {
     static final ObjectMapper objectMapper = new ObjectMapper();
 
     static final VkBotService vkBotService = VkBotService.getInstance();
-    static final int ADMIN_VK_ID = 173315241;
-    static final Map<Integer, UserContext> userContexts = new HashMap<>();
-    static final Map<String, GroupData> groupDataByGroupName = new HashMap<>();
-
     static final LstuAuthService lstuAuthService = new LstuAuthService();
     static final NewInfoService newInfoService = new NewInfoService();
+
+    static final int ADMIN_VK_ID = 173315241;
+
+    static final Map<Integer, UserContext> userContexts = new HashMap<>();
+    static final Map<String, GroupData> groupDataByGroupName = new HashMap<>();
 
     static final Keyboard keyboard1 = new Keyboard().setOneTime(true)
             .setButtons(Arrays.asList(
@@ -61,19 +60,26 @@ public class Main {
     private static final String BASIC_COMMANDS =
             "-- Вывести список предметов:\n" +
             "Список предметов\n" +
-            "-- Узнать самую свежую информацию по предмету:\n" +
+            "-- Узнать самую свежую информацию по предмету из ЛК:\n" +
             "Предмет n (n - номер в списке выше)\n" +
             "-- Узнать последнюю проверенную информацию по всем предметам:\n" +
             "Предметы\n" +
-            "-- Узнать самую новую информацию по всем предметам:\n" +
+            "-- Узнать самую свежую информацию по всем предметам:\n" +
             "Обнови предметы\n" +
             "-- Показать эти команды:\n" +
             "Команды";
+
+    private static final String LOGGED_USER_COMMANDS =
+            BASIC_COMMANDS + "\n" +
+            "-- Изменить интервал автоматического обновления:\n" +
+            "Изменить интервал на n (n - количество минут от 30, до 720)\n";
     
     private static final String AUTH_COMMAND =
             "Хочу войти в ЛК\n" +
             "Мой_логин\n" +
             "Мой_пароль";
+
+    private static final Set<UserContext> updateWaitingUsers = new HashSet<>();
 
     private static String scannedSemester;
 
@@ -91,7 +97,8 @@ public class Main {
         private String password;
 
         private Date lastCheckDate;
-        private TimeInterval updateInterval = TimeInterval.HALF_DAY;
+        private long updateIntervalMillis = 12L * 3600 * 1000;
+        private boolean updatingNow = false;
 
         @NonNull
         private List<SubjectData> subjectsData;
@@ -114,7 +121,7 @@ public class Main {
             final List<Message> messages = vkBotService.getNewMessages();
             if (!messages.isEmpty()) {
                 for (Message message : messages) {
-                    System.out.println(message.toString());
+                    System.out.println(message.toString()); // TODO логирование
                     final Integer userId = message.getFromId();
 
                     try {
@@ -122,73 +129,103 @@ public class Main {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-
-                    plannedSubjectsDataUpdate();
                 }
             }
+            sendReportsToUpdateWaitingUsers();
+            plannedSubjectsDataUpdate();
             vkBotService.updateTs();
             Thread.sleep(500);
         }
     }
 
+    private static void sendReportsToUpdateWaitingUsers () {
+        for (UserContext context : updateWaitingUsers) {
+            vkBotService.sendMessageTo(context.getUserId(),
+                    makeSubjectsDataReport(groupDataByGroupName.get(context.getGroupName()).getSubjectsData()));
+        }
+        updateWaitingUsers.clear();
+    }
+
     private static void executeBotDialog (Integer userId, String messageText) {
-        try {
-            if (messageText.startsWith("Я из ")) {
-                String groupName = messageText.substring(5);
-                if (groupNamePattern.matcher(groupName).find()) {
-                    userContexts.put(userId, new UserContext(userId, groupName));
-                    if (!groupDataByGroupName.containsKey(groupName)) {
-                        newUserAndGroupMessage(userId);
-                    } else {
-                        newUserOldGroupMessages(userId, groupName);
-                    }
+        if (messageText.startsWith("Я из ")) {
+            final var groupName = messageText.substring(5);
+            if (groupNamePattern.matcher(groupName).find()) {
+                userContexts.put(userId, new UserContext(userId, groupName));
+                if (!groupDataByGroupName.containsKey(groupName)) {
+                    newUserAndGroupMessage(userId);
                 } else {
-                    vkBotService.sendMessageTo(userId,
-                    "Мне кажется, ты ввел неправильное имя для группы\n");
+                    newUserOldGroupMessages(userId, groupName);
                 }
             } else {
-                final var groupName = userContexts.get(userId).getGroupName();
-                messageText = messageText.toLowerCase();
+                vkBotService.sendMessageTo(userId,
+                "Мне кажется, ты ввел неправильное имя для группы\n");
+            }
+        } else {
+            final var userContext = userContexts.get(userId);
+            final var groupName = userContext.getGroupName();
+            messageText = messageText.toLowerCase();
 
-                if (messageText.startsWith("предмет ")) {
-                    getActualSubjectDataMessage(userId, groupName, messageText);
+            if (messageText.startsWith("предмет ")) {
+                getActualSubjectDataMessage(userId, groupName, messageText);
 
-                } else if (messageText.equals("предметы")) {
-                    vkBotService.sendMessageTo(userId,
-                            makeSubjectsDataReport(groupDataByGroupName.get(groupName).getSubjectsData()));
+            } else if (messageText.equals("предметы")) {
+                vkBotService.sendMessageTo(userId,
+                        makeSubjectsDataReport(groupDataByGroupName.get(groupName).getSubjectsData()));
 
-                } else if (messageText.equals("список предметов")) {
-                    vkBotService.sendMessageTo(userId,
-                            makeSubjectsListReport(groupDataByGroupName.get(groupName).getSubjectsData()));
+            } else if (messageText.equals("список предметов")) {
+                vkBotService.sendMessageTo(userId,
+                        makeSubjectsListReport(groupDataByGroupName.get(groupName).getSubjectsData()));
 
-                } else if (messageText.equals("обнови предметы")) {
+            } else if (messageText.equals("обнови предметы")) {
+                if (!groupDataByGroupName.get(groupName).isUpdatingNow()) {
                     updateSubjectsDataWarningMessage(userId);
+                } else {
+                    subjectsDataIsUpdatingMessage(userContext);
+                }
 
-                } else if (messageText.equals("сканируй все равно")) {
+            } else if (messageText.equals("сканируй все равно")) {
+                if (!groupDataByGroupName.get(groupName).isUpdatingNow()) {
                     updateSubjectsDataMessages(userId, groupName);
+                } else {
+                    subjectsDataIsUpdatingMessage(userContext);
+                }
 
-                } else if (messageText.startsWith("команды")) {
-                    vkBotService.sendMessageTo(userId, BASIC_COMMANDS);
+            } else if (messageText.startsWith("изменить интервал на ")) {
+                final var minutes = Long.parseLong(messageText.substring(21));
+                if (userIsLogged(userId, groupName)) {
+                    if (30 <= minutes && minutes <= 720) {
+                        groupDataByGroupName.get(groupName).setUpdateIntervalMillis(minutes * 60 * 1000);
+                        vkBotService.sendMessageTo(userId, "Интервал изменен");
+                    } else {
+                        vkBotService.sendMessageTo(userId, "Нельзя установить такой интервал обновления");
+                    }
+                } else {
+                    userInsufficientPermissionsMessage(userId);
+                }
 
-                } else if (messageText.equals("ладно, отдыхай")) {
-                    vkBotService.sendMessageTo(userId, "Спасибо тебе, человек!");
+            } else if (messageText.equals("команды")) {
+                vkBotService.sendMessageTo(userId,
+                        (!userIsLogged(userId, groupName) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
 
-                } else if (messageText.equals("я готов на все ради своей группы!")) {
-                    vkBotService.sendMessageTo(userId,
-                            "Хорошо, смельчак. Пиши свои данные вот так:\n" +
-                                    AUTH_COMMAND);
+            } else if (messageText.equals("ладно, отдыхай")) {
+                vkBotService.sendMessageTo(userId, "Спасибо тебе, человек!");
 
-                } else if (messageText.startsWith("лучше скажу другому")) {
-                    vkBotService.sendMessageTo(userId,
-                            "Хорошо. Когда он введет свой пароль ты сможешь использовать эти команды:\n" +
-                                    BASIC_COMMANDS);
+            } else if (messageText.equals("я готов на все ради своей группы!")) {
+                vkBotService.sendMessageTo(userId,
+                        "Хорошо, смельчак. Пиши свои данные вот так:\n" +
+                                AUTH_COMMAND);
 
-                } else if (messageText.startsWith("я ошибся при вводе группы")) {
-                    userContexts.remove(userId);
-                    vkBotService.sendMessageTo(userId, "Введи новое имя для группы (например: \"Я из ПИ-19\"):");
+            } else if (messageText.startsWith("лучше скажу другому")) {
+                vkBotService.sendMessageTo(userId,
+                        "Хорошо. Когда он введет свой пароль ты сможешь использовать эти команды:\n" +
+                                (!userIsLogged(userId, groupName) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
 
-                } else if (messageText.startsWith("хочу войти в лк")) {
-                    tryToLoginMessages(userId, groupName, messageText);
+            } else if (messageText.startsWith("я ошибся при вводе группы")) {
+                userContexts.remove(userId);
+                vkBotService.sendMessageTo(userId, "Введи новое имя для группы (например: \"Я из ПИ-19\"):");
+
+            } else if (messageText.startsWith("хочу войти в лк")) {
+                tryToLoginMessages(userId, groupName, messageText);
 
 //                 } else if (messageText.startsWith("Обнови")) {
 //                    final String[] chunks = messageText.split(" ");
@@ -196,16 +233,22 @@ public class Main {
 //                    String academicName = chunks[2] + chunks[3] + chunks[4];
 //                    updateAcademicName(userContext.getGroupName(), academicNumber, academicName);
 
-                } else if (!userContexts.containsKey(userId)) {
-                    vkBotService.sendMessageTo(userId, "Напиши из какой ты группы (например: \"Я из ПИ-19\"):");
+            } else if (!userContexts.containsKey(userId)) {
+                vkBotService.sendMessageTo(userId, "Напиши из какой ты группы (например: \"Я из ПИ-19\"):");
 
-                } else {
-                    vkBotService.sendMessageTo(userId, "Я не понял тебя");
-                }
+            } else {
+                vkBotService.sendMessageTo(userId, "Я не понял тебя");
             }
-        } catch (ApiException | ClientException e) {
-            e.printStackTrace();
         }
+    }
+
+    private static void userInsufficientPermissionsMessage (Integer userId) {
+        vkBotService.sendMessageTo(userId,
+                "Я разрешаю эту операцию только человеку, вошедшему от имени группы");
+    }
+
+    private static boolean userIsLogged (Integer userId, String groupName) {
+        return userId.equals(groupDataByGroupName.get(groupName).getLoggedUserId());
     }
 
     private static void plannedSubjectsDataUpdate () {
@@ -216,7 +259,7 @@ public class Main {
             var oldGroupData = groupDataByGroupName.get(checkingGroup);
 
             if (checkDate.getTime() < oldGroupData.getLastCheckDate().getTime() +
-                    oldGroupData.getUpdateInterval().getValue()) {
+                    oldGroupData.getUpdateIntervalMillis()) {
                 return;
             }
 
@@ -231,7 +274,8 @@ public class Main {
                     report = makeSubjectsDataReport(NewInfoService.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
                 } else {
                     newSubjectsData = newInfoService.getSubjectsDataFirstTime(scannedSemester);
-                    report = "Данные теперь приходят из семестра " + newSemesterName + makeSubjectsDataReport(newSubjectsData);
+                    report = "Данные теперь приходят из семестра " + newSemesterName + "\n" +
+                            makeSubjectsDataReport(newSubjectsData);
                 }
                 lstuAuthService.logout();
                 updateGroupDataFile(oldGroupData, newSubjectsData, checkDate);
@@ -269,7 +313,8 @@ public class Main {
                 "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам\n" +
                 "(обновление было в " + formatDate(data.getLastCheckDate()) + "):\n" +
                 makeSubjectsListReport(data.getSubjectsData()) + "\n");
-        vkBotService.sendMessageTo(userId,"Также теперь ты можешь использовать эти команды:\n" + BASIC_COMMANDS);
+        vkBotService.sendMessageTo(userId, "Также теперь ты можешь использовать эти команды:\n" +
+                (!userIsLogged(userId, data.getGroupName()) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
     }
 
     private static String makeSubjectsListReport (List<SubjectData> subjectsData) {
@@ -312,18 +357,19 @@ public class Main {
 
     private static void updateSubjectsDataWarningMessage (Integer userId) {
         vkBotService.sendMessageTo(userId, keyboard2,
-                "Это самая долгая операция. Я итак выполняю ее регулярно\n" +
+                "Это может быть довольно долгая операция. Я и так выполняю ее регулярно\n" +
                         "Я такой же ленивый как и ты, человек. Может мне не стоит сканировать весь ЛК?");
+
     }
 
-    private static void updateSubjectsDataMessages (Integer userId, String groupName)
-            throws ClientException, ApiException {
+    private static void updateSubjectsDataMessages (Integer userId, String groupName) {
         vkBotService.sendMessageTo(userId,
                 "Ладно, уговорил. Можешь пока отдохнуть\n" +
                         "Я тебе напишу, как проверю");
 
         var oldGroupData = groupDataByGroupName.get(groupName);
         if (lstuAuthService.login(oldGroupData.getLogin(), oldGroupData.getPassword())) {
+            groupDataByGroupName.get(groupName).setUpdatingNow(true);
             final var checkDate = new Date();
 
             final var oldSubjectsData = oldGroupData.getSubjectsData();
@@ -335,11 +381,17 @@ public class Main {
 
             String report = makeSubjectsDataReport(
                     NewInfoService.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
-
+            groupDataByGroupName.get(groupName).setUpdatingNow(false);
             vkBotService.sendMessageTo(userId, report);
         } else {
             repeatLoginFailedMessages(userId, oldGroupData);
         }
+    }
+
+    private static void subjectsDataIsUpdatingMessage (UserContext userContext) {
+        vkBotService.sendMessageTo(userContext.getUserId(), "Данные о предметах уже обновляет кто-то другой\n" +
+                "Я пришлю тебе отчет после обновления");
+        updateWaitingUsers.add(userContext);
     }
 
     private static void newGroupLoggedMessages (Integer userId, String groupName, String login, String password) {
