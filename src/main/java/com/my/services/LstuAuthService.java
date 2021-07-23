@@ -2,7 +2,6 @@ package com.my.services;
 
 import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
-import org.jsoup.Connection.Response;
 import org.jsoup.nodes.Document;
 
 import java.io.IOException;
@@ -22,23 +21,22 @@ public class LstuAuthService {
     }
 
     private boolean auth (String login, String password) throws IOException {
-
-        final Response firstResponse = lstuClient.openLoginPage();
+        final var firstResponse = lstuClient.openLoginPage();
 
         String phpSessId = firstResponse.header("Set-Cookie")
                 .split(";")[0]
                 .split("=")[1];
 
-        Document document1 = firstResponse.parse();
+        final var document1 = firstResponse.parse();
         String sessId = document1.select("input[name=\"sessid\"]")
                 .get(0)
                 .attr("value");
         lstuClient.updateSessionTokens(sessId, phpSessId);
 
-        final Response response = lstuClient.executeLoginRequest(
+        final Document document = lstuClient.executeLoginRequest(
                 LstuUrlBuilder.buildAuthUrl(login, password, sessId));
 
-        final String jsonResponse = response.parse().body().text();
+        final String jsonResponse = document.body().text();
         return jsonResponse.startsWith("{\"SUCCESS\":\"1\"");
     }
 

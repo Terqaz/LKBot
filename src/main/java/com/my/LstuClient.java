@@ -21,7 +21,7 @@ public class LstuClient {
     private LstuClient () {}
 
     public static final String LOGGED_IN_BEFORE = "You must be logged in before";
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
     private static String sessId = null;
     private static String phpSessId = null;
 
@@ -34,8 +34,8 @@ public class LstuClient {
         return (sessId == null || phpSessId == null);
     }
 
-    private Connection getOriginConnection (String url) {
-        return Jsoup.connect(url)
+    private Connection getOriginConnection () {
+        return Jsoup.connect("http://lk.stu.lipetsk.ru/")
                 .userAgent(USER_AGENT)
                 .header("Accept", "text/html")
                 .header("Connection", "keep-alive");
@@ -48,19 +48,21 @@ public class LstuClient {
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
                 .header("Accept", "*/*")
-                .header("Connection", "keep-alive")
+                .header("Accept-Encoding", "gzip, deflate")
+                .header("Connection", "Keep-alive")
+                .header("Upgrade-Insecure-Requests", "1")
                 .cookie("PHPSESSID", phpSessId);
     }
 
-    private Response executeRequest(Connection connection) {
+    private Document executeRequest(Connection connection) {
         try {
-            return connection.execute();
+            return connection.execute().parse();
         } catch (IOException e) {
             return null;
         }
     }
 
-    public Response executeLoginRequest (String authUrl) {
+    public Document executeLoginRequest (String authUrl) {
         return executeRequest(getOriginSessionConnection(authUrl)
                 .method(Connection.Method.POST));
     }
@@ -68,28 +70,28 @@ public class LstuClient {
     public void executeLogoutRequest (String logoutUrl){
         executeRequest(getOriginSessionConnection(logoutUrl)
                 .method(Connection.Method.POST));
+        sessId = null;
+        phpSessId = null;
     }
 
     public Response openLoginPage () {
-        return executeRequest(getOriginConnection("http://lk.stu.lipetsk.ru/")
-                .method(Connection.Method.GET));
+        try {
+            return getOriginConnection()
+                    .method(Connection.Method.GET).execute();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     public Document get (String url) {
-        try {
-            return getOriginSessionConnection(url)
-                    .get();
-        } catch (IOException e) {
-            return null;
-        }
+        return executeRequest(getOriginSessionConnection(url)
+                .method(Connection.Method.GET));
     }
 
     public Document post (String url) {
-        try {
-            return getOriginSessionConnection(url)
-                    .post();
-        } catch (IOException e) {
-            return null;
-        }
+        return executeRequest(getOriginSessionConnection(url)
+                .method(Connection.Method.POST));
+
     }
 }

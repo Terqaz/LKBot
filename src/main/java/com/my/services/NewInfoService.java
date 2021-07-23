@@ -152,16 +152,20 @@ public class NewInfoService {
 
         Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
         for (SubjectData data : oldSubjectsData) {
+            data.getOldDocumentNames().addAll(data.getNewDocumentNames());
+            data.getNewDocumentNames().clear();
             oldDocumentsMap.put(data.getSubjectName(), data);
         }
 
         Set<SubjectData> oldSubjectsDataSet = new HashSet<>(oldSubjectsData);
         return newSubjectsData.stream()
                 .peek(subjectData -> {
-                    final String subjectName = subjectData.getSubjectName();
-                    final Set<String> documents = subjectData.getDocumentNames();
-                    if (oldSubjectsDataSet.contains(subjectData))
-                        documents.removeAll(oldDocumentsMap.get(subjectName).getDocumentNames());
+                    final Set<String> newDocuments = subjectData.getNewDocumentNames();
+                    if (oldSubjectsDataSet.contains(subjectData)) {
+                        final var oldSubjectData = oldDocumentsMap.get(subjectData.getSubjectName());
+                        newDocuments.removeAll(oldSubjectData.getOldDocumentNames());
+                        subjectData.setOldDocumentNames(oldSubjectData.getOldDocumentNames());
+                    }
                 })
                 .filter(SubjectData::isNotEmpty)
                 .collect(Collectors.toList());

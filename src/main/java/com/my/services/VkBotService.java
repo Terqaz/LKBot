@@ -10,6 +10,7 @@ import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -23,6 +24,8 @@ public class VkBotService {
         return instance;
     }
 
+    final Keyboard emptyKeyboard = new Keyboard().setOneTime(true).setButtons(Collections.emptyList());
+
     private static final Random random = new Random();
 
     private static TransportClient transportClient;
@@ -30,13 +33,15 @@ public class VkBotService {
     private static GroupActor groupActor;
     private static Integer ts;
 
+    private boolean unsetKeyboard = false;
+
     private VkBotService () {
         transportClient = new HttpTransportClient();
         vk = new VkApiClient(transportClient);
         groupActor = new GroupActor(205287906, BotSecretInfoContainer.VK_TOKEN.getValue());
     }
 
-    public <T> T executeRequest(ApiRequest<T> apiRequest) {
+    public  <T> T executeRequest(ApiRequest<T> apiRequest) {
         try {
             return apiRequest.execute();
         } catch (ApiException | ClientException e) {
@@ -55,28 +60,34 @@ public class VkBotService {
     }
 
     public void sendMessageTo (Integer userId, String message) {
-        try {
-            vk.messages().send(groupActor)
-                    .message(message)
-                    .userId(userId)
-                    .randomId(random.nextInt(Integer.MAX_VALUE))
-                    .execute();
-        } catch (ApiException | ClientException e) {
-            e.printStackTrace();
+        final var query = vk.messages().send(groupActor)
+                .message(message)
+                .userId(userId)
+                .randomId(random.nextInt(Integer.MAX_VALUE))
+                .dontParseLinks(true);
+        if (unsetKeyboard) {
+            query.keyboard(emptyKeyboard);
+            unsetKeyboard = false;
         }
+        executeRequest(query);
     }
 
     public void sendMessageTo (Integer userId, Keyboard keyboard, String message) {
-        try {
-            vk.messages().send(groupActor)
-                    .message(message)
-                    .userId(userId)
-                    .randomId(random.nextInt(Integer.MAX_VALUE))
-                    .keyboard(keyboard)
-                    .execute();
-        } catch (ApiException | ClientException e) {
-            e.printStackTrace();
+        final var query = vk.messages().send(groupActor)
+                .message(message)
+                .userId(userId)
+                .randomId(random.nextInt(Integer.MAX_VALUE))
+                .dontParseLinks(true)
+                .keyboard(keyboard);
+        executeRequest(query);
+    }
+
+    public void sendLongMessageTo (Integer userId, String message) {
+        var i = 0;
+        for (; i < message.length()-4000; i+=4000) {
+            sendMessageTo(userId, message.substring(i, i+4000));
         }
+        sendMessageTo(userId, message.substring(i));
     }
 
     public static KeyboardButton generateButton (String text, KeyboardButtonColor color) {
@@ -85,5 +96,9 @@ public class VkBotService {
                         .setLabel(text)
                         .setType(TemplateActionTypeNames.TEXT))
                 .setColor(color);
+    }
+
+    public void unsetKeyboard() {
+        instance.unsetKeyboard = true;
     }
 }

@@ -1,10 +1,12 @@
 package com.my.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -13,6 +15,7 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
+@JsonIgnoreProperties({"notEmpty"})
 public class SubjectData {
     private int id;
     @NonNull
@@ -20,19 +23,17 @@ public class SubjectData {
     @NonNull
     private String localUrl;
     @NonNull
-    private Set<String> documentNames;
+    private Set<String> newDocumentNames;
+    private Set<String> oldDocumentNames = new HashSet<>();
     @NonNull
     private List<MessageData> messagesData;
-    private String primaryAcademic;
-    private Set<String> secondaryAcademics;
 
     public boolean isNotEmpty () {
-        return !documentNames.isEmpty() || !messagesData.isEmpty();
+        return !newDocumentNames.isEmpty() || !messagesData.isEmpty();
     }
 
-    public SubjectData removeOldDocuments (SubjectData oldData) {
-        documentNames.removeAll(oldData.getDocumentNames());
-        return this;
+    public void removeOldDocuments (SubjectData oldData) {
+        newDocumentNames.removeAll(oldData.oldDocumentNames);
     }
 
     @Override

@@ -12,7 +12,6 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -210,7 +209,7 @@ public class RatingCountService {
         }
     }
 
-    public static void countRating() throws AuthenticationException, IOException {
+    public static void countRating() throws AuthenticationException {
         List<SemesterSubjects> semestersData = null;
         semestersData = readFile(SEMESTERS_DATA_FILENAME, new TypeReference<>() {});
         semestersData.forEach(RatingCountService::completeData);
