@@ -1,10 +1,10 @@
 package com.my.models;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import java.util.HashSet;
 import java.util.List;
@@ -15,11 +15,10 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
-@JsonIgnoreProperties({"notEmpty"})
 public class SubjectData {
     private int id;
     @NonNull
-    private String subjectName;
+    private String name;
     @NonNull
     private String localUrl;
     @NonNull
@@ -28,24 +27,23 @@ public class SubjectData {
     @NonNull
     private List<MessageData> messagesData;
 
+    @BsonIgnore
     public boolean isNotEmpty () {
         return !newDocumentNames.isEmpty() || !messagesData.isEmpty();
     }
 
-    public void removeOldDocuments (SubjectData oldData) {
-        newDocumentNames.removeAll(oldData.oldDocumentNames);
-    }
-
     @Override
+    @BsonIgnore
     public boolean equals (Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SubjectData that = (SubjectData) o;
-        return subjectName.equals(that.subjectName);
+        return name.equals(that.name);
     }
 
     @Override
+    @BsonIgnore
     public int hashCode () {
-        return Objects.hash(subjectName);
+        return Objects.hash(name);
     }
 }

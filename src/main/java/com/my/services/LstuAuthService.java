@@ -44,9 +44,6 @@ public class LstuAuthService {
         try {
             lstuClient.executeLogoutRequest(
                     LstuUrlBuilder.buildLogoutUrl());
-        } catch (Exception e) {
-            System.out.println("Logout failed");
-        }
-        System.out.println("Logout complete");
+        } catch (Exception ignored) {}
     }
 }

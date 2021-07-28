@@ -1,5 +1,7 @@
 package com.my.services;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.my.BotSecretInfoContainer;
 import com.vk.api.sdk.client.ApiRequest;
 import com.vk.api.sdk.client.TransportClient;
@@ -9,7 +11,9 @@ import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.*;
+import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -24,6 +28,8 @@ public class VkBotService {
         return instance;
     }
 
+    private static ObjectMapper jsonMapper = new ObjectMapper();
+
     final Keyboard emptyKeyboard = new Keyboard().setOneTime(true).setButtons(Collections.emptyList());
 
     private static final Random random = new Random();
@@ -31,17 +37,33 @@ public class VkBotService {
     private static TransportClient transportClient;
     private static VkApiClient vk;
     private static GroupActor groupActor;
+
+    private static String server;
+    private static String key;
     private static Integer ts;
+    private static Integer longPollVersion = 3;
 
     private boolean unsetKeyboard = false;
+    private static final Integer groupId = 205287906;
 
     private VkBotService () {
         transportClient = new HttpTransportClient();
         vk = new VkApiClient(transportClient);
-        groupActor = new GroupActor(205287906, BotSecretInfoContainer.VK_TOKEN.getValue());
+        groupActor = new GroupActor(groupId, BotSecretInfoContainer.VK_TOKEN.getValue());
+
+        final var response = getLongPollServer();
+        server = response.getServer();
+        key = response.getKey();
+        ts = response.getTs();
     }
 
-    public  <T> T executeRequest(ApiRequest<T> apiRequest) {
+    private GetLongPollServerResponse getLongPollServer () {
+        return executeRequest(vk.messages()
+                .getLongPollServer(groupActor)
+                .lpVersion(longPollVersion));
+    }
+
+    public <T> T executeRequest(ApiRequest<T> apiRequest) {
         try {
             return apiRequest.execute();
         } catch (ApiException | ClientException e) {
@@ -50,13 +72,65 @@ public class VkBotService {
         return null;
     }
 
-    public void updateTs() {
-        ts = executeRequest(vk.messages().getLongPollServer(groupActor)).getTs();
+    public List<Message> getNewMessages () {
+        try {
+            List<Message> messages;
+            do {
+                messages = fetchNewMessages();
+            } while (messages.isEmpty());
+            return messages;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
     }
 
-    public List<Message> getNewMessages() {
-        return executeRequest(vk.messages().getLongPollHistory(groupActor).ts(ts))
-                .getMessages().getItems();
+    private List<Message> fetchNewMessages () throws IOException {
+        final var response = transportClient.get(
+                "https://"+server+"?act=a_check&key="+key+"&ts="+ts+"&wait=25&version="+longPollVersion);
+        final var jsonResponse = jsonMapper.readTree(response.getContent());
+
+        if (!jsonResponse.hasNonNull("failed")) {
+            final var updates = jsonResponse.get("updates").elements();
+            while (updates.hasNext()) {
+                JsonNode array = updates.next();
+                if (array.elements().next().asInt() == 4) {
+                    final var messages = executeRequest(
+                            vk.messages().getLongPollHistory(groupActor).ts(ts)
+                    ).getMessages().getItems();
+                    ts = jsonResponse.get("ts").asInt();
+                    return messages;
+                }
+            }
+        } else {
+            updateLongPollParams(jsonResponse);
+        }
+        return Collections.emptyList();
+    }
+
+    private void updateLongPollParams (JsonNode jsonResponse) {
+        final var errorCode = jsonResponse.get("failed").asInt();
+        final GetLongPollServerResponse response;
+        switch (errorCode) {
+            case 1:
+                ts = jsonResponse.get("ts").asInt();
+                break;
+            case 2:
+                response = getLongPollServer();
+                server = response.getServer();
+                key = response.getKey();
+                break;
+            case 3:
+                response = getLongPollServer();
+                server = response.getServer();
+                key = response.getKey();
+                ts = response.getTs();
+                break;
+            case 4:
+                longPollVersion = jsonResponse.get("max_version").asInt();
+                break;
+        }
     }
 
     public void sendMessageTo (Integer userId, String message) {
@@ -90,15 +164,39 @@ public class VkBotService {
         sendMessageTo(userId, message.substring(i));
     }
 
+    public void deleteLastMessage (Message message) {
+        var query = vk.messages().delete(groupActor)
+                .deleteForAll(true)
+                .messageIds(message.getId())
+                //.messageIds(message.getId())
+                .unsafeParam("peer_id", message.getPeerId());
+//                .unsafeParam("conversation_message_ids", message.getConversationMessageId());
+        executeRequest(query);
+
+//        query = vk.messages().delete(groupActor)
+//                .deleteForAll(true)
+//                //.messageIds(message.getId())
+//                .unsafeParam("peer_id", 2000000000+message.getPeerId())
+//                .unsafeParam("conversation_message_ids", message.getConversationMessageId());
+//        executeRequest(query);
+
+        final var response = executeRequest(vk.messages().getConversations(groupActor));
+    }
+
+    public void unsetKeyboard() {
+        instance.unsetKeyboard = true;
+    }
+
+    public void setOnline (boolean isOnline) {
+        if (isOnline) vk.groups().enableOnline(groupActor, groupId);
+        else          vk.groups().disableOnline(groupActor, groupId);
+    }
+
     public static KeyboardButton generateButton (String text, KeyboardButtonColor color) {
         return new KeyboardButton()
                 .setAction(new KeyboardButtonAction()
                         .setLabel(text)
                         .setType(TemplateActionTypeNames.TEXT))
                 .setColor(color);
-    }
-
-    public void unsetKeyboard() {
-        instance.unsetKeyboard = true;
     }
 }

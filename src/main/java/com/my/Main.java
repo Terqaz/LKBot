@@ -1,41 +1,29 @@
 package com.my;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.my.exceptions.CloseAppNeedsException;
+import com.my.models.Group;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 import com.my.services.LstuAuthService;
-import com.my.services.NewInfoService;
+import com.my.services.LstuParser;
 import com.my.services.VkBotService;
 import com.vk.api.sdk.objects.messages.Keyboard;
 import com.vk.api.sdk.objects.messages.KeyboardButtonColor;
 import com.vk.api.sdk.objects.messages.Message;
-import lombok.*;
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
+import lombok.NonNull;
 
-import java.io.File;
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 public class Main {
 
-    static final String SUBJECTS_DATA_FILENAME_PREFIX = "info_";
-
-    static final ObjectMapper objectMapper = new ObjectMapper();
+    static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
+    static final Map<Integer, String> groupNameByUserId = new HashMap<>();
 
     static final VkBotService vkBotService = VkBotService.getInstance();
     static final LstuAuthService lstuAuthService = new LstuAuthService();
-    static final NewInfoService newInfoService = new NewInfoService();
-
-    static final int ADMIN_VK_ID = 173315241;
-
-    static final Map<Integer, UserContext> userContexts = new HashMap<>();
-    static final Map<String, GroupData> groupDataByGroupName = new HashMap<>();
+    static final LstuParser lstuParser = new LstuParser();
 
     static final Keyboard keyboard1 = new Keyboard()
             .setButtons(Arrays.asList(
@@ -55,99 +43,77 @@ public class Main {
                             VkBotService.generateButton("Ладно, отдыхай", KeyboardButtonColor.NEGATIVE))
             ));
 
-    private static final Pattern groupNamePattern =
-            Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
-
     private static final String BASIC_COMMANDS =
-            "Если я не отвечу, повтори свою просьбу." +
-            "-- Вывести список предметов:\n" +
-            "Список предметов\n" +
-            "-- Узнать самую свежую информацию по предмету из ЛК:\n" +
-            "Предмет n (n - номер в списке выше)\n" +
-            "-- Узнать последнюю проверенную информацию по всем предметам:\n" +
-            "Предметы\n" +
-            "-- Узнать самую свежую информацию по всем предметам:\n" +
-            "Обнови предметы\n" +
-            "-- Показать эти команды:\n" +
-            "Команды\n" +
-            "-- Прекратить пользоваться ботом или сменить зарегистрированного человека:\n" +
-            "Забудь меня";
+            "🔷 Вывести список предметов:\n" +
+                    "Список предметов\n" +
+                    "🔷 Узнать самую свежую информацию по предмету из ЛК:\n" +
+                    "Предмет n (n - номер в списке выше)\n" +
+                    "🔷 Узнать последнюю проверенную информацию по всем предметам:\n" +
+                    "Предметы\n" +
+                    "🔷 Узнать самую свежую информацию по всем предметам:\n" +
+                    "Обнови предметы\n" +
+                    "🔶 Показать эти команды:\n" +
+                    "Команды\n" +
+                    "🔶 Прекратить пользоваться ботом или сменить зарегистрированного человека:\n" +
+                    "Забудь меня";
 
     private static final String LOGGED_USER_COMMANDS =
             BASIC_COMMANDS + "\n" +
-            "-- Не писать тебе, пока нет новой информации:\n"+
-            "Не пиши попусту\n"+
-            "-- Изменить интервал автоматического обновления:\n" +
-            "Изменить интервал на n (n - количество минут от 30, до 720)\n";
-    
+                    "🔶 Не писать тебе, пока нет новой информации:\n"+
+                    "Не пиши попусту\n"+
+                    "🔶 Изменить интервал автоматического обновления:\n" +
+                    "Изменить интервал на n (n - количество минут от 30, до 720)\n";
+
     private static final String AUTH_COMMAND =
             "(рекомендую сразу удалить это сообщение):\n" +
-            "Хочу войти в ЛК\n" +
-            "Мой_логин\n" +
-            "Мой_пароль";
+                    "Хочу войти в ЛК\n" +
+                    "Мой_логин\n" +
+                    "Мой_пароль";
 
-    private static final Set<UserContext> updateWaitingUsers = new HashSet<>();
-    private static final MultiValuedMap<String, Integer> loginWaitingUsers = new ArrayListValuedHashMap<>();
+    static final int ADMIN_VK_ID = 173315241;
+    private static final Pattern groupNamePattern = LstuUtils.groupNamePattern;
 
-    private static String scannedSemester;
+    private static String actualSemester;
 
-    @Data
-    @RequiredArgsConstructor
-    @JsonIgnoreProperties({"nextCheckDate"})
-    private static class GroupData {
-        @NonNull
-        private Integer loggedUserId;
-        @NonNull
-        private String groupName;
+    public static void main (String[] args) {
+        actualSemester = getNewScannedSemesterName();
+        vkBotService.setOnline(true);
+        fillGroupNameByUserId();
+        try {
+            runCycle();
+        } catch (CloseAppNeedsException ignored) {}
+        vkBotService.sendMessageTo(ADMIN_VK_ID, "WARNING: App closed");
+        vkBotService.setOnline(false);
+    }
 
-        @NonNull
-        private String login;
-        @NonNull
-        private String password;
+    private static void fillGroupNameByUserId () {
+        for (Group group : groupsRepository.findAllUsersOfGroups()) {
+            if (!group.isLoggedBefore())
+                continue;
 
-        @NonNull
-        @Setter(AccessLevel.PRIVATE)
-        private List<SubjectData> subjectsData;
-
-        @NonNull
-        private Date lastCheckDate;
-        private long updateIntervalMillis = 12L * 3600 * 1000;
-        private boolean updatingNow = false;
-
-        private boolean alwaysNotifyLoggedUser = true;
-
-        public void updateSubjectsData (List<SubjectData> subjectsData, Date lastCheckDate) {
-            this.subjectsData = subjectsData;
-            this.lastCheckDate = lastCheckDate;
-        }
-
-        public Date getNextCheckDate () {
-            return new Date(lastCheckDate.getTime() + updateIntervalMillis);
+            final var groupName = group.getName();
+            groupNameByUserId.put(group.getLoggedUserId(), groupName);
+            group.getUsers().forEach(userId ->
+                    groupNameByUserId.put(userId, groupName));
+            group.getLoginWaitingUsers().forEach(userId ->
+                    groupNameByUserId.put(userId, groupName));
         }
     }
 
-    @Data
-    @RequiredArgsConstructor
-    private static class UserContext {
-        @NonNull
-        Integer userId;
-        @NonNull
-        String groupName;
-    }
-
-    public static void main (String[] args) throws InterruptedException {
-        scannedSemester = getNewScannedSemesterName();
-
-        vkBotService.updateTs();
+    private static void runCycle () {
         while (true) {
-            final List<Message> messages = vkBotService.getNewMessages();
+            final List<Message> messages;
+            messages = vkBotService.getNewMessages();
             if (!messages.isEmpty()) {
                 for (Message message : messages) {
                     final Integer userId = message.getFromId();
+                    if (userId.equals(ADMIN_VK_ID) && message.getText().equals("close")) {
+                        throw new CloseAppNeedsException();
+                    }
                     if (userId > 0) {
                         System.out.println(message); // TODO логирование
                         try {
-                            executeBotDialog(userId, message.getText());
+                            executeBotDialog(userId, message);
                         } catch (Exception e) {
                             vkBotService.sendMessageTo(userId, "Я не понял тебя или ошибся сам");
                             e.printStackTrace();
@@ -155,158 +121,80 @@ public class Main {
                     }
                 }
             }
-            sendReportsToUpdateWaitingUsers();
             plannedSubjectsDataUpdate();
-            vkBotService.updateTs();
-            Thread.sleep(100);
         }
-    }
-
-    private static void sendReportsToUpdateWaitingUsers () {
-        for (UserContext context : updateWaitingUsers) {
-            vkBotService.sendMessageTo(context.getUserId(),
-                    makeSubjectsDataReport(groupDataByGroupName.get(context.getGroupName()).getSubjectsData()));
-        }
-        updateWaitingUsers.clear();
     }
 
     private static void plannedSubjectsDataUpdate () {
-        final var newSemesterName = getNewScannedSemesterName();
-        groupDataByGroupName.keySet().forEach(checkingGroup -> {
-            final var checkDate = new Date();
-            final var groupData = groupDataByGroupName.get(checkingGroup);
+        final var newSemester = getNewScannedSemesterName();
 
-            if (!checkDate.after(groupData.getNextCheckDate())) {
-                return;
+        for (Group group : groupsRepository.findAllLogged()) {
+            final var checkDate = new Date();
+            if (!checkDate.after(group.getNextCheckDate())) {
+                continue;
             }
 
-            if (lstuAuthService.login(groupData.getLogin(), groupData.getPassword())) {
-                final var oldSubjectsData = groupData.getSubjectsData();
-
-                final List<SubjectData> newSubjectsData;
-                String report;
-                if (scannedSemester.equals(newSemesterName)) {
-                    newSubjectsData = newInfoService.getNewSubjectsData(oldSubjectsData, groupData.getLastCheckDate());
-                    report = makeSubjectsDataReport(NewInfoService.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
-                } else {
-                    newSubjectsData = newInfoService.getSubjectsDataFirstTime(scannedSemester);
-                    report = "Данные теперь приходят из семестра " + newSemesterName + "\n" +
-                            makeSubjectsDataReport(newSubjectsData);
-                }
-                lstuAuthService.logout();
-                groupData.updateSubjectsData(newSubjectsData, checkDate);
-                writeGroupDataFile(groupData);
-
-                if (!report.startsWith("Нет новой")) {
-                    final var finalReport = "Плановое обновление:\n" + report;
-                    getGroupUsers(checkingGroup).forEach(userId1 -> {
-                                vkBotService.sendLongMessageTo(userId1, finalReport);
-                                nextUpdateDateMessage(userId1, groupData);
-                            });
-                } else {
-                    if (groupData.isAlwaysNotifyLoggedUser())
-                        vkBotService.sendMessageTo(groupData.getLoggedUserId(), "Плановое обновление:\n" + report);
-                }
-            } else {
-                vkBotService.sendMessageTo(groupData.getLoggedUserId(),
+            if (group.getLoggedUserId() == null || !lstuAuthService.login(group.getLogin(), group.getPassword())) {
+                vkBotService.sendMessageTo(group.getLoggedUserId(),
                         "Не удалось обновить данные из ЛК по следующей причине:\n" +
                                 "Необходимо обновить данные для входа");
+                continue;
             }
-        });
-    }
 
-    private static Stream<Integer> getGroupUsers (String checkingGroup) {
-        return userContexts.values().stream()
-                .filter(userContext -> userContext.getGroupName().equals(checkingGroup))
-                .map(UserContext::getUserId);
-    }
-
-    private static void executeBotDialog (Integer userId, String messageText) {
-        if (messageText.startsWith("Я из ")) {
-            final var groupName = messageText.substring(5);
-            if (groupNamePattern.matcher(groupName).find()) {
-                userContexts.put(userId, new UserContext(userId, groupName));
-                if (!groupRegistered(groupName)) {
-                    newUserMessage(userId);
-                } else {
-                    final var groupData = groupDataByGroupName.get(groupName);
-                    if (groupData.getLoggedUserId() != 0) {
-                        newUserOldGroupMessages(userId, groupData);
-                    } else {
-                        vkBotService.sendMessageTo(userId,
-                        "В этой группе был человек, вошедший от своего имени, но теперь его нет." +
-                                "Ты хочешь стать им?\n");
-                        newUserMessage(userId);
-                    }
-                }
+            final var oldSubjectsData = group.getSubjectsData();
+            final List<SubjectData> newSubjectsData;
+            String report;
+            if (actualSemester.equals(newSemester)) {
+                newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group.getLastCheckDate());
+                report = makeSubjectsDataReport(LstuParser.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
             } else {
-                vkBotService.sendMessageTo(userId,
-                "Мне кажется, ты ввел неправильное имя для группы\n");
+                actualSemester = newSemester;
+                newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
+                report = "Данные теперь приходят из семестра " + newSemester + "\n" +
+                        makeSubjectsDataReport(newSubjectsData);
             }
+            lstuAuthService.logout();
+            groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
+
+            if (!report.startsWith("Нет новой")) {
+                final var finalReport = "Плановое обновление:\n" + report;
+                //TODO Отправка сообщения разом
+                group.getUsers().forEach(userId1 -> {
+                    vkBotService.sendLongMessageTo(userId1, finalReport);
+                    nextUpdateDateMessage(userId1, group);
+                });
+            } else {
+                if (group.isAlwaysNotifyLoggedUser())
+                    vkBotService.sendMessageTo(group.getLoggedUserId(), "Плановое обновление:\n" + report);
+            }
+        }
+    }
+
+    private static void executeBotDialog (Integer userId, Message message) {
+        String messageText = message.getText();
+        if (messageText.startsWith("Я из ")) {
+            newUserGroupCheck(userId, messageText);
+            return;
 
         } else if (messageText.startsWith("Хочу войти в ЛК")) {
-            tryToLoginMessages(userId, userContexts.get(userId).getGroupName(), messageText);
+            onLoginMessages(userId, groupNameByUserId.get(userId), message);
+            return;
+        }
 
-        } else {
-            if (!userContexts.containsKey(userId)) {
-                vkBotService.sendMessageTo(userId, "Напиши из какой ты группы (например: \"Я из ПИ-19\"):");
-                return;
-            }
-            final var userContext = userContexts.get(userId);
-            final var groupName = userContext.getGroupName();
-            final var groupData = groupDataByGroupName.get(groupName);
-            messageText = messageText.toLowerCase();
+        if (!groupNameByUserId.containsKey(userId)) {
+            vkBotService.sendMessageTo(userId, "Напиши из какой ты группы (например: \"Я из ПИ-19-1\"):");
+            return;
+        }
 
-            if (messageText.startsWith("предмет ")) {
-                getActualSubjectDataMessage(userId, groupData, messageText);
+        final var groupName = groupNameByUserId.get(userId);
+        messageText = messageText.toLowerCase();
 
-            } else if (messageText.equals("предметы")) {
-                vkBotService.sendLongMessageTo(userId,
-                        makeSubjectsDataReport(groupData.getSubjectsData()));
-                nextUpdateDateMessage(userId, groupData);
+        // TODO Разделить на запросы по действительно нужным полям для команд
+        final var optionalGroup = groupsRepository.findByGroupName(groupName);
 
-            } else if (messageText.equals("список предметов")) {
-                vkBotService.sendMessageTo(userId,
-                        makeSubjectsListReport(groupData.getSubjectsData()));
-
-            } else if (messageText.equals("обнови предметы")) {
-                if (!groupData.isUpdatingNow()) {
-                    updateSubjectsDataWarningMessage(userId);
-                } else {
-                    subjectsDataIsUpdatingMessage(userContext);
-                }
-
-            } else if (messageText.equals("сканируй все равно")) {
-                vkBotService.unsetKeyboard();
-                if (!groupData.isUpdatingNow()) {
-                    updateSubjectsDataMessages(userId, groupData);
-                } else {
-                    subjectsDataIsUpdatingMessage(userContext);
-                }
-
-            } else if (messageText.startsWith("изменить интервал на ")) {
-                final var minutes = Long.parseLong(messageText.substring(21));
-                if (userIsLogged(userId, groupData)) {
-                    if (30 <= minutes && minutes <= 720) {
-                        groupData.setUpdateIntervalMillis(minutes * 60 * 1000);
-                        vkBotService.sendMessageTo(userId, "Интервал изменен");
-                    } else {
-                        vkBotService.sendMessageTo(userId, "Нельзя установить такой интервал обновления");
-                    }
-                } else {
-                    userInsufficientPermissionsMessage(userId);
-                }
-
-            } else if (messageText.equals("команды")) {
-                vkBotService.sendMessageTo(userId,
-                        (!userIsLogged(userId, groupData) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
-
-            } else if (messageText.equals("ладно, отдыхай")) {
-                vkBotService.unsetKeyboard();
-                vkBotService.sendMessageTo(userId, "Спасибо тебе, человек!");
-
-            } else if (messageText.equals("я готов на все ради своей группы!")) {
-                if (!groupRegistered(groupName)) {
+        switch (messageText) {
+            case "я готов на все ради своей группы!":
+                if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
                     vkBotService.unsetKeyboard();
                     vkBotService.sendMessageTo(userId,
                             "Хорошо, смельчак. Пиши свои данные вот так " +
@@ -314,85 +202,179 @@ public class Main {
                 } else {
                     groupAlreadyRegisteredMessage(userId);
                 }
-            } else if (messageText.startsWith("лучше скажу другому")) {
-                if (!groupRegistered(groupName)) {
+                return;
+
+            case "лучше скажу другому":
+                if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
                     vkBotService.unsetKeyboard();
                     vkBotService.sendMessageTo(userId,
                             "Хорошо. Я скажу, когда он сообщит мне свои логин и пароль");
-                    loginWaitingUsers.put(groupName, userId);
+                    groupsRepository.addUserTo(groupName, "loginWaitingUsers", userId);
                 } else {
                     groupAlreadyRegisteredMessage(userId);
                 }
-            } else if (messageText.startsWith("я ошибся при вводе группы")) {
+                return;
+
+            case "я ошибся при вводе группы":
                 vkBotService.unsetKeyboard();
-                userContexts.remove(userId);
+                groupNameByUserId.remove(userId);
                 vkBotService.sendMessageTo(userId, "Введи новое имя для группы (например: \"Я из ПИ-19\"):");
+                return;
+        }
 
-            } else if (messageText.equals("не пиши попусту")) {
-                if (userIsLogged(userId, groupData)) {
-                    groupData.setAlwaysNotifyLoggedUser(false);
-                    vkBotService.sendMessageTo(userId, "Хорошо");
+        final var group = optionalGroup.get();
+
+        if (messageText.startsWith("предмет ")) {
+            getActualSubjectDataMessage(userId, group, messageText);
+
+        } else if (messageText.equals("предметы")) {
+            vkBotService.sendLongMessageTo(userId,
+                    makeSubjectsDataReport(group.getSubjectsData()));
+            nextUpdateDateMessage(userId, group);
+
+        } else if (messageText.equals("список предметов")) {
+            vkBotService.sendMessageTo(userId,
+                    makeSubjectsListReport(group.getSubjectsData()));
+
+        } else if (messageText.equals("обнови предметы")) {
+            updateSubjectsDataWarningMessage(userId);
+
+        } else if (messageText.equals("сканируй все равно")) {
+            vkBotService.unsetKeyboard();
+            updateSubjectsDataMessages(userId, group);
+
+        } else if (messageText.startsWith("изменить интервал на ")) {
+            final var minutes = Long.parseLong(messageText.substring(21));
+            if (group.userIsLogged(userId)) {
+                if (30 <= minutes && minutes <= 720) {
+                    groupsRepository.updateField(groupName,
+                            "updateInterval", minutes * 60 * 1000);
+                    vkBotService.sendMessageTo(userId, "Интервал изменен");
                 } else {
-                    userInsufficientPermissionsMessage(userId);
+                    vkBotService.sendMessageTo(userId, "Нельзя установить такой интервал обновления");
                 }
-
-            } else if (messageText.equals("забудь меня")) {
-                if (userIsLogged(userId, groupData)) {
-                    vkBotService.sendMessageTo(userId,
-                            "Эта опция полезна будет полезна, если тебе нужно изменить человека, " +
-                            "зарегистрированного от имени группы или если я тебе больше не нужен.\n" +
-                            "После твоего ухода кому-то нужно будет сказать мне логин и пароль от своего ЛК, " +
-                            "если вы хотите продолжать пользоваться мной.\n" +
-                            "В дальнейшем у тебя есть возможность вернуться обратно в свою группу.\n" +
-                            "Если ты уверен, что хочешь прекратить пользоваться ботом, то напиши:\n" +
-                            "Я уверен, что хочу, чтобы ты забыл меня");
-                } else {
-                    vkBotService.sendMessageTo(userId,
-                            "Эта опция полезна будет полезна тебе, чтобы войти от имени группы после того, " +
-                                    "как я забыл другого зарегистрированного человека из твоей группы, " +
-                                    "или если я тебе больше не нужен. \n" +
-                                    "Если ты уверен, что правильно все делаешь, то напиши:\n" +
-                                    "Я уверен, что хочу, чтобы ты забыл меня");
-                }
-
-            } else if (messageText.equals("я уверен, что хочу, чтобы ты забыл меня")) {
-                if (userIsLogged(userId, groupData)) {
-                    vkBotService.sendMessageTo(userId,
-                            "Хорошо. Рекомендую тебе поменять пароль в ЛК (http://lk.stu.lipetsk.ru).\n" +
-                                    "Я тебя забыл.");
-                    groupData.setLoggedUserId(0);
-                    groupData.setLogin("0");
-                    groupData.setPassword("0");
-                    getGroupUsers(groupName).forEach(groupUserId -> vkBotService.sendMessageTo(groupUserId,
-                            "Человек больше не зарегистрирован от имени твоей группы.\n" +
-                                    "Теперь кому-то из вас стоит написать мне \"Забудь меня\", " +
-                                    "чтобы зарегистрироваться от имени группы"));
-                } else {
-                    vkBotService.sendMessageTo(userId,
-                            "Хорошо. Я тебя забыл.");
-                }
-                userContexts.remove(userId);
-
             } else {
-                vkBotService.sendMessageTo(userId, "Я не понял тебя");
+                userInsufficientPermissionsMessage(userId);
             }
+
+        } else if (messageText.equals("команды")) {
+            vkBotService.sendMessageTo(userId,
+                    (!group.userIsLogged(userId) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
+
+        } else if (messageText.equals("ладно, отдыхай")) {
+            vkBotService.unsetKeyboard();
+            vkBotService.sendMessageTo(userId, "Спасибо тебе, человек!");
+
+        } else if (messageText.equals("не пиши попусту")) {
+            if (group.userIsLogged(userId)) {
+                groupsRepository.updateField(groupName,"alwaysNotifyLoggedUser", false);
+                vkBotService.sendMessageTo(userId, "Хорошо");
+            } else {
+                userInsufficientPermissionsMessage(userId);
+            }
+
+        } else if (messageText.equals("забудь меня")) {
+            if (group.userIsLogged(userId)) {
+                vkBotService.sendMessageTo(userId,
+                        "➡ Эта опция полезна, если тебе нужно изменить человека, " +
+                        "зарегистрированного от имени группы или если я тебе больше не нужен. " +
+                        "После твоего ухода кому-то нужно будет сказать мне логин и пароль от своего ЛК, " +
+                        "если вы хотите продолжать пользоваться мной. " +
+                        "➡ Если ты уверен, что правильно все делаешь, то напиши:\n" +
+                        "Я уверен, что хочу, чтобы ты забыл меня");
+            } else {
+                vkBotService.sendMessageTo(userId,
+                        "➡ Эта опция полезна будет полезна тебе, чтобы войти от имени группы после того, " +
+                                "как я забыл другого зарегистрированного человека из твоей группы, " +
+                                "или если я тебе больше не нужен. \n" +
+                                "➡ Если ты уверен, что правильно все делаешь, то напиши:\n" +
+                                "Я уверен, что хочу, чтобы ты забыл меня");
+            }
+
+        } else if (messageText.equals("я уверен, что хочу, чтобы ты забыл меня")) {
+            if (group.userIsLogged(userId)) {
+                vkBotService.sendMessageTo(userId,
+                        "Хорошо. Рекомендую тебе поменять пароль в ЛК (http://lk.stu.lipetsk.ru).\n" +
+                                "Я тебя забыл. \uD83D\uDC4B\uD83C\uDFFB");
+                groupsRepository.updateAuthInfo(groupName, null, null, null);
+                //TODO Отправка сообщения разом
+                group.getUsers().forEach(groupUserId -> vkBotService.sendMessageTo(groupUserId,
+                        "➡ Человек больше не зарегистрирован от имени твоей группы. " +
+                                "Теперь кому-то из вас стоит написать мне \"Забудь меня\", " +
+                                "чтобы зарегистрироваться от имени группы"));
+            } else {
+                vkBotService.sendMessageTo(userId,
+                        "Хорошо. Я тебя забыл. \uD83D\uDC4B\uD83C\uDFFB");
+            }
+            groupNameByUserId.remove(userId);
+
+        } else {
+            vkBotService.sendMessageTo(userId, "Я не понял тебя");
         }
     }
 
-    private static boolean groupRegistered (String groupName) {
-        final var data = groupDataByGroupName.get(groupName);
-        return data != null && data.getLoggedUserId() != 0;
+    private static void newUserGroupCheck (Integer userId, String messageText) {
+        final var groupName = messageText.substring(5);
+        if (groupNamePattern.matcher(groupName).find()) {
+            groupNameByUserId.put(userId, groupName);
+
+            final var optionalGroup = groupsRepository.findByGroupName(groupName);
+            if (optionalGroup.map(Group::isLoggedBefore).orElse(false)) {
+                if (optionalGroup.map(Group::isNotLoggedNow).orElse(false)) {
+                    vkBotService.sendMessageTo(userId,
+                            "В этой группе был человек, вошедший от своего имени, но теперь его нет. " +
+                                    "Ты хочешь стать им?\n");
+                    newUserMessage(userId);
+                } else {
+                    newUserOldGroupMessages(userId, optionalGroup.get());
+                }
+            } else {
+                groupsRepository.initialInsert(new Group(groupName));
+                newUserMessage(userId);
+            }
+
+        } else {
+            vkBotService.sendMessageTo(userId,
+            "Мне кажется, ты ввел неправильное имя для группы\n");
+        }
+    }
+
+    private static void newUserMessage (Integer userId) {
+        vkBotService.sendMessageTo(userId, keyboard1,
+                "➡ Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию " +
+                        "для тебя и твоих одногруппников.\n" +
+                        "Можешь мне довериться ;-)\n" +
+                        "➡ Если ты мне не доверяешь, то позволь ввести пароль другому человеку из твоей группы. " +
+                        "Обещаю не писать тебе когда не надо.\n\n" +
+                        "➡ Все мои возможности смотри в группе:\nhttps://vk.com/dorimelk\n" +
+                        "Ты всегда можешь изучить мой внутренний мир по этой ссылке:\nhttps://github.com/Terqaz/LKBot\n" +
+                        "И иногда обратиться к этому человеку за помощью:\nhttps://vk.com/terqaz");
+    }
+
+    private static void newUserOldGroupMessages (Integer userId, Group group) {
+        vkBotService.sendMessageTo(userId, "О, я знаю эту группу!");
+        groupsRepository.addUserTo(group.getName(), "users", userId);
+        newUserSubjectsListMessage(userId, group);
+    }
+
+    private static void newUserSubjectsListMessage (Integer userId, Group group) {
+        vkBotService.sendMessageTo(userId,
+                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам\n" +
+                        "(обновление было в " + formatDate(group.getLastCheckDate()) + "):\n" +
+                        makeSubjectsListReport(group.getSubjectsData()) + "\n");
+        vkBotService.sendMessageTo(userId, "Также теперь ты можешь использовать эти команды:\n" +
+                (!group.userIsLogged(userId) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
     }
 
     private static void groupAlreadyRegisteredMessage (Integer userId) {
         vkBotService.sendMessageTo(userId,
-                "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать.\n" +
+                "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать. " +
                 "Держи команды:\n" + BASIC_COMMANDS);
     }
 
-    private static void nextUpdateDateMessage (Integer userId, GroupData groupData) {
+    private static void nextUpdateDateMessage (Integer userId, Group group) {
         vkBotService.sendMessageTo(userId, "Следующее обновление будет в "
-                + formatDate(groupData.getNextCheckDate()));
+                + formatDate(group.getNextCheckDate()));
     }
 
     private static void userInsufficientPermissionsMessage (Integer userId) {
@@ -400,167 +382,104 @@ public class Main {
                 "Я разрешаю эту операцию только человеку, вошедшему от имени группы");
     }
 
-    private static boolean userIsLogged (Integer userId, GroupData groupData) {
-        return Objects.equals(groupData.getLoggedUserId(), userId);
-    }
-
-    private static void newUserMessage (Integer userId) {
-        vkBotService.sendMessageTo(userId, keyboard1,
-        "Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию " +
-                "для тебя и твоих одногруппников.\n" +
-                "А еще несколько минут, чтобы ты мне объяснил, чьи сообщения самые важные.\n" +
-                "Можешь мне довериться ;-)\n" +
-                "Если ты мне не доверяешь, то позволь ввести пароль другому человеку из твоей группы.\n" +
-                "Этот человек сможет менять интервал обновления данных о предметах из ЛК.\n" +
-                "Если нет новых данных о предметах, то я напишу об этом только ему.\n" +
-                "Обещаю не писать тебе когда не надо.\n" +
-                "Ты всегда можешь изучить мой внутренний мир по этой ссылке: https://github.com/Terqaz/LKBot\n" +
-                "И иногда обратиться к этому человеку за помощью: https://vk.com/terqaz");
-    }
-
-    private static void newUserOldGroupMessages (Integer userId, GroupData groupData) {
-        vkBotService.sendMessageTo(userId, "О, я знаю эту группу!");
-        newUserSubjectsListMessage(userId, groupData);
-    }
-
-    private static void newUserSubjectsListMessage (Integer userId, GroupData groupData) {
-        vkBotService.sendMessageTo(userId,
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам\n" +
-                "(обновление было в " + formatDate(groupData.getLastCheckDate()) + "):\n" +
-                makeSubjectsListReport(groupData.getSubjectsData()) + "\n");
-        vkBotService.sendMessageTo(userId, "Также теперь ты можешь использовать эти команды:\n" +
-                (!userIsLogged(userId, groupData) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
-    }
-
     private static String makeSubjectsListReport (List<SubjectData> subjectsData) {
         var stringBuilder = new StringBuilder();
         for (SubjectData data : subjectsData) {
-            stringBuilder.append(data.getId()).append(" ")
-                    .append(data.getSubjectName()).append("\n");
+            stringBuilder.append("➡ ").append(data.getId()).append(" ")
+                    .append(data.getName()).append("\n");
         }
         return stringBuilder.toString();
     }
 
-    private static void getActualSubjectDataMessage (Integer userId, GroupData groupData, String messageText) {
+    private static void getActualSubjectDataMessage (Integer userId, Group group, String messageText) {
         var subjectIndex = Integer.parseInt(messageText.substring(8));
-        if (lstuAuthService.login(groupData.getLogin(), groupData.getPassword())) {
+        if (!lstuAuthService.login(group.getLogin(), group.getPassword())) {
+            repeatLoginFailedMessages(userId, group);
+            return;
+        }
 
-            final var optionalSubjectData = groupData.getSubjectsData().stream()
-                    .filter(subjectData1 -> subjectData1.getId() == subjectIndex)
-                    .findFirst();
-            if (optionalSubjectData.isEmpty()) {
-                vkBotService.sendMessageTo(userId, "Неправильный номер предмета");
-                return;
-            }
-            final var oldSubjectData = optionalSubjectData.get();
+        final var optionalSubjectData = group.getSubjectsData().stream()
+                .filter(subjectData1 -> subjectData1.getId() == subjectIndex)
+                .findFirst();
+        if (optionalSubjectData.isEmpty()) {
+            vkBotService.sendMessageTo(userId, "Неправильный номер предмета");
+            return;
+        }
+        final var oldSubjectData = optionalSubjectData.get();
 
-            SubjectData newSubjectData = newInfoService.getNewSubjectData(
-                    oldSubjectData.getSubjectName(), oldSubjectData.getLocalUrl(), groupData.getLastCheckDate());
-            lstuAuthService.logout();
+        SubjectData newSubjectData = lstuParser.getNewSubjectData(
+                oldSubjectData.getName(), oldSubjectData.getLocalUrl(), group.getLastCheckDate());
+        lstuAuthService.logout();
 
-            newSubjectData.removeOldDocuments(oldSubjectData);
+        newSubjectData.getNewDocumentNames()
+                .removeAll(oldSubjectData.getOldDocumentNames());
+        newSubjectData.getNewDocumentNames()
+                .removeAll(oldSubjectData.getNewDocumentNames());
 
-            if (newSubjectData.isNotEmpty()) {
-                vkBotService.sendLongMessageTo(userId,
-                        makeSubjectsDataReport(Collections.singletonList(newSubjectData)));
-            } else {
-                vkBotService.sendMessageTo(userId,
-                        "Нет новой информации по предмету " + newSubjectData.getSubjectName());
-            }
+        if (newSubjectData.isNotEmpty()) {
+            vkBotService.sendLongMessageTo(userId,
+                    makeSubjectsDataReport(Collections.singletonList(newSubjectData)));
         } else {
-            repeatLoginFailedMessages(userId, groupData);
+            vkBotService.sendMessageTo(userId,
+                    "Нет новой информации по предмету " + newSubjectData.getName());
         }
     }
 
     private static void updateSubjectsDataWarningMessage (Integer userId) {
         vkBotService.sendMessageTo(userId, keyboard2,
-                "Это может быть довольно долгая операция. Я и так выполняю ее регулярно\n" +
+                "➡ Это может быть довольно долгая операция. Я и так выполняю ее регулярно. " +
                         "Я такой же ленивый как и ты, человек. Может мне не стоит сканировать весь ЛК?");
 
     }
 
-    private static void updateSubjectsDataMessages (Integer userId, GroupData groupData) {
+    private static void updateSubjectsDataMessages (Integer userId, Group group) {
         vkBotService.sendMessageTo(userId,
                 "Ладно, можешь пока отдохнуть\n" +
                         "Я тебе напишу, как проверю");
-        if (lstuAuthService.login(groupData.getLogin(), groupData.getPassword())) {
-            groupData.setUpdatingNow(true);
-            final var checkDate = new Date();
 
-            final var oldSubjectsData = groupData.getSubjectsData();
-            List<SubjectData> newSubjectsData = newInfoService.getNewSubjectsData(oldSubjectsData, groupData.getLastCheckDate());
-
-            lstuAuthService.logout();
-
-            groupData.updateSubjectsData(newSubjectsData, checkDate);
-            writeGroupDataFile(groupData);
-            groupData.setUpdatingNow(false);
-
-            String report = makeSubjectsDataReport(
-                    NewInfoService.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
-            vkBotService.sendLongMessageTo(userId, report);
-        } else {
-            repeatLoginFailedMessages(userId, groupData);
+        if (!lstuAuthService.login(group.getLogin(), group.getPassword())) {
+            repeatLoginFailedMessages(userId, group);
+            return;
         }
+        final var checkDate = new Date();
+
+        final var oldSubjectsData = group.getSubjectsData();
+        List<SubjectData> newSubjectsData =
+                lstuParser.getNewSubjectsData(oldSubjectsData, group.getLastCheckDate());
+        lstuAuthService.logout();
+
+        groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
+
+        String report = makeSubjectsDataReport(
+                LstuParser.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
+        vkBotService.sendLongMessageTo(userId, report);
     }
 
-    private static void subjectsDataIsUpdatingMessage (UserContext userContext) {
-        vkBotService.sendMessageTo(userContext.getUserId(), "Данные о предметах уже обновляет кто-то другой\n" +
-                "Я пришлю тебе отчет после обновления");
-        updateWaitingUsers.add(userContext);
-    }
-
-    private static void newGroupLoggedMessages (Integer userId, String groupName, String login, String password) {
-        vkBotService.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
-        vkBotService.sendMessageTo(userId,
-                "Ой, извини, случайно вырвалось)\n" +
-                        "Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК\n" +
-                        "Тебе нужно просто позвать их пообщаться со мной\n" +
-                        "Но позволь я сначала проверю твой ЛК"); //и попытаюсь определить преподавателей...");
-
-        List<SubjectData> newSubjectsData = newInfoService.getSubjectsDataFirstTime(scannedSemester);
-        final var newGroupData = new GroupData(userId, groupName, login, password, newSubjectsData, new Date());
-        groupDataByGroupName.put(
-                groupName,
-                newGroupData
-        );
-        writeGroupDataFile(newGroupData);
-        newUserSubjectsListMessage(userId, newGroupData);
-        notifyLoginWaitingUsers(groupName);
-    }
-
-    private static void notifyLoginWaitingUsers (String groupName) {
-        loginWaitingUsers.get(groupName).forEach(userId ->
-                vkBotService.sendMessageTo(userId,
-                        "Человек из твоей группы зарегистрировался в ЛК. " +
-                                "Теперь ты можешь использовать эти команды:\n" + BASIC_COMMANDS));
-        loginWaitingUsers.remove(groupName);
-    }
-
-    private static void newLoginFailedMessages (Integer userId) {
+    private static void newGroupLoginFailedMessages (Integer userId) {
         vkBotService.sendMessageTo(userId,
                 "Что-то пошло не так. \n" +
                 "Либо твои логин и пароль неправильные, либо я неправильно их прочитал");
     }
 
-    private static void repeatLoginFailedMessages (Integer userId, GroupData groupData) {
-        String messageToLoggedUser =
-                "Похоже ты забыл сказать мне новый пароль после обновления в ЛК\n" +
-                        "Скажи мне новые данные для входа так " +
-                        AUTH_COMMAND;
-
-        final var loggedUserId = groupData.getLoggedUserId();
-        if (!userIsLogged(userId, groupData)) {
+    private static void repeatLoginFailedMessages (Integer userId, Group group) {
+        final var loggedUserId = group.getLoggedUserId();
+        if (!group.userIsLogged(userId)) {
             vkBotService.sendMessageTo(userId,
-                    "Мне не удалось проверить данные твоей группы \n" +
-                            "Человек, вошедший от имени группы изменил свой пароль в ЛК и не сказал мне новый пароль\n" +
-                            "Я скажу ему об этом сам. Когда он введет новый пароль, напиши мне еще раз");
-
-            vkBotService.sendMessageTo(loggedUserId, "Привет. " + messageToLoggedUser);
-        } else {
-            vkBotService.sendMessageTo(loggedUserId, messageToLoggedUser);
+                    "➡ Мне не удалось проверить данные твоей группы. " +
+                            "Человек, вошедший от имени группы изменил свой пароль в ЛК и не сказал мне новый пароль. " +
+                            "Я скажу ему об этом сам.");
+            groupsRepository.addUserTo(group.getName(), "loginWaitingUsers", userId);
         }
+        vkBotService.sendMessageTo(loggedUserId,
+                "➡ Похоже ты забыл сказать мне новый пароль после обновления в ЛК." +
+                        "Скажи мне новые данные для входа так " +
+                        AUTH_COMMAND);
+    }
 
+    private static void notifyLoginWaitingUsers (Group group, String message) {
+        final var users = group.getLoginWaitingUsers();
+        users.forEach(userId -> vkBotService.sendMessageTo(userId, message)); //TODO Отправка сообщения разом
+        groupsRepository.moveLoginWaitingUsersToUsers(group.getName());
     }
 
     private static String makeSubjectsDataReport (List<SubjectData> subjectsData) {
@@ -571,14 +490,14 @@ public class Main {
         var partBuilder = new StringBuilder();
         for (SubjectData data : subjectsData) {
             if (!data.getNewDocumentNames().isEmpty()) {
-                partBuilder.append(data.getSubjectName())
+                partBuilder.append("➡ ").append(data.getName())
                         .append(": ")
                         .append(String.join(", ", data.getNewDocumentNames()))
                         .append("\n\n");
             }
         }
         if (partBuilder.length() > 0) {
-            builder.append("Новые документы:\n").append(partBuilder);
+            builder.append("\uD83D\uDD34 Новые документы:\n").append(partBuilder);
         }
         partBuilder = new StringBuilder();
         for (SubjectData subjectData : subjectsData) {
@@ -586,22 +505,22 @@ public class Main {
             if (!messagesData.isEmpty()) {
                 var messagesBuilder = new StringBuilder();
                 for (MessageData messageData : messagesData) {
-                    final String shortName = makeShortSenderName(messageData.getSender());
-                    messagesBuilder.append(shortName)
+                    final String shortName = messageData.getSender();
+                    messagesBuilder.append("☑ ").append(shortName)
                             .append(" в ")
                             .append(formatDate(messageData.getDate()))
                             .append(":\n")
                             .append(messageData.getComment())
                             .append("\n\n");
                 }
-                partBuilder.append("-- ")
-                        .append(subjectData.getSubjectName())
+                partBuilder.append("➡ ")
+                        .append(subjectData.getName())
                         .append(":\n")
                         .append(messagesBuilder);
             }
         }
         if (partBuilder.length() > 0) {
-            builder.append("Новые сообщения:\n").append(partBuilder);
+            builder.append("\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
         }
         return builder.toString();
     }
@@ -610,29 +529,69 @@ public class Main {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
     }
 
-    private static String makeShortSenderName (String name) {
-        final String[] chunks = name.split(" ");
-        return chunks[0] + " " + chunks[1].charAt(0) + " " + chunks[2].charAt(0);
-    }
-
-    private static void tryToLoginMessages (Integer userId, @NonNull String groupName, String messageText) {
-        final String[] chunks = messageText.split("\n");
+    private static void onLoginMessages (Integer userId, @NonNull String groupName, Message message) {
+        final String[] chunks = message.getText().split("\n");
         String login = chunks[1];
         String password = chunks[2];
 
         vkBotService.sendMessageTo(userId, "Пробую зайти в твой ЛК...");
-        if (lstuAuthService.login(login, password)) {
-            var groupData = groupDataByGroupName.get(groupName);
-            // TODO нужно удостовериться согласно ЛК, что человек действительно из указанной им группы
-            if (groupData == null) {
-                newGroupLoggedMessages(userId, groupName, login, password);
-            } else {
-                vkBotService.sendMessageTo(userId, "Спасибо, что обновил данные :-)");
-            }
-            lstuAuthService.logout();
-        } else {
-            newLoginFailedMessages(userId);
+        if (!lstuAuthService.login(login, password)) {
+            newGroupLoginFailedMessages(userId);
+            return;
         }
+        //vkBotService.deleteLastMessage(message);
+
+        var optionalGroup = groupsRepository.findByGroupName(groupName);
+        if (optionalGroup.isEmpty()) return; // Не должно быть
+
+        final var oldGroup = optionalGroup.get();
+        if (oldGroup.isLoggedBefore()) {
+            groupsRepository.updateAuthInfo(oldGroup.getName(), userId, login, password);
+            notifyLoginWaitingUsers(oldGroup, "Человек из твоей группы обновил пароль от ЛК. ");
+            return;
+        }
+
+        newGroupLoginMessages(userId, groupName, login, password);
+        notifyLoginWaitingUsers(oldGroup,
+                "Человек из твоей группы вошел в ЛК через меня. " +
+                        "Теперь ты можешь использовать эти команды:\n" + BASIC_COMMANDS);
+
+        lstuAuthService.logout();
+    }
+
+    private static void newGroupLoginMessages (Integer userId, String groupName, String login, String password) {
+        final var optionalLkGroupName = lstuParser.getGroupName();
+        if (optionalLkGroupName.isPresent()) {
+            final var lkGroupName = optionalLkGroupName.get();
+            if (!lkGroupName.equals(groupName)) {
+                vkBotService.sendMessageTo(userId,
+                        "\uD83D\uDD34 Я поменяю имя введенной тобой группы "+ groupName +" на: "+lkGroupName+
+                                ", чтобы твои одногруппники ничего не перепутали. \uD83D\uDD34");
+                groupNameByUserId.replace(userId, lkGroupName);
+                // correctLoginWaitingUsersGroup(); TODO
+                newGroupLoggedMessages(userId, lkGroupName, groupName, login, password);
+            }
+        }
+        newGroupLoggedMessages(userId, groupName, groupName, login, password);
+    }
+
+    private static void newGroupLoggedMessages (Integer userId, @NonNull String newName, @NonNull String oldName, String login, String password) {
+        vkBotService.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
+        vkBotService.sendMessageTo(userId,
+                "Ой, извини, случайно вырвалось)\n" +
+                        "➡ Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК. " +
+                        "Тебе нужно просто позвать их пообщаться со мной. " +
+                        "Но позволь я сначала проверю твой ЛК...");
+
+        List<SubjectData> newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
+        final var newGroup = new Group(newName)
+                .setLoggedUserId(userId)
+                .setLogin(login)
+                .setPassword(password)
+                .setSubjectsData(newSubjectsData)
+                .setLastCheckDate(new Date());
+        groupsRepository.updateAuthInfoAndSubjectsData(newGroup, oldName);
+        newUserSubjectsListMessage(userId, newGroup);
     }
 
     private static String getNewScannedSemesterName () {
@@ -652,26 +611,12 @@ public class Main {
             return year + "-О";
     }
 
-    private static GroupData readGroupDataFile (String groupName) {
-        try {
-            return objectMapper.readValue(new File(makeFileName(groupName)), new TypeReference<>() {});
-        } catch (Exception e) { //JsonProcessingException
-            return null;
-        }
-    }
+    // TODO Написать подробные возможности бота в группе
+    // TODO Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
+    // TODO Массовое отправление через один запрос с множеством айдишников
+    // TODO Вынести команды и их методы в мапу
 
-    private static void writeGroupDataFile (GroupData groupData) {
-        if (groupData.getSubjectsData().isEmpty()) {
-            return;
-        }
-        try {
-            objectMapper.writeValue(new File(makeFileName(groupData.getGroupName())), groupData);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static String makeFileName (String groupName) {
-        return SUBJECTS_DATA_FILENAME_PREFIX + groupName + "_" + scannedSemester + ".json";
-    }
+    // TODO Шифрование? (только для MongoDB Enterprise, но можно самому написать)
+    // TODO функция: напомни имена и отчества преподавателей
+    // TODO Распознавание сообщений на англ. раскладке
 }

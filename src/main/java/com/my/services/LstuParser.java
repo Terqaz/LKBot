@@ -2,27 +2,30 @@ package com.my.services;
 
 import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
+import com.my.LstuUtils;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class NewInfoService {
+public class LstuParser {
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
+    private static final Pattern groupNamePattern = LstuUtils.groupNamePattern;
 
     public List<SubjectData> getSubjectsDataFirstTime (String semesterName) {
         final List<SubjectData> subjectsData = getHtmlSubjectsLinks(semesterName)
                 .map(htmlSubjectLink -> getSubjectDataByHtmlLink(htmlSubjectLink, new Date(1)))
                 .filter(SubjectData::isNotEmpty)
-                .sorted(Comparator.comparing(SubjectData::getSubjectName))
+                .sorted(Comparator.comparing(SubjectData::getName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
     }
@@ -36,8 +39,8 @@ public class NewInfoService {
     public List<SubjectData> getNewSubjectsData (List<SubjectData> oldSubjectsData, Date lastCheckDate) {
         final List<SubjectData> subjectsData = oldSubjectsData.stream()
                 .map(subjectData ->
-                        getNewSubjectData(subjectData.getSubjectName(), subjectData.getLocalUrl(), lastCheckDate))
-                .sorted(Comparator.comparing(SubjectData::getSubjectName))
+                        getNewSubjectData(subjectData.getName(), subjectData.getLocalUrl(), lastCheckDate))
+                .sorted(Comparator.comparing(SubjectData::getName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
     }
@@ -54,6 +57,7 @@ public class NewInfoService {
         return getNewSubjectData(htmlSubjectLink.text(), htmlSubjectLink.attr("href"), lastCheckDate);
     }
 
+    // Получает все документы и только новые сообщения
     public SubjectData getNewSubjectData(String subjectName, String localUrl, Date lastCheckDate) {
         final Document subjectDataPage = lstuClient.get(
                 LstuUrlBuilder.buildByLocalUrl(localUrl));
@@ -119,7 +123,7 @@ public class NewInfoService {
                     try {
                         return new SimpleDateFormat("dd.MM.yyyy HH:mm")
                                 .parse(htmlDate);
-                    } catch (ParseException e) {
+                    } catch (java.text.ParseException e) {
                         return new Date(System.currentTimeMillis());
                     }
                 }).collect(Collectors.toList())
@@ -131,12 +135,17 @@ public class NewInfoService {
             if (!date.after(lastCheckDate))
                 break;
             try {
-                messageDataList.add(new MessageData(comments.next(), senders.next(), date));
+                messageDataList.add(new MessageData(comments.next(), makeShortSenderName(senders.next()), date));
             } catch (NoSuchElementException ignored) {
                 break;
             }
         }
         return messageDataList;
+    }
+
+    private static String makeShortSenderName (String name) {
+        final String[] chunks = name.split(" ");
+        return chunks[0] + " " + chunks[1].charAt(0) + " " + chunks[2].charAt(0);
     }
 
     private Date getLastMessageDate (List<MessageData> messagesDataChunk) {
@@ -154,7 +163,7 @@ public class NewInfoService {
         for (SubjectData data : oldSubjectsData) {
             data.getOldDocumentNames().addAll(data.getNewDocumentNames());
             data.getNewDocumentNames().clear();
-            oldDocumentsMap.put(data.getSubjectName(), data);
+            oldDocumentsMap.put(data.getName(), data);
         }
 
         Set<SubjectData> oldSubjectsDataSet = new HashSet<>(oldSubjectsData);
@@ -162,12 +171,23 @@ public class NewInfoService {
                 .peek(subjectData -> {
                     final Set<String> newDocuments = subjectData.getNewDocumentNames();
                     if (oldSubjectsDataSet.contains(subjectData)) {
-                        final var oldSubjectData = oldDocumentsMap.get(subjectData.getSubjectName());
+                        final var oldSubjectData = oldDocumentsMap.get(subjectData.getName());
                         newDocuments.removeAll(oldSubjectData.getOldDocumentNames());
                         subjectData.setOldDocumentNames(oldSubjectData.getOldDocumentNames());
                     }
                 })
                 .filter(SubjectData::isNotEmpty)
                 .collect(Collectors.toList());
+    }
+
+    public Optional<String> getGroupName () {
+        return lstuClient.get(
+                LstuUrlBuilder.buildByLocalUrl("/personal")
+        ).select(".col-xs-12 > p").textNodes().stream()
+                .map(TextNode::text)
+                .map(String::strip)
+                .filter(s -> !s.isEmpty())
+                .filter(s -> groupNamePattern.matcher(s).find())
+                .findFirst();
     }
 }
