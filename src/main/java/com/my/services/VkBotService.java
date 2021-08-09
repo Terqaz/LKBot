@@ -2,6 +2,7 @@ package com.my.services;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonSyntaxException;
 import com.my.BotSecretInfoContainer;
 import com.vk.api.sdk.client.ApiRequest;
 import com.vk.api.sdk.client.TransportClient;
@@ -13,10 +14,10 @@ import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.*;
 import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
 
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class VkBotService {
 
@@ -66,6 +67,7 @@ public class VkBotService {
     public <T> T executeRequest(ApiRequest<T> apiRequest) {
         try {
             return apiRequest.execute();
+        } catch (JsonSyntaxException ignore) {
         } catch (ApiException | ClientException e) {
             e.printStackTrace();
         }
@@ -133,7 +135,17 @@ public class VkBotService {
         }
     }
 
-    public void sendMessageTo (Integer userId, String message) {
+    public void sendMessageTo (@NotNull Integer userId, Keyboard keyboard, String message) {
+        final var query = vk.messages().send(groupActor)
+                .message(message)
+                .userId(userId)
+                .randomId(random.nextInt(Integer.MAX_VALUE))
+                .dontParseLinks(true)
+                .keyboard(keyboard);
+        executeRequest(query);
+    }
+
+    public void sendMessageTo (@NotNull Integer userId, String message) {
         final var query = vk.messages().send(groupActor)
                 .message(message)
                 .userId(userId)
@@ -146,22 +158,36 @@ public class VkBotService {
         executeRequest(query);
     }
 
-    public void sendMessageTo (Integer userId, Keyboard keyboard, String message) {
+    public void sendMessageTo (@NotEmpty Collection<Integer> userIds, String message) {
         final var query = vk.messages().send(groupActor)
                 .message(message)
-                .userId(userId)
+                .peerIds(new ArrayList<>(userIds))
                 .randomId(random.nextInt(Integer.MAX_VALUE))
-                .dontParseLinks(true)
-                .keyboard(keyboard);
+                .dontParseLinks(true);
+        if (unsetKeyboard) {
+            query.keyboard(emptyKeyboard);
+            unsetKeyboard = false;
+        }
         executeRequest(query);
     }
 
-    public void sendLongMessageTo (Integer userId, String message) {
+    // Дублировал, чтобы каждый раз не вылетала ошибка из вк API о неизвестном респонсе
+    public void sendLongMessageTo (@NotNull Integer userId, String message) {
         var i = 0;
-        for (; i < message.length()-4000; i+=4000) {
-            sendMessageTo(userId, message.substring(i, i+4000));
-        }
+        if (message.length() > 4000)
+            for (; i < message.length()-4000; i+=4000)
+                sendMessageTo(userId, message.substring(i, i+4000));
+
         sendMessageTo(userId, message.substring(i));
+    }
+
+    public void sendLongMessageTo (@NotEmpty Collection<Integer> userIds, String message) {
+        var i = 0;
+        if (message.length() > 4000)
+            for (; i < message.length()-4000; i+=4000)
+                sendMessageTo(userIds, message.substring(i, i+4000));
+
+        sendMessageTo(userIds, message.substring(i));
     }
 
     public void deleteLastMessage (Message message) {

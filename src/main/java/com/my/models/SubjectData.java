@@ -6,7 +6,6 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -22,14 +21,13 @@ public class SubjectData {
     @NonNull
     private String localUrl;
     @NonNull
-    private Set<String> newDocumentNames;
-    private Set<String> oldDocumentNames = new HashSet<>();
+    private Set<String> documentNames;
     @NonNull
     private List<MessageData> messagesData;
 
     @BsonIgnore
     public boolean isNotEmpty () {
-        return !newDocumentNames.isEmpty() || !messagesData.isEmpty();
+        return !(documentNames.isEmpty() && messagesData.isEmpty());
     }
 
     @Override

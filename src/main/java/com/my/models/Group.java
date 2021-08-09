@@ -4,7 +4,10 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -16,14 +19,14 @@ public class Group {
     private String name;
     private List<SubjectData> subjectsData = new ArrayList<>();
     private Date lastCheckDate;
-    private long updateInterval = 12L * 3600 * 1000;
+    private long updateInterval = 12L * 3600 * 1000; // 12 часов
 
     private Integer loggedUserId;
     private String login;
     private String password;
     private boolean alwaysNotifyLoggedUser = true;
     private List<Integer> users = new ArrayList<>();
-    private Set<Integer> loginWaitingUsers = new HashSet<>();
+    private List<Integer> loginWaitingUsers = new ArrayList<>();
 
     @BsonIgnore
     public boolean userIsLogged (Integer userId) {

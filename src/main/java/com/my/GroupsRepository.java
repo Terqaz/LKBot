@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.mongodb.client.model.Filters.eq;
-import static com.mongodb.client.model.Filters.ne;
 import static com.mongodb.client.model.Projections.*;
 import static com.mongodb.client.model.Updates.*;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
@@ -51,18 +50,17 @@ public class GroupsRepository {
     }
 
 
-    public void initialInsert (Group group) {
-        if (groupsCollection.countDocuments(eq("name", group.getName())) == 0)
-            groupsCollection.insertOne(group);
+    public void insert (Group group) {
+        groupsCollection.insertOne(group);
     }
 
-    public FindIterable<Group> findAllLogged () {
-        return groupsCollection.find(ne("lastCheckDate", null));
+    public FindIterable<Group> findAll () {
+        return groupsCollection.find();
     }
 
     public FindIterable<Group> findAllUsersOfGroups () {
         return groupsCollection.find().projection(
-                fields(include("name", "loggedUserId", "users", "loginWaitingUsers"),
+                fields(include("name", "users", "loginWaitingUsers"),
                         excludeId()));
     }
 
@@ -89,17 +87,6 @@ public class GroupsRepository {
                         set("lastCheckDate", lastCheckDate)));
     }
 
-    public void updateAuthInfoAndSubjectsData (Group group, String oldName) {
-        groupsCollection.updateOne(eq("name", oldName),
-                combine(set("name", group.getName()), // Если в лк другое название группы
-                        set("loggedUsedId", group.getLoggedUserId()),
-                        set("login", group.getLogin()),
-                        set("password", group.getPassword()),
-                        set("subjectsData", group.getSubjectsData()),
-                        set("lastCheckDate", group.getLastCheckDate())
-                ));
-    }
-
     public <T> void updateField (String groupName, String fieldName, T value) {
         groupsCollection.updateOne(eq("name", groupName),
                 set(fieldName, value));
@@ -107,7 +94,17 @@ public class GroupsRepository {
 
     public void addUserTo (String groupName, String fieldName, Integer userId) {
         groupsCollection.updateOne(eq("name", groupName),
-                push(fieldName, userId));
+                addToSet(fieldName, userId));
+    }
+
+    public void removeLoggedUser(String groupName, Integer loggedUserId) {
+        updateAuthInfo(groupName, null, null, null);
+        removeUserFromGroup(groupName, loggedUserId);
+    }
+
+    public void removeUserFromGroup (String groupName, Integer userId) {
+        groupsCollection.updateOne(eq("name", groupName),
+                pull("users", userId));
     }
 
     public void moveLoginWaitingUsersToUsers (String groupName) {

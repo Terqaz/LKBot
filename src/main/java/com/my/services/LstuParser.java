@@ -2,7 +2,6 @@ package com.my.services;
 
 import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
-import com.my.LstuUtils;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 import org.jsoup.nodes.Document;
@@ -19,12 +18,13 @@ import java.util.stream.Stream;
 public class LstuParser {
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
-    private static final Pattern groupNamePattern = LstuUtils.groupNamePattern;
+    private static final Pattern groupNamePattern =
+            Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
 
+    // Загружает все документы и все сообщения
     public List<SubjectData> getSubjectsDataFirstTime (String semesterName) {
         final List<SubjectData> subjectsData = getHtmlSubjectsLinks(semesterName)
                 .map(htmlSubjectLink -> getSubjectDataByHtmlLink(htmlSubjectLink, new Date(1)))
-                .filter(SubjectData::isNotEmpty)
                 .sorted(Comparator.comparing(SubjectData::getName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
@@ -36,6 +36,18 @@ public class LstuParser {
                 .flatMap(semesterDataPage -> semesterDataPage.select("li.submenu.level3 > a").stream());
     }
 
+    private String getSemesterLink(String semesterName) {
+        Document semestersListPage = lstuClient.get(LstuUrlBuilder.buildSemestersUrl());
+        final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
+        for (Element link : htmlSemestersLinks) {
+            if (link.text().equals(semesterName)) {
+                return link.attr("href");
+            }
+        }
+        return null;
+    }
+
+    // Загружает все документы и только новые сообщения
     public List<SubjectData> getNewSubjectsData (List<SubjectData> oldSubjectsData, Date lastCheckDate) {
         final List<SubjectData> subjectsData = oldSubjectsData.stream()
                 .map(subjectData ->
@@ -57,7 +69,7 @@ public class LstuParser {
         return getNewSubjectData(htmlSubjectLink.text(), htmlSubjectLink.attr("href"), lastCheckDate);
     }
 
-    // Получает все документы и только новые сообщения
+    // Загружает все документы и только новые сообщения
     public SubjectData getNewSubjectData(String subjectName, String localUrl, Date lastCheckDate) {
         final Document subjectDataPage = lstuClient.get(
                 LstuUrlBuilder.buildByLocalUrl(localUrl));
@@ -70,17 +82,6 @@ public class LstuParser {
                 new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
                 messages
         );
-    }
-
-    private String getSemesterLink(String semesterName) {
-        Document semestersListPage = lstuClient.get(LstuUrlBuilder.buildSemestersUrl());
-        final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
-        for (Element link : htmlSemestersLinks) {
-            if (link.text().equals(semesterName)) {
-                return link.attr("href");
-            }
-        }
-        return null;
     }
 
     private List<MessageData> loadMessagesAfterDate (String subjectLink, Date lastCheckDate) {
@@ -145,7 +146,7 @@ public class LstuParser {
 
     private static String makeShortSenderName (String name) {
         final String[] chunks = name.split(" ");
-        return chunks[0] + " " + chunks[1].charAt(0) + " " + chunks[2].charAt(0);
+        return chunks[0] + " " + chunks[1].charAt(0) + chunks[2].charAt(0);
     }
 
     private Date getLastMessageDate (List<MessageData> messagesDataChunk) {
@@ -154,30 +155,6 @@ public class LstuParser {
         } else {
             return new Date();
         }
-    }
-
-    public static List<SubjectData> removeOldSubjectsDocuments (
-            List<SubjectData> oldSubjectsData, List<SubjectData> newSubjectsData) {
-
-        Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
-        for (SubjectData data : oldSubjectsData) {
-            data.getOldDocumentNames().addAll(data.getNewDocumentNames());
-            data.getNewDocumentNames().clear();
-            oldDocumentsMap.put(data.getName(), data);
-        }
-
-        Set<SubjectData> oldSubjectsDataSet = new HashSet<>(oldSubjectsData);
-        return newSubjectsData.stream()
-                .peek(subjectData -> {
-                    final Set<String> newDocuments = subjectData.getNewDocumentNames();
-                    if (oldSubjectsDataSet.contains(subjectData)) {
-                        final var oldSubjectData = oldDocumentsMap.get(subjectData.getName());
-                        newDocuments.removeAll(oldSubjectData.getOldDocumentNames());
-                        subjectData.setOldDocumentNames(oldSubjectData.getOldDocumentNames());
-                    }
-                })
-                .filter(SubjectData::isNotEmpty)
-                .collect(Collectors.toList());
     }
 
     public Optional<String> getGroupName () {
