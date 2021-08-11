@@ -7,7 +7,6 @@ import org.bson.codecs.pojo.annotations.BsonIgnore;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
 
 @Getter
 @Setter
@@ -21,26 +20,21 @@ public class Group {
     private Date lastCheckDate;
     private long updateInterval = 12L * 3600 * 1000; // 12 часов
 
-    private Integer loggedUserId;
-    private String login;
-    private String password;
-    private boolean alwaysNotifyLoggedUser = true;
+    private LoggedUser loggedUser;
     private List<Integer> users = new ArrayList<>();
     private List<Integer> loginWaitingUsers = new ArrayList<>();
 
+    private int silentModeStart = 2; // Час ночи
+    private int silentModeEnd = 6;   // Час ночи
+
     @BsonIgnore
-    public boolean userIsLogged (Integer userId) {
-        return Objects.equals(loggedUserId, userId);
+    public boolean isNotLoggedNow () {
+        return loggedUser == null;
     }
 
     @BsonIgnore
     public boolean isLoggedBefore () {
         return !(subjectsData.isEmpty() && users.isEmpty());
-    }
-
-    @BsonIgnore
-    public boolean isNotLoggedNow () {
-        return loggedUserId == null;
     }
 
     @BsonIgnore

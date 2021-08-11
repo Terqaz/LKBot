@@ -4,8 +4,8 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.lang.Nullable;
 import com.my.models.Group;
+import com.my.models.LoggedUser;
 import com.my.models.SubjectData;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
@@ -69,14 +69,10 @@ public class GroupsRepository {
     }
 
     public void updateAuthInfo(@NotNull String groupName,
-                               @Nullable Integer loggedUsedId,
-                               @Nullable String login,
-                               @Nullable String password) {
+                               LoggedUser loggedUser) {
         groupsCollection.updateOne(eq("name", groupName),
-                combine(set("loggedUsedId", loggedUsedId),
-                        set("login", login),
-                        set("password", password),
-                        pull("users", loggedUsedId)));
+                combine(set("loggedUsed", loggedUser),
+                        pull("users", loggedUser.getId())));
     }
 
     public void updateSubjectsData (@NotNull String groupName,
@@ -98,7 +94,7 @@ public class GroupsRepository {
     }
 
     public void removeLoggedUser(String groupName, Integer loggedUserId) {
-        updateAuthInfo(groupName, null, null, null);
+        updateAuthInfo(groupName, null);
         removeUserFromGroup(groupName, loggedUserId);
     }
 
@@ -121,5 +117,11 @@ public class GroupsRepository {
                 .first())
                 .map(Group::getUsers)
                 .orElseGet(Collections::emptyList);
+    }
+
+    public void updateSilentMode (String groupName, int silentModeStart, int silentModeEnd) {
+        groupsCollection.updateOne(eq("name", groupName),
+                combine(set("silentModeStart", silentModeStart),
+                        set("silentModeEnd", silentModeEnd)));
     }
 }

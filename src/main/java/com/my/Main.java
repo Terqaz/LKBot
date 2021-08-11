@@ -2,6 +2,7 @@ package com.my;
 
 import com.my.exceptions.CloseAppNeedsException;
 import com.my.models.Group;
+import com.my.models.LoggedUser;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 import com.my.services.LstuAuthService;
@@ -43,19 +44,13 @@ public class Main {
                     "Предметы\n" +
                     "🔷 Узнать самую свежую информацию по предмету из ЛК:\n" +
                     "n (n - номер в моем списке предметов)\n" +
-//                    "🔷 Узнать информацию от последнего обновления по всем предметам:\n" +
-//                    "Предметы\n" +
-//                    "🔷 Узнать самую свежую информацию по всем предметам:\n" +
-//                    "Обнови предметы\n" +
                     "🔶 Показать эти команды:\n" +
                     "Команды\n" +
                     "🔶 Прекратить пользоваться ботом или сменить зарегистрированного человека:\n" +
                     "Забудь меня";
 
-    private static final String LOGGED_USER_COMMANDS =
+    private static final String LOGGED_USER_PERMANENT_COMMANDS =
             BASIC_COMMANDS + "\n" +
-                    "🔶 Не писать тебе, пока нет новой информации:\n"+
-                    "Не пиши попусту\n"+
                     "🔶 Изменить интервал автоматического обновления:\n" +
                     "Изменить интервал на n (n - количество минут от 10, до 20160)\n";
 
@@ -82,18 +77,23 @@ public class Main {
                     final var newSemester = getNewScannedSemesterName();
 
                     for (Group group : groupsRepository.findAll()) {
-                        final var checkDate = new Date();
-                        if (!checkDate.after(group.getNextCheckDate())) {
+                        LoggedUser loggedUser = group.getLoggedUser();
+
+
+                        final GregorianCalendar calendar = new GregorianCalendar();
+                        final var checkDate = calendar.getTime();
+                        if (isSilentTime(group, calendar.get(Calendar.HOUR_OF_DAY)) ||
+                                !checkDate.after(group.getNextCheckDate())) {
                             continue;
                         }
 
-                        if (group.getLoggedUserId() != null && !lstuAuthService.login(group.getLogin(), group.getPassword())) {
-                            vkBotService.sendMessageTo(group.getLoggedUserId(),
+                        if (!group.isNotLoggedNow() && !lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
+                            vkBotService.sendMessageTo(loggedUser.getId(),
                                     "Не удалось обновить данные из ЛК по следующей причине:\n" +
                                             "Необходимо обновить данные для входа");
                             continue;
                         }
-                        vkBotService.sendMessageTo(group.getLoggedUserId(), "Началось плановое обновление");
+                        vkBotService.sendMessageTo(loggedUser.getId(), "Началось плановое обновление");
 
                         final var oldSubjectsData = group.getSubjectsData();
 
@@ -121,9 +121,9 @@ public class Main {
                             vkBotService.sendLongMessageTo(group.getUsers(), finalReport);
                             nextUpdateDateMessage(group.getUsers(), group.getNextCheckDate());
                         } else {
-                            if (group.isAlwaysNotifyLoggedUser())
-                                vkBotService.sendMessageTo(group.getLoggedUserId(), report);
-                            nextUpdateDateMessage(group.getLoggedUserId(), group.getNextCheckDate());
+                            if (loggedUser.isAlwaysNotify())
+                                vkBotService.sendMessageTo(loggedUser.getId(), report);
+                            nextUpdateDateMessage(loggedUser.getId(), group.getNextCheckDate());
                         }
                     }
                 }
@@ -135,8 +135,20 @@ public class Main {
                 }
             }
         }
-    }
 
+        private static boolean isSilentTime (Group group, int nowHour) {
+            final int silentModeStart = group.getSilentModeStart();
+            final int silentModeEnd = group.getSilentModeEnd();
+
+            if (silentModeStart < silentModeEnd) {
+                return silentModeStart <= nowHour && nowHour <= silentModeEnd;
+
+            } else if (silentModeStart > silentModeEnd) {
+                return silentModeStart <= nowHour || nowHour <= silentModeEnd;
+
+            } else return true;
+        }
+    }
 
     public static void main (String[] args) {
         actualSemester = getNewScannedSemesterName();
@@ -174,9 +186,10 @@ public class Main {
             if (!messages.isEmpty()) {
                 for (Message message : messages) {
                     final Integer userId = message.getFromId();
-                    if (userId.equals(ADMIN_VK_ID) && message.getText().equals("close")) {
+
+                    if (userId.equals(ADMIN_VK_ID) && message.getText().equals("close"))
                         throw new CloseAppNeedsException();
-                    }
+
                     if (userId > 0) {
                         System.out.println(message); // TODO логирование
                         try {
@@ -214,7 +227,7 @@ public class Main {
         messageText = messageText.toLowerCase();
 
         final var optionalGroup = groupsRepository.findByGroupName(groupName);
-
+        
         switch (messageText) {
             case "я готов на все ради своей группы!":
                 if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
@@ -251,6 +264,7 @@ public class Main {
         }
 
         final var group = optionalGroup.get();
+        final LoggedUser loggedUser = group.getLoggedUser();
 
         Integer subjectIndex = tryParseSubjectIndex(messageText);
         if (subjectIndex != null) {
@@ -259,11 +273,10 @@ public class Main {
 
         } else if (messageText.startsWith("изменить интервал на ")) {
             final var minutes = Long.parseLong(messageText.substring(21));
-            if (group.userIsLogged(userId)) {
+            if (loggedUser.equals(userId)) {
                 if (10 <= minutes && minutes <= 20160) {
                     final long newUpdateInterval = minutes * 60 * 1000;
-                    groupsRepository.updateField(groupName,
-                            "updateInterval", newUpdateInterval);
+                    groupsRepository.updateField(groupName,"updateInterval", newUpdateInterval);
                     vkBotService.sendMessageTo(userId, "Интервал изменен");
                     group.setUpdateInterval(newUpdateInterval);
                     nextUpdateDateMessage(userId, group.getNextCheckDate());
@@ -271,6 +284,18 @@ public class Main {
                     vkBotService.sendMessageTo(userId, "Нельзя установить такой интервал обновления");
             } else
                 userInsufficientPermissionsMessage(userId);
+            return;
+
+        } else if (messageText.startsWith("тихий режим с ")) { // Тихий режим с n по k
+            final String[] strings = messageText.split(" ");
+            final var startHour = Integer.parseInt(strings[3]);
+            final var endHour = Integer.parseInt(strings[5]);
+            if (! (0 <= startHour && startHour <= 23 && 0 <= endHour && endHour <= 23)) {
+                vkBotService.sendMessageTo(userId, "Нельзя установить такое время тихого режима");
+            } else {
+                groupsRepository.updateSilentMode(groupName, startHour, endHour);
+                vkBotService.sendMessageTo(userId, "Время тихого режима изменено");
+            }
             return;
         }
 
@@ -280,20 +305,19 @@ public class Main {
                 break;
 
             case "команды":
-                vkBotService.sendMessageTo(userId,
-                        (!group.userIsLogged(userId) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
+                vkBotService.sendMessageTo(userId, getAnyUserCommands(userId, group));
                 break;
 
-            case "не пиши попусту":
-                if (group.userIsLogged(userId)) {
-                    groupsRepository.updateField(groupName, "alwaysNotifyLoggedUser", false);
-                    vkBotService.sendMessageTo(userId, "Хорошо");
-                } else
-                    userInsufficientPermissionsMessage(userId);
+            case "без пустых отчетов":
+                changeLoggedUserNotifying(userId, group, false);
+                break;
+
+            case "с пустыми отчетами":
+                changeLoggedUserNotifying(userId, group, true);
                 break;
 
             case "забудь меня":
-                if (group.userIsLogged(userId))
+                if (loggedUser.equals(userId))
                     vkBotService.sendMessageTo(userId,
                             "➡ Эта опция полезна, если тебе нужно изменить человека, " +
                                     "зарегистрированного от имени группы или если я тебе больше не нужен. " +
@@ -311,11 +335,11 @@ public class Main {
                 break;
 
             case "я уверен, что хочу, чтобы ты забыл меня":
-                if (group.userIsLogged(userId)) {
+                if (loggedUser.equals(userId)) {
                     vkBotService.sendMessageTo(userId,
                             "Хорошо. Рекомендую тебе поменять пароль в ЛК (http://lk.stu.lipetsk.ru).\n" +
                                     "Я тебя забыл. \uD83D\uDC4B\uD83C\uDFFB");
-                    groupsRepository.removeLoggedUser(groupName, group.getLoggedUserId());
+                    groupsRepository.removeLoggedUser(groupName, loggedUser.getId());
 
                 } else
                     vkBotService.sendMessageTo(userId,"Хорошо. Я тебя забыл. \uD83D\uDC4B\uD83C\uDFFB");
@@ -375,13 +399,21 @@ public class Main {
                         "(обновление было в " + formatDate(group.getLastCheckDate()) + "):\n" +
                         makeSubjectsListReport(group.getSubjectsData()) + "\n");
         vkBotService.sendMessageTo(userId, "Также теперь ты можешь использовать эти команды:\n" +
-                (!group.userIsLogged(userId) ? BASIC_COMMANDS : LOGGED_USER_COMMANDS));
+                getAnyUserCommands(userId, group));
     }
 
     private static void groupAlreadyRegisteredMessage (Integer userId) {
         vkBotService.sendMessageTo(userId,
                 "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать. " +
                 "Держи команды:\n" + BASIC_COMMANDS);
+    }
+
+    private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isAlwaysNotify) {
+        if (group.getLoggedUser().equals(userId)) {
+            groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isAlwaysNotify);
+            vkBotService.sendMessageTo(userId, "Хорошо");
+        } else
+            userInsufficientPermissionsMessage(userId);
     }
 
     private static void nextUpdateDateMessage (Integer userId, Date nextCheckDate) {
@@ -408,7 +440,8 @@ public class Main {
     }
 
     private static void getActualSubjectDataMessage (Integer userId, Group group, Integer subjectIndex) {
-        if (!lstuAuthService.login(group.getLogin(), group.getPassword())) {
+        final LoggedUser loggedUser = group.getLoggedUser();
+        if (!lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
             repeatLoginFailedMessages(userId, group);
             return;
         }
@@ -446,18 +479,33 @@ public class Main {
     }
 
     private static void repeatLoginFailedMessages (Integer userId, Group group) {
-        final var loggedUserId = group.getLoggedUserId();
-        if (!group.userIsLogged(userId)) {
+        if (!group.getLoggedUser().equals(userId)) {
             vkBotService.sendMessageTo(userId,
                     "➡ Мне не удалось проверить данные твоей группы. " +
                             "Человек, вошедший от имени группы изменил свой пароль в ЛК и не сказал мне новый пароль. " +
                             "Я скажу ему об этом сам.");
             groupsRepository.addUserTo(group.getName(), "loginWaitingUsers", userId);
         }
-        vkBotService.sendMessageTo(loggedUserId,
+        vkBotService.sendMessageTo(group.getLoggedUser().getId(),
                 "➡ Похоже ты забыл сказать мне новый пароль после его обновления в ЛК." +
                         "Скажи мне новые данные для входа так " +
                         AUTH_COMMAND);
+    }
+
+    private static String getAnyUserCommands (Integer userId, Group group) {
+        final LoggedUser loggedUser = group.getLoggedUser();
+
+        if (loggedUser.equals(userId))
+            return LOGGED_USER_PERMANENT_COMMANDS +
+                    (loggedUser.isAlwaysNotify() ?
+                            "🔶 Не писать тебе, пока нет новой информации:\nБез пустых отчетов\n" :
+                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами\n")
+                    +
+                    "🔶 Изменить время тихого режима (сейчас с " +
+                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
+                    "Тихий режим с n по k (вместо n и k числа [0, 23])";
+
+        else return BASIC_COMMANDS;
     }
 
     private static String makeSubjectsDataReport (List<SubjectData> subjectsData) {
@@ -520,7 +568,8 @@ public class Main {
         if (optionalGroup.isPresent()) {
             final var oldGroup = optionalGroup.get();
             if (oldGroup.isLoggedBefore()) {
-                groupsRepository.updateAuthInfo(oldGroup.getName(), userId, login, password);
+                groupsRepository.updateAuthInfo(oldGroup.getName(), 
+                                                new LoggedUser(userId, login, password, true));
                 groupsRepository.moveLoginWaitingUsersToUsers(oldGroup.getName());
                 vkBotService.sendMessageTo(oldGroup.getLoginWaitingUsers(),
                         "Человек из твоей группы обновил пароль от ЛК. ");
@@ -557,9 +606,7 @@ public class Main {
 
         List<SubjectData> newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
         final var newGroup = new Group(groupName)
-                .setLoggedUserId(userId)
-                .setLogin(login)
-                .setPassword(password)
+                .setLoggedUser(new LoggedUser(userId, login, password, true))
                 .setSubjectsData(newSubjectsData)
                 .setLastCheckDate(new Date());
         newGroup.getUsers().add(userId);
