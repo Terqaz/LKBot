@@ -43,7 +43,7 @@ public class GroupsRepository {
                 fromProviders(PojoCodecProvider.builder().automatic(true).build()));
 
         MongoClientSettings settings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(SecretInfo.MONGO_CONNECTION_STRING.getValue()))
+                .applyConnectionString(new ConnectionString(System.getenv().get("MONGO_STRING")))
                 .codecRegistry(pojoCodecRegistry)
                 .build();
 

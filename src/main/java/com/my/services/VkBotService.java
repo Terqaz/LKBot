@@ -3,7 +3,6 @@ package com.my.services;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonSyntaxException;
-import com.my.SecretInfo;
 import com.vk.api.sdk.client.ApiRequest;
 import com.vk.api.sdk.client.TransportClient;
 import com.vk.api.sdk.client.VkApiClient;
@@ -50,7 +49,7 @@ public class VkBotService {
     private VkBotService () {
         transportClient = new HttpTransportClient();
         vk = new VkApiClient(transportClient);
-        groupActor = new GroupActor(groupId, SecretInfo.VK_TOKEN.getValue());
+        groupActor = new GroupActor(groupId, System.getenv().get("VK_GROUP_TOKEN"));
 
         final var response = getLongPollServer();
         server = response.getServer();
