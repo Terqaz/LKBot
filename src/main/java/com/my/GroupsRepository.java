@@ -1,8 +1,10 @@
 package com.my;
 
-import com.mongodb.MongoClient;
+import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.my.models.Group;
 import com.my.models.LoggedUser;
@@ -33,22 +35,24 @@ public class GroupsRepository {
         return instance;
     }
 
-    private final CodecRegistry pojoCodecRegistry;
     private final MongoClient mongoClient;
     private final MongoCollection<Group> groupsCollection;
 
-
     private GroupsRepository () {
-        pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
+        final CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
                 fromProviders(PojoCodecProvider.builder().automatic(true).build()));
 
-        mongoClient = new MongoClient("localhost", 27017);
+        MongoClientSettings settings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(SecretInfo.MONGO_CONNECTION_STRING.getValue()))
+                .codecRegistry(pojoCodecRegistry)
+                .build();
+
+        mongoClient = MongoClients.create(settings);
 
         groupsCollection = mongoClient
-                .getDatabase("lk-bot").withCodecRegistry(pojoCodecRegistry)
+                .getDatabase("prod")
                 .getCollection("groups", Group.class);
     }
-
 
     public void insert (Group group) {
         groupsCollection.insertOne(group);

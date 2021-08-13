@@ -191,7 +191,6 @@ public class Main {
                         throw new CloseAppNeedsException();
 
                     if (userId > 0) {
-                        System.out.println(message); // TODO логирование
                         try {
                             executeBotDialog(userId, message.getText());
                         } catch (Exception e) {
@@ -395,9 +394,12 @@ public class Main {
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBotService.sendMessageTo(userId,
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам\n" +
-                        "(обновление было в " + formatDate(group.getLastCheckDate()) + "):\n" +
-                        makeSubjectsListReport(group.getSubjectsData()) + "\n");
+                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
+                        //"(обновление было в " + formatDate(group.getLastCheckDate()) + "):\n" +
+                        makeSubjectsListReport(group.getSubjectsData()) + "\n" +
+                        "Результат последнего обновления: ");
+        vkBotService.sendLongMessageTo(userId, makeSubjectsDataReport(group.getSubjectsData()));
+        nextUpdateDateMessage(group.getUsers(), group.getNextCheckDate());
         vkBotService.sendMessageTo(userId, "Также теперь ты можешь использовать эти команды:\n" +
                 getAnyUserCommands(userId, group));
     }
@@ -625,13 +627,12 @@ public class Main {
 
         Set<SubjectData> oldDataSet = new HashSet<>(oldSubjectsData);
         return newSubjectsData.stream()
-                .map(newData -> {
+                .peek(newData -> {
                     final Set<String> newDocuments = newData.getDocumentNames();
                     if (oldDataSet.contains(newData)) {
                         final var oldSubjectData = oldDocumentsMap.get(newData.getName());
                         newDocuments.removeAll(oldSubjectData.getDocumentNames());
                     }
-                    return newData;
                 })
                 .filter(SubjectData::isNotEmpty)
                 .collect(Collectors.toList());
@@ -662,17 +663,13 @@ public class Main {
         }
     }
 
-    // TODO Heroku
-
-    // TODO Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
-    // TODO Шифрование? (только для MongoDB Enterprise, но можно самому написать)
     // TODO функция: напомни имена и отчества преподавателей
     // TODO Распознавание сообщений на англ. раскладке
+    // TODO Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
 
     // TODO Для массового распространения бота:
+    //  Шифрование пароля
     //  Написать подробные возможности бота в группе
     //  добавить вход участника группы через проверочный код
     //  добавить асинхронное скачивание данных из лк по группам
-    //  Добавить ssl? и юзера в бд с паролем
-
 }
