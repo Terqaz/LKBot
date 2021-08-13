@@ -89,18 +89,16 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.1.1</version>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                    </execution>
-                </executions>
+                <groupId>com.heroku.sdk</groupId>
+                <artifactId>heroku-maven-plugin</artifactId>
+                <version>3.0.3</version>
+                <configuration>
+                    <appName>damp-forest-43527</appName>
+                    <jdkVersion>${java.version}</jdkVersion>
+                    <processTypes>
+                        <worker>java $JAVA_OPTS -cp ./target/classes:./target/dependency/* com.my.Main</worker>
+                    </processTypes>
+                </configuration>
             </plugin>
         </plugins>
     </build>
