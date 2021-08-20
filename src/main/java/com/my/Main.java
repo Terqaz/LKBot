@@ -1,6 +1,5 @@
 package com.my;
 
-import com.my.exceptions.CloseAppNeedsException;
 import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.MessageData;
@@ -14,6 +13,7 @@ import com.vk.api.sdk.objects.messages.Message;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -158,9 +158,7 @@ public class Main {
         final var plannedSubjectsDataUpdate = new PlannedSubjectsDataUpdate();
         plannedSubjectsDataUpdate.start();
 
-        try {
-            runCycle();
-        } catch (CloseAppNeedsException ignored) {}
+        runCycle();
         vkBotService.setOnline(false);
         plannedSubjectsDataUpdate.interrupt();
         vkBotService.sendMessageTo(ADMIN_VK_ID, "WARNING: App closed");
@@ -187,9 +185,6 @@ public class Main {
                 for (Message message : messages) {
                     final Integer userId = message.getFromId();
 
-                    if (userId.equals(ADMIN_VK_ID) && message.getText().equals("close"))
-                        throw new CloseAppNeedsException();
-
                     if (userId > 0) {
                         try {
                             executeBotDialog(userId, message.getText());
@@ -204,6 +199,8 @@ public class Main {
     }
 
     private static void executeBotDialog (Integer userId, String messageText) {
+        messageText = translateFromEnglishKeyboardLayoutIfNeeds(messageText);
+
         final var groupNameMatcher =
                 groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
         if (groupNameMatcher.find()) {
@@ -349,6 +346,31 @@ public class Main {
                 vkBotService.sendMessageTo(userId, "Я не понял тебя");
                 break;
         }
+    }
+
+    private static final Map<Character, Character> enToRuCharsMap = new HashMap<>();
+    static {
+        final String enChars = "qwertyuiop[]asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?";
+        final String ruChars = "йцукенгшщзхъфывапролджэячсмитьбю.ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ.";
+        for (int i = 0; i < enChars.length(); i++) {
+            enToRuCharsMap.put(enChars.charAt(i), ruChars.charAt(i));
+        }
+    }
+
+    private static boolean isEnCharsString(String s) {
+        return StandardCharsets.US_ASCII.newEncoder().canEncode(s);
+    }
+
+    public static String translateFromEnglishKeyboardLayoutIfNeeds (String s1) {
+        if (!isEnCharsString(s1))
+            return s1;
+
+        StringBuilder s2 = new StringBuilder();
+        for (int i = 0; i < s1.length(); i++) {
+            final char s1char = s1.charAt(i);
+            s2.append(enToRuCharsMap.getOrDefault(s1char, s1char));
+        }
+        return s2.toString();
     }
 
     private static void newUserGroupCheck (Integer userId, String messageText, Matcher groupNameMatcher) {
@@ -499,13 +521,13 @@ public class Main {
 
         if (loggedUser.equals(userId))
             return LOGGED_USER_PERMANENT_COMMANDS +
-                    (loggedUser.isAlwaysNotify() ?
-                            "🔶 Не писать тебе, пока нет новой информации:\nБез пустых отчетов\n" :
-                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами\n")
-                    +
                     "🔶 Изменить время тихого режима (сейчас с " +
                     group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
-                    "Тихий режим с n по k (вместо n и k числа [0, 23])";
+                    "Тихий режим с n по k (вместо n и k числа [0, 23])\n"
+                    +
+                    (loggedUser.isAlwaysNotify() ?
+                            "🔶 Не писать тебе, пока нет новой информации:\nБез пустых отчетов\n" :
+                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами");
 
         else return BASIC_COMMANDS;
     }
@@ -663,13 +685,18 @@ public class Main {
         }
     }
 
-    // TODO функция: напомни имена и отчества преподавателей
-    // TODO Распознавание сообщений на англ. раскладке
-    // TODO Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
+    // TODO Новый функционал и оптимизация
+    //  Распознавание сообщений на англ. раскладке
+    //  функция: напомни имена и отчества преподавателей
+    //  попробовать почти все команды сделать кнопками
+    //  ответ на нецензурные и похвальные слова
+    //  Зашедулить бота на сон с 23 по 6 (пока что не вышло)
+    //  Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
 
     // TODO Для массового распространения бота:
     //  Шифрование пароля
     //  Написать подробные возможности бота в группе
     //  добавить вход участника группы через проверочный код
     //  добавить асинхронное скачивание данных из лк по группам
+    //  оптимизация запросов к лк через очередь
 }
