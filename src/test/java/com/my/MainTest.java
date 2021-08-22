@@ -17,7 +17,7 @@ class MainTest {
     void translateFromEnglishKeyboardLayout_thenEqual () {
         final List<String> expected =
                 Arrays.asList("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
-                .stream().map(Main::translateFromEnglishKeyboardLayoutIfNeeds)
+                .stream().map(Utils::translateFromEnglishKeyboardLayoutIfNeeds)
                 .collect(Collectors.toList());
 
         final List<String> actual =

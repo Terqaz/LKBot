@@ -10,7 +10,8 @@ import com.vk.api.sdk.client.actors.GroupActor;
 import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
-import com.vk.api.sdk.objects.messages.*;
+import com.vk.api.sdk.objects.messages.Keyboard;
+import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
 
 import javax.validation.constraints.NotEmpty;
@@ -44,6 +45,7 @@ public class VkBotService {
     private static Integer longPollVersion = 3;
 
     private boolean unsetKeyboard = false;
+
     private static final Integer groupId = 205287906;
 
     private VkBotService () {
@@ -209,19 +211,11 @@ public class VkBotService {
     }
 
     public void unsetKeyboard() {
-        instance.unsetKeyboard = true;
+        unsetKeyboard = true;
     }
 
     public void setOnline (boolean isOnline) {
         if (isOnline) vk.groups().enableOnline(groupActor, groupId);
         else          vk.groups().disableOnline(groupActor, groupId);
-    }
-
-    public static KeyboardButton generateButton (String text, KeyboardButtonColor color) {
-        return new KeyboardButton()
-                .setAction(new KeyboardButtonAction()
-                        .setLabel(text)
-                        .setType(TemplateActionTypeNames.TEXT))
-                .setColor(color);
     }
 }

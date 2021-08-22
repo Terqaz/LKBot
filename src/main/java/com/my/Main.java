@@ -2,23 +2,18 @@ package com.my;
 
 import com.my.models.Group;
 import com.my.models.LoggedUser;
-import com.my.models.MessageData;
 import com.my.models.SubjectData;
+import com.my.services.ButtonsCreator;
 import com.my.services.LstuAuthService;
 import com.my.services.LstuParser;
 import com.my.services.VkBotService;
-import com.vk.api.sdk.objects.messages.Keyboard;
-import com.vk.api.sdk.objects.messages.KeyboardButtonColor;
 import com.vk.api.sdk.objects.messages.Message;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class Main {
 
@@ -28,16 +23,6 @@ public class Main {
     static final VkBotService vkBotService = VkBotService.getInstance();
     static final LstuAuthService lstuAuthService = new LstuAuthService();
     static final LstuParser lstuParser = new LstuParser();
-
-    static final Keyboard keyboard1 = new Keyboard()
-            .setButtons(Arrays.asList(
-                    Collections.singletonList(
-                            VkBotService.generateButton("Я готов на все ради своей группы!", KeyboardButtonColor.POSITIVE)),
-                    Collections.singletonList(
-                            VkBotService.generateButton("Лучше скажу другому", KeyboardButtonColor.NEGATIVE)),
-                    Collections.singletonList(
-                            VkBotService.generateButton("Я ошибся при вводе группы", KeyboardButtonColor.DEFAULT))
-            ));
 
     private static final String BASIC_COMMANDS =
                     "🔷 Вывести список предметов:\n" +
@@ -74,7 +59,7 @@ public class Main {
             while (true) {
                 try {
                     Thread.sleep(60L * 1000); // 1 минута
-                    final var newSemester = getNewScannedSemesterName();
+                    final var newSemester = Utils.getNewScannedSemesterName();
 
                     for (Group group : groupsRepository.findAll()) {
                         LoggedUser loggedUser = group.getLoggedUser();
@@ -107,23 +92,23 @@ public class Main {
                         }
                         lstuAuthService.logout();
                         groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
+                        group.setLastCheckDate(checkDate);
 
                         String report;
                         if (actualSemester.equals(newSemester))
-                            report = makeSubjectsDataReport(removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData));
+                            report = ReportUtils.getSubjectsData(
+                                    Utils.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData),
+                                    group.getNextCheckDate());
                         else
-                            report = "Данные теперь приходят из семестра " + newSemester + "\n" +
-                                    makeSubjectsDataReport(newSubjectsData);
+                            report = "Данные теперь приходят из семестра: " + newSemester + "\n" +
+                                    ReportUtils.getSubjectsData(newSubjectsData, group.getNextCheckDate());
 
-                        group.setLastCheckDate(checkDate);
                         if (!report.startsWith("Нет новой")) {
                             final var finalReport = "Плановое обновление:\n" + report;
                             vkBotService.sendLongMessageTo(group.getUsers(), finalReport);
-                            nextUpdateDateMessage(group.getUsers(), group.getNextCheckDate());
                         } else {
                             if (loggedUser.isAlwaysNotify())
                                 vkBotService.sendMessageTo(loggedUser.getId(), report);
-                            nextUpdateDateMessage(loggedUser.getId(), group.getNextCheckDate());
                         }
                     }
                 }
@@ -151,7 +136,7 @@ public class Main {
     }
 
     public static void main (String[] args) {
-        actualSemester = getNewScannedSemesterName();
+        actualSemester = Utils.getNewScannedSemesterName();
         vkBotService.setOnline(true);
         fillGroupNameByUserId();
 
@@ -199,7 +184,7 @@ public class Main {
     }
 
     private static void executeBotDialog (Integer userId, String messageText) {
-        messageText = translateFromEnglishKeyboardLayoutIfNeeds(messageText);
+        messageText = Utils.translateFromEnglishKeyboardLayoutIfNeeds(messageText);
 
         final var groupNameMatcher =
                 groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
@@ -262,7 +247,7 @@ public class Main {
         final var group = optionalGroup.get();
         final LoggedUser loggedUser = group.getLoggedUser();
 
-        Integer subjectIndex = tryParseSubjectIndex(messageText);
+        Integer subjectIndex = Utils.tryParseSubjectIndex(messageText);
         if (subjectIndex != null) {
             getActualSubjectDataMessage(userId, group, subjectIndex);
             return;
@@ -297,11 +282,13 @@ public class Main {
 
         switch (messageText) {
             case "предметы":
-                vkBotService.sendMessageTo(userId, makeSubjectsListReport(group.getSubjectsData()));
+                vkBotService.sendMessageTo(userId, ReportUtils.getSubjectsNames(group.getSubjectsData()));
                 break;
 
             case "команды":
-                vkBotService.sendMessageTo(userId, getAnyUserCommands(userId, group));
+                vkBotService.sendMessageTo(userId,
+                        ButtonsCreator.getCommandsKeyboard(userId, group.getLoggedUser()),
+                        getUserCommands(userId, group));
                 break;
 
             case "без пустых отчетов":
@@ -323,7 +310,7 @@ public class Main {
                                     "Я уверен, что хочу, чтобы ты забыл меня");
                 else
                     vkBotService.sendMessageTo(userId,
-                            "➡ Эта опция полезна будет полезна тебе, чтобы войти от имени группы после того, " +
+                            "➡ Эта опция будет полезна тебе, чтобы войти от имени группы после того, " +
                                     "как я забыл другого зарегистрированного человека из твоей группы, " +
                                     "или если я тебе больше не нужен. \n" +
                                     "➡ Если ты уверен, что правильно все делаешь, то напиши:\n" +
@@ -331,6 +318,7 @@ public class Main {
                 break;
 
             case "я уверен, что хочу, чтобы ты забыл меня":
+                vkBotService.unsetKeyboard();
                 if (loggedUser.equals(userId)) {
                     vkBotService.sendMessageTo(userId,
                             "Хорошо. Рекомендую тебе поменять пароль в ЛК (http://lk.stu.lipetsk.ru).\n" +
@@ -346,31 +334,6 @@ public class Main {
                 vkBotService.sendMessageTo(userId, "Я не понял тебя");
                 break;
         }
-    }
-
-    private static final Map<Character, Character> enToRuCharsMap = new HashMap<>();
-    static {
-        final String enChars = "qwertyuiop[]asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?";
-        final String ruChars = "йцукенгшщзхъфывапролджэячсмитьбю.ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ.";
-        for (int i = 0; i < enChars.length(); i++) {
-            enToRuCharsMap.put(enChars.charAt(i), ruChars.charAt(i));
-        }
-    }
-
-    private static boolean isEnCharsString(String s) {
-        return StandardCharsets.US_ASCII.newEncoder().canEncode(s);
-    }
-
-    public static String translateFromEnglishKeyboardLayoutIfNeeds (String s1) {
-        if (!isEnCharsString(s1))
-            return s1;
-
-        StringBuilder s2 = new StringBuilder();
-        for (int i = 0; i < s1.length(); i++) {
-            final char s1char = s1.charAt(i);
-            s2.append(enToRuCharsMap.getOrDefault(s1char, s1char));
-        }
-        return s2.toString();
     }
 
     private static void newUserGroupCheck (Integer userId, String messageText, Matcher groupNameMatcher) {
@@ -403,7 +366,7 @@ public class Main {
     }
 
     private static void newUserMessage (Integer userId) {
-        vkBotService.sendMessageTo(userId, keyboard1,
+        vkBotService.sendMessageTo(userId, ButtonsCreator.KEYBOARD_1,
                 "➡ Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию " +
                         "для тебя и твоих одногруппников.\n" +
                         "Можешь мне довериться ;-)\n" +
@@ -416,26 +379,42 @@ public class Main {
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBotService.sendMessageTo(userId,
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
-                        //"(обновление было в " + formatDate(group.getLastCheckDate()) + "):\n" +
-                        makeSubjectsListReport(group.getSubjectsData()) + "\n" +
-                        "Результат последнего обновления: ");
-        vkBotService.sendLongMessageTo(userId, makeSubjectsDataReport(group.getSubjectsData()));
-        nextUpdateDateMessage(group.getUsers(), group.getNextCheckDate());
-        vkBotService.sendMessageTo(userId, "Также теперь ты можешь использовать эти команды:\n" +
-                getAnyUserCommands(userId, group));
+                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам " +
+                        "(обновление было " + Utils.formatDate(group.getLastCheckDate()) + "):\n" +
+                        ReportUtils.getSubjectsNames(group.getSubjectsData()));
+
+        vkBotService.sendMessageTo(userId, ButtonsCreator.getCommandsKeyboard(userId, group.getLoggedUser()),
+                "Также теперь ты можешь использовать эти команды:\n" + getUserCommands(userId, group));
+    }
+
+    private static String getUserCommands (Integer userId, Group group) {
+        final LoggedUser loggedUser = group.getLoggedUser();
+
+        if (loggedUser.equals(userId))
+            return LOGGED_USER_PERMANENT_COMMANDS +
+                    "🔶 Изменить время тихого режима (сейчас с " +
+                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
+                    "Тихий режим с n по k (вместо n и k числа [0, 23])\n"
+                    +
+                    (loggedUser.isAlwaysNotify() ?
+                            "🔶 Не писать тебе, пока нет новой информации:\nБез пустых отчетов\n" :
+                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами");
+
+        else return BASIC_COMMANDS;
     }
 
     private static void groupAlreadyRegisteredMessage (Integer userId) {
         vkBotService.sendMessageTo(userId,
-                "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать. " +
-                "Держи команды:\n" + BASIC_COMMANDS);
+                "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать.");
     }
 
     private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isAlwaysNotify) {
         if (group.getLoggedUser().equals(userId)) {
             groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isAlwaysNotify);
-            vkBotService.sendMessageTo(userId, "Хорошо");
+            group.getLoggedUser().setAlwaysNotify(isAlwaysNotify);
+            vkBotService.sendMessageTo(userId,
+                            ButtonsCreator.getCommandsKeyboard(userId, group.getLoggedUser()),
+                    "Хорошо");
         } else
             userInsufficientPermissionsMessage(userId);
     }
@@ -445,22 +424,12 @@ public class Main {
     }
 
     private static void nextUpdateDateMessage (Collection<Integer> userIds, Date nextCheckDate) {
-        vkBotService.sendMessageTo(userIds, "Следующее обновление будет в "
-                + formatDate(nextCheckDate));
+        vkBotService.sendMessageTo(userIds, ReportUtils.getNextUpdateDateText(nextCheckDate));
     }
 
     private static void userInsufficientPermissionsMessage (Integer userId) {
         vkBotService.sendMessageTo(userId,
                 "Я разрешаю эту операцию только человеку, вошедшему от имени группы");
-    }
-
-    private static String makeSubjectsListReport (List<SubjectData> subjectsData) {
-        var stringBuilder = new StringBuilder();
-        for (SubjectData data : subjectsData) {
-            stringBuilder.append("➡ ").append(data.getId()).append(" ")
-                    .append(data.getName()).append("\n");
-        }
-        return stringBuilder.toString();
     }
 
     private static void getActualSubjectDataMessage (Integer userId, Group group, Integer subjectIndex) {
@@ -489,7 +458,7 @@ public class Main {
 
         if (newSubjectData.isNotEmpty()) {
             vkBotService.sendLongMessageTo(userId,
-                    makeSubjectsDataReport(Collections.singletonList(newSubjectData)));
+                    ReportUtils.getSubjectsData(List.of(newSubjectData), null));
         } else {
             vkBotService.sendMessageTo(userId,
                     "Нет новой информации по предмету " + newSubjectData.getName());
@@ -516,66 +485,6 @@ public class Main {
                         AUTH_COMMAND);
     }
 
-    private static String getAnyUserCommands (Integer userId, Group group) {
-        final LoggedUser loggedUser = group.getLoggedUser();
-
-        if (loggedUser.equals(userId))
-            return LOGGED_USER_PERMANENT_COMMANDS +
-                    "🔶 Изменить время тихого режима (сейчас с " +
-                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
-                    "Тихий режим с n по k (вместо n и k числа [0, 23])\n"
-                    +
-                    (loggedUser.isAlwaysNotify() ?
-                            "🔶 Не писать тебе, пока нет новой информации:\nБез пустых отчетов\n" :
-                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами");
-
-        else return BASIC_COMMANDS;
-    }
-
-    private static String makeSubjectsDataReport (List<SubjectData> subjectsData) {
-        if (subjectsData.isEmpty()) {
-            return "Нет новой информации по предметам";
-        }
-        final var builder = new StringBuilder();
-        var partBuilder = new StringBuilder();
-        for (SubjectData data : subjectsData) {
-            if (!data.getDocumentNames().isEmpty()) {
-                partBuilder.append("➡ ").append(data.getId()).append(" ").append(data.getName()).append(": ")
-                        .append(String.join(", ", data.getDocumentNames()))
-                        .append("\n\n");
-            }
-        }
-        if (partBuilder.length() > 0) {
-            builder.append("\uD83D\uDD34 Новые документы:\n").append(partBuilder);
-        }
-        partBuilder = new StringBuilder();
-        for (SubjectData data : subjectsData) {
-            final List<MessageData> messagesData = data.getMessagesData();
-            if (!messagesData.isEmpty()) {
-                var messagesBuilder = new StringBuilder();
-                for (MessageData messageData : messagesData) {
-                    final String shortName = messageData.getSender();
-                    messagesBuilder.append("☑ ").append(shortName)
-                            .append(" в ")
-                            .append(formatDate(messageData.getDate()))
-                            .append(":\n")
-                            .append(messageData.getComment())
-                            .append("\n\n");
-                }
-                partBuilder.append("➡ ").append(data.getId()).append(" ").append(data.getName()).append(":\n")
-                        .append(messagesBuilder);
-            }
-        }
-        if (partBuilder.length() > 0) {
-            builder.append("\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
-        }
-        return builder.toString();
-    }
-
-    private static String formatDate (Date date) {
-        return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
-    }
-
     private static void onLoginMessages (Integer userId, @NonNull String groupName, String messageText) {
         final String[] chunks = messageText.split("\n");
         String login = chunks[1];
@@ -588,18 +497,21 @@ public class Main {
         }
         //vkBotService.deleteLastMessage(message);
 
+        groupName = actualizeGroupName(userId, groupName);
         var optionalGroup = groupsRepository.findByGroupName(groupName);
         if (optionalGroup.isPresent()) {
             final var oldGroup = optionalGroup.get();
             if (oldGroup.isLoggedBefore()) {
-                groupsRepository.updateAuthInfo(oldGroup.getName(), 
-                                                new LoggedUser(userId, login, password, true));
-                groupsRepository.moveLoginWaitingUsersToUsers(oldGroup.getName());
-                vkBotService.sendMessageTo(oldGroup.getLoginWaitingUsers(),
-                        "Человек из твоей группы обновил пароль от ЛК. ");
+                if (oldGroup.getLoggedUser().equals(userId)) {
+                    groupsRepository.updateAuthInfo(oldGroup.getName(),
+                            new LoggedUser(userId, login, password, true));
+                    groupsRepository.moveLoginWaitingUsersToUsers(oldGroup.getName());
+                    vkBotService.sendMessageTo(oldGroup.getLoginWaitingUsers(),
+                            "Человек из твоей группы обновил пароль от ЛК. ");
+                } else
+                    groupAlreadyRegisteredMessage(userId);
             }
         } else {
-            groupName = actualizeGroupName(userId, groupName);
             newGroupLoggedMessages(userId, groupName, login, password);
             lstuAuthService.logout();
         }
@@ -611,8 +523,8 @@ public class Main {
             final var lkGroupName = optionalLkGroupName.get();
             if (!lkGroupName.equals(groupName)) {
                 vkBotService.sendMessageTo(userId,
-                        "\uD83D\uDD34 Я поменяю имя введенной тобой группы "+ groupName +" на: "+lkGroupName+
-                                ", чтобы твои одногруппники ничего не перепутали. \uD83D\uDD34");
+                        "\uD83D\uDD34 Я поменял имя введенной тобой группы "+ groupName +" на: "+lkGroupName+
+                                ", чтобы избежать неприятных ситуаций. \uD83D\uDD34");
                 groupNameByUserId.replace(userId, lkGroupName);
                 groupName = lkGroupName;
             }
@@ -637,58 +549,13 @@ public class Main {
 
         groupsRepository.insert(newGroup);
         newUserSubjectsListMessage(userId, newGroup);
+        vkBotService.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
+                ReportUtils.getSubjectsData(newSubjectsData, newGroup.getNextCheckDate()));
     }
 
-    public static List<SubjectData> removeOldSubjectsDocuments (
-            List<SubjectData> oldSubjectsData, List<SubjectData> newSubjectsData) {
-
-        Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
-        for (SubjectData data : oldSubjectsData) {
-            oldDocumentsMap.put(data.getName(), data);
-        }
-
-        Set<SubjectData> oldDataSet = new HashSet<>(oldSubjectsData);
-        return newSubjectsData.stream()
-                .peek(newData -> {
-                    final Set<String> newDocuments = newData.getDocumentNames();
-                    if (oldDataSet.contains(newData)) {
-                        final var oldSubjectData = oldDocumentsMap.get(newData.getName());
-                        newDocuments.removeAll(oldSubjectData.getDocumentNames());
-                    }
-                })
-                .filter(SubjectData::isNotEmpty)
-                .collect(Collectors.toList());
-    }
-
-    private static String getNewScannedSemesterName () {
-        Calendar now = new GregorianCalendar();
-        Calendar autumnSemesterStart = new GregorianCalendar();
-        autumnSemesterStart.set(Calendar.MONTH, Calendar.AUGUST);
-        autumnSemesterStart.set(Calendar.DAY_OF_MONTH, 18);
-
-        Calendar springSemesterStart = new GregorianCalendar();
-        springSemesterStart.set(Calendar.MONTH, Calendar.JANUARY);
-        springSemesterStart.set(Calendar.DAY_OF_MONTH, 15);
-
-        final int year = now.get(Calendar.YEAR);
-        if (now.after(springSemesterStart) && now.before(autumnSemesterStart))
-            return year + "-В";
-        else
-            return year + "-О";
-    }
-
-    private static Integer tryParseSubjectIndex (String messageText) {
-        try {
-            return Integer.parseInt(messageText);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
 
     // TODO Новый функционал и оптимизация
-    //  Распознавание сообщений на англ. раскладке
     //  функция: напомни имена и отчества преподавателей
-    //  попробовать почти все команды сделать кнопками
     //  ответ на нецензурные и похвальные слова
     //  Зашедулить бота на сон с 23 по 6 (пока что не вышло)
     //  Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
