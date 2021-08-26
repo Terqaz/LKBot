@@ -51,7 +51,7 @@ public class VkBotService {
     private VkBotService () {
         transportClient = new HttpTransportClient();
         vk = new VkApiClient(transportClient);
-        groupActor = new GroupActor(groupId, System.getenv().get("VK_GROUP_TOKEN"));
+        groupActor = new GroupActor(groupId, System.getenv("VK_GROUP_TOKEN"));
 
         final var response = getLongPollServer();
         server = response.getServer();

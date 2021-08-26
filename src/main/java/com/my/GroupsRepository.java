@@ -42,15 +42,16 @@ public class GroupsRepository {
         final CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
                 fromProviders(PojoCodecProvider.builder().automatic(true).build()));
 
+        final ConnectionString connectionString = new ConnectionString(System.getenv("MONGO_STRING"));
         MongoClientSettings settings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(System.getenv().get("MONGO_STRING")))
+                .applyConnectionString(connectionString)
                 .codecRegistry(pojoCodecRegistry)
                 .build();
 
         mongoClient = MongoClients.create(settings);
 
         groupsCollection = mongoClient
-                .getDatabase("prod")
+                .getDatabase(connectionString.getDatabase())
                 .getCollection("groups", Group.class);
     }
 

@@ -1,5 +1,6 @@
 package com.my;
 
+import com.my.models.AuthenticationData;
 import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.SubjectData;
@@ -11,6 +12,9 @@ import com.vk.api.sdk.objects.messages.Message;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
+import javax.crypto.NoSuchPaddingException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,11 +22,12 @@ import java.util.regex.Pattern;
 public class Main {
 
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
-    static final Map<Integer, String> groupNameByUserId = new HashMap<>();
-
+    static CipherService cipherService = null;
     static final VkBotService vkBotService = VkBotService.getInstance();
     static final LstuAuthService lstuAuthService = new LstuAuthService();
     static final LstuParser lstuParser = new LstuParser();
+
+    static final Map<Integer, String> groupNameByUserId = new HashMap<>();
 
     private static final String BASIC_COMMANDS =
                     "🔷 Вывести список предметов:\n" +
@@ -67,7 +72,8 @@ public class Main {
                             continue;
                         }
 
-                        if (!group.isNotLoggedNow() && !lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
+                        if (!group.isNotLoggedNow() &&
+                                !lstuAuthService.login(cipherService.decrypt(loggedUser.getAuthData()))) {
                             vkBotService.sendMessageTo(loggedUser.getId(),
                                     "Не удалось обновить данные из ЛК по следующей причине:\n" +
                                             "Необходимо обновить данные для входа");
@@ -130,7 +136,10 @@ public class Main {
         }
     }
 
-    public static void main (String[] args) {
+    public static void main (String[] args)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
+        cipherService = CipherService.getInstance();
+
         actualSemester = Utils.getNewScannedSemesterName();
         vkBotService.setOnline(true);
         fillGroupNameByUserId();
@@ -433,7 +442,7 @@ public class Main {
 
     private static void getActualSubjectDataMessage (Integer userId, Group group, Integer subjectIndex) {
         final LoggedUser loggedUser = group.getLoggedUser();
-        if (!lstuAuthService.login(loggedUser.getLogin(), loggedUser.getPassword())) {
+        if (!lstuAuthService.login(cipherService.decrypt(loggedUser.getAuthData()))) {
             repeatLoginFailedMessages(userId, group);
             return;
         }
@@ -490,7 +499,7 @@ public class Main {
         String password = chunks[2];
 
         vkBotService.sendMessageTo(userId, "Пробую зайти в твой ЛК...");
-        if (!lstuAuthService.login(login, password)) {
+        if (!lstuAuthService.login(new AuthenticationData(login, password))) {
             newGroupLoginFailedMessages(userId);
             return;
         }
@@ -502,8 +511,10 @@ public class Main {
             final var oldGroup = optionalGroup.get();
             if (oldGroup.isLoggedBefore()) {
                 if (oldGroup.getLoggedUser().equals(userId)) {
-                    groupsRepository.updateAuthInfo(oldGroup.getName(),
-                            new LoggedUser(userId, login, password, true));
+                    groupsRepository.updateAuthInfo(
+                            oldGroup.getName(),
+                            new LoggedUser(userId, cipherService.encrypt(login, password), true));
+
                     groupsRepository.moveLoginWaitingUsersToUsers(oldGroup.getName());
                     vkBotService.sendMessageTo(oldGroup.getLoginWaitingUsers(),
                             "Человек из твоей группы обновил пароль от ЛК. ");
@@ -541,7 +552,7 @@ public class Main {
 
         List<SubjectData> newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
         final var newGroup = new Group(groupName)
-                .setLoggedUser(new LoggedUser(userId, login, password, true))
+                .setLoggedUser(new LoggedUser(userId, cipherService.encrypt(login, password), true))
                 .setSubjectsData(newSubjectsData)
                 .setLastCheckDate(new Date());
         newGroup.getUsers().add(userId);
@@ -560,9 +571,8 @@ public class Main {
     //  Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
 
     // TODO Для массового распространения бота:
-    //  Шифрование пароля
     //  Написать подробные возможности бота в группе
     //  добавить вход участника группы через проверочный код
-    //  добавить асинхронное скачивание данных из лк по группам
+    //  добавить асинхронное скачивание данных из лк по группам при глобальном обновлении
     //  оптимизация запросов к лк через очередь
 }

@@ -2,6 +2,7 @@ package com.my.services;
 
 import com.my.LstuClient;
 import com.my.LstuUrlBuilder;
+import com.my.models.AuthenticationData;
 import org.jsoup.nodes.Document;
 
 import java.io.IOException;
@@ -10,10 +11,10 @@ public class LstuAuthService {
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
-    public boolean login (String login, String password) {
+    public boolean login (AuthenticationData data) {
         if (lstuClient.isNotLoggedIn()) {
             try {
-                return auth(login, password);
+                return auth(data.getLogin(), data.getPassword());
             } catch (Exception e) {
                 return false;
             }

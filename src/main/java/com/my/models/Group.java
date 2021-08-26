@@ -10,8 +10,8 @@ import java.util.List;
 
 @Getter
 @Setter
-@RequiredArgsConstructor
 @NoArgsConstructor
+@RequiredArgsConstructor
 @Accessors (chain = true)
 public class Group {
     @NonNull

@@ -10,6 +10,8 @@
 <!--        <maven.compiler.target>11</maven.compiler.target>-->
         <project.build.encoding>UTF-8</project.build.encoding>
         <lombok.version>1.18.20</lombok.version>
+        <mockito.version>3.12.0</mockito.version>
+        <system-stubs.version>1.2.0</system-stubs.version>
     </properties>
 
     <groupId>dorimelk</groupId>
@@ -76,17 +78,16 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>3.12.0</version>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
-            <version>3.12.0</version>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
-
 
     </dependencies>
 
@@ -123,8 +124,6 @@
                     </processTypes>
                 </configuration>
             </plugin>
-
         </plugins>
     </build>
-
 </project>

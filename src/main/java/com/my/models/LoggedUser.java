@@ -2,18 +2,17 @@ package com.my.models;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 @Getter
 @Setter
-@RequiredArgsConstructor
+@NoArgsConstructor
 @AllArgsConstructor
 public class LoggedUser {
     private Integer id;
-    private String login;
-    private String password;
+    private AuthenticationData authData;
     private boolean alwaysNotify = true;
 
     @BsonIgnore
