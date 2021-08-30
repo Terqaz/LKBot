@@ -6,18 +6,18 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.Projections;
 import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.SubjectData;
+import com.my.models.UserToVerify;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
+import org.bson.conversions.Bson;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Projections.*;
@@ -55,6 +55,12 @@ public class GroupsRepository {
                 .getCollection("groups", Group.class);
     }
 
+    public static final String USERS = "users";
+    public static final String NAME = "name";
+    private static final String USERS_TO_VERIFY = "usersToVerify";
+    private static final String LOGIN_WAITING_USERS = "loginWaitingUsers";
+    public static final String LOGGED_USER = "loggedUser";
+
     public void insert (Group group) {
         groupsCollection.insertOne(group);
     }
@@ -65,68 +71,122 @@ public class GroupsRepository {
 
     public FindIterable<Group> findAllUsersOfGroups () {
         return groupsCollection.find().projection(
-                fields(include("name", "users", "loginWaitingUsers"),
+                fields(include(NAME, USERS, LOGIN_WAITING_USERS),
                         excludeId()));
     }
 
     public Optional<Group> findByGroupName (String groupName) {
-        return Optional.ofNullable(groupsCollection.find(eq("name", groupName)).first());
+        return Optional.ofNullable(groupsCollection.find(eq(NAME, groupName)).first());
     }
 
-    public void updateAuthInfo(@NotNull String groupName,
-                               LoggedUser loggedUser) {
+    public void updateLoggedUser (@NotNull String groupName, @NotNull LoggedUser user) {
         groupsCollection.updateOne(eq("name", groupName),
-                combine(set("loggedUsed", loggedUser),
-                        pull("users", loggedUser.getId())));
+                combine(set(LOGGED_USER, user),
+                        addToSet(USERS, user.getId())));
     }
 
     public void updateSubjectsData (@NotNull String groupName,
                                     @NotEmpty List<SubjectData> subjectsData,
                                     @NotNull Date lastCheckDate) {
-        groupsCollection.updateOne(eq("name", groupName),
+        groupsCollection.updateOne(eq(NAME, groupName),
                 combine(set("subjectsData", subjectsData),
                         set("lastCheckDate", lastCheckDate)));
     }
 
     public <T> void updateField (String groupName, String fieldName, T value) {
-        groupsCollection.updateOne(eq("name", groupName),
+        groupsCollection.updateOne(eq(NAME, groupName),
                 set(fieldName, value));
     }
 
-    public void addUserTo (String groupName, String fieldName, Integer userId) {
-        groupsCollection.updateOne(eq("name", groupName),
-                addToSet(fieldName, userId));
-    }
-
-    public void removeLoggedUser(String groupName, Integer loggedUserId) {
-        updateAuthInfo(groupName, null);
-        removeUserFromGroup(groupName, loggedUserId);
+    public void addToIntegerArray (String groupName, String fieldName, Integer value) {
+        groupsCollection.updateOne(eq(NAME, groupName),
+                addToSet(fieldName, value));
     }
 
     public void removeUserFromGroup (String groupName, Integer userId) {
-        groupsCollection.updateOne(eq("name", groupName),
-                pull("users", userId));
+        groupsCollection.updateOne(eq(NAME, groupName),
+                combine(removeUserFromGroupOperations(userId)));
+    }
+
+    public void removeLoggedUser(String groupName, Integer loggedUserId) {
+        final List<Bson> combineOperations = new ArrayList<>();
+        combineOperations.add(set(LOGGED_USER, new LoggedUser().setId(0).setAuthData(null)));
+        combineOperations.addAll(removeUserFromGroupOperations(loggedUserId));
+
+        groupsCollection.updateOne(eq(NAME, groupName), combine(combineOperations));
+    }
+    private List<Bson> removeUserFromGroupOperations(Integer userId) {
+        return List.of(pull(USERS, userId),
+                       pull(USERS_TO_VERIFY, eq("_id", userId)),
+                       pull(LOGIN_WAITING_USERS, userId));
     }
 
     public void moveLoginWaitingUsersToUsers (String groupName) {
-        final var loginWaitingUsers = groupsCollection.find(eq("name", groupName))
-                .projection(fields(include("loginWaitingUsers"), excludeId()));
+        final Optional<Group> groupOptional = Optional.ofNullable(groupsCollection
+                .find(eq(NAME, groupName))
+                .projection(fields(
+                        include(USERS, LOGIN_WAITING_USERS),
+                        excludeId()
+                )).first());
 
-        groupsCollection.updateOne(eq("name", groupName),
-                pushEach("users", loginWaitingUsers.first().getUsers()));
+        groupOptional.ifPresent(group -> groupsCollection.updateOne(
+                eq(NAME, groupName),
+                combine(addEachToSet(USERS, new ArrayList<>(group.getLoginWaitingUsers())),
+                        set(LOGIN_WAITING_USERS, Collections.emptyList()))));
+    }
+
+    public boolean addUserToUsersToVerify (String groupName, UserToVerify user) {
+        final long count = groupsCollection.countDocuments(combine(
+                eq(NAME, groupName),
+                eq(USERS_TO_VERIFY+"._id", user.getId())
+        ));
+        if (count == 0)
+            groupsCollection.updateOne(eq(NAME, groupName),
+                    addToSet(USERS_TO_VERIFY, user));
+        return count == 0;
+    }
+
+    public boolean moveVerifiedUserToUsers (String groupName, UserToVerify user) {
+        final Optional<Group> groupOptional = Optional.ofNullable(groupsCollection
+                .find(combine(
+                        eq(NAME, groupName),
+                        eq(USERS_TO_VERIFY, user)))
+                .projection(fields(
+                        Projections.elemMatch(USERS_TO_VERIFY,
+                                combine(eq("_id", user.getId()),
+                                        eq("code", user.getCode()))),
+                        excludeId()))
+                .first());
+
+        if (groupOptional.isPresent()) {
+            final UserToVerify user1 = groupOptional.get().getUsersToVerify().get(0);
+
+            groupsCollection.updateOne(
+                    eq(NAME, groupName),
+                    combine(push(USERS, user1.getId()),
+                            pull(USERS_TO_VERIFY,
+                                    combine(eq("_id", user.getId()),
+                                            eq("code", user.getCode())))));
+            return true;
+
+        } else return false;
     }
 
     public List<Integer> findGroupUsers (String groupName) {
-        return Optional.ofNullable(groupsCollection.find(eq("name", groupName))
-                .projection(fields(include("users"), excludeId()))
+        return Optional.ofNullable(groupsCollection.find(eq(NAME, groupName))
+                .projection(fields(include(USERS), excludeId()))
                 .first())
                 .map(Group::getUsers)
                 .orElseGet(Collections::emptyList);
     }
 
     public void updateSilentMode (String groupName, int silentModeStart, int silentModeEnd) {
-        groupsCollection.updateOne(eq("name", groupName),
+        groupsCollection.updateOne(eq(NAME, groupName),
                 combine(set("silentModeStart", silentModeStart),
                         set("silentModeEnd", silentModeEnd)));
+    }
+
+    public void deleteMany (String groupName) {
+        groupsCollection.deleteMany(eq(NAME, groupName));
     }
 }

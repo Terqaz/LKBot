@@ -1,15 +1,16 @@
-package com.my;
+package com.my.services;
 
 import com.mongodb.lang.Nullable;
+import com.my.Utils;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 
 import java.util.Date;
 import java.util.List;
 
-public class ReportUtils {
+public class ReportsMaker {
 
-    private ReportUtils () {}
+    private ReportsMaker () {}
 
     public static String getSubjectsNames (List<SubjectData> subjectsData) {
         final var stringBuilder = new StringBuilder();

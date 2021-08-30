@@ -1,15 +1,23 @@
 package com.my;
 
 import com.my.models.SubjectData;
+import com.my.services.CipherService;
 
+import javax.crypto.NoSuchPaddingException;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public final class Utils {
 
-    private Utils () {}
+    static CipherService cipherService = null;
+
+    private Utils () throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
+        cipherService = CipherService.getInstance();
+    }
 
     public static String formatDate (Date date) {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
@@ -53,7 +61,7 @@ public final class Utils {
             return year + "-О";
     }
 
-    public static Integer tryParseSubjectIndex (String messageText) {
+    public static Integer tryParseInteger (String messageText) {
         try {
             return Integer.parseInt(messageText);
         } catch (NumberFormatException ignored) {
@@ -84,5 +92,15 @@ public final class Utils {
             s2.append(enToRuCharsMap.getOrDefault(s1char, s1char));
         }
         return s2.toString();
+    }
+
+    private static final Random random = new Random();
+
+    public static Integer generateVerificationCode () {
+        return nextRandomInt(100_000, 1_000_000);
+    }
+
+    private static int nextRandomInt(int min, int max) {
+        return random.nextInt(max - min) + min;
     }
 }

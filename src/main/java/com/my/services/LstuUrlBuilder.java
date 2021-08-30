@@ -1,4 +1,4 @@
-package com.my;
+package com.my.services;
 
 import org.apache.http.client.utils.URIBuilder;
 

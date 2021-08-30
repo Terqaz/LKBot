@@ -1,7 +1,5 @@
 package com.my.services;
 
-import com.my.LstuClient;
-import com.my.LstuUrlBuilder;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
 import org.jsoup.nodes.Document;

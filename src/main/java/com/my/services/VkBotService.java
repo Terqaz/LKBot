@@ -13,6 +13,9 @@ import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.Keyboard;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
+import com.vk.api.sdk.objects.users.GetNameCase;
+import com.vk.api.sdk.objects.users.responses.GetResponse;
+import com.vk.api.sdk.queries.users.UsersGetQuery;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -159,7 +162,9 @@ public class VkBotService {
         executeRequest(query);
     }
 
-    public void sendMessageTo (@NotEmpty Collection<Integer> userIds, String message) {
+    public void sendMessageTo (Collection<Integer> userIds, String message) {
+        if (userIds.isEmpty()) return;
+
         final var query = vk.messages().send(groupActor)
                 .message(message)
                 .peerIds(new ArrayList<>(userIds))
@@ -183,6 +188,8 @@ public class VkBotService {
     }
 
     public void sendLongMessageTo (@NotEmpty Collection<Integer> userIds, String message) {
+        if (userIds.isEmpty()) return;
+
         var i = 0;
         if (message.length() > 4000)
             for (; i < message.length()-4000; i+=4000)
@@ -208,6 +215,14 @@ public class VkBotService {
 //        executeRequest(query);
 
         final var response = executeRequest(vk.messages().getConversations(groupActor));
+    }
+
+    public String getUserName(Integer userId) {
+        final UsersGetQuery query = vk.users().get(groupActor)
+                .userIds(userId.toString())
+                .nameCase(GetNameCase.NOMINATIVE);
+        final GetResponse response = executeRequest(query).get(0);
+        return response.getFirstName() + " " + response.getLastName();
     }
 
     public void unsetKeyboard() {

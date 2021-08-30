@@ -1,13 +1,11 @@
 package com.my.services;
 
-import com.my.LstuClient;
-import com.my.LstuUrlBuilder;
 import com.my.models.AuthenticationData;
 import org.jsoup.nodes.Document;
 
 import java.io.IOException;
 
-public class LstuAuthService {
+public class LstuAuthClient {
 
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
@@ -38,13 +36,17 @@ public class LstuAuthService {
                 LstuUrlBuilder.buildAuthUrl(login, password, sessId));
 
         final String jsonResponse = document.body().text();
-        return jsonResponse.startsWith("{\"SUCCESS\":\"1\"");
+        if (!jsonResponse.startsWith("{\"SUCCESS\":\"1\"")) {
+            lstuClient.updateSessionTokens(null, null);
+            return false;
+        } else return true;
     }
 
     public void logout () {
         try {
             lstuClient.executeLogoutRequest(
                     LstuUrlBuilder.buildLogoutUrl());
+
         } catch (Exception ignored) {}
     }
 }

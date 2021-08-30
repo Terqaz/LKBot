@@ -14,6 +14,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Accessors (chain = true)
 public class Group {
+
     @NonNull
     private String name;
     private List<SubjectData> subjectsData = new ArrayList<>();
@@ -22,6 +23,7 @@ public class Group {
 
     private LoggedUser loggedUser;
     private List<Integer> users = new ArrayList<>();
+    private List<UserToVerify> usersToVerify = new ArrayList<>();
     private List<Integer> loginWaitingUsers = new ArrayList<>();
 
     private int silentModeStart = 2; // Час ночи
@@ -29,7 +31,7 @@ public class Group {
 
     @BsonIgnore
     public boolean isNotLoggedNow () {
-        return loggedUser == null;
+        return loggedUser.getAuthData() == null;
     }
 
     @BsonIgnore
@@ -42,4 +44,8 @@ public class Group {
         return new Date(lastCheckDate.getTime() + updateInterval);
     }
 
+    @BsonIgnore
+    public boolean containsUser(Integer userId) {
+        return users.contains(userId);
+    }
 }

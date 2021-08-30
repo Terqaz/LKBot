@@ -1,4 +1,4 @@
-package com.my;
+package com.my.services;
 
 import com.my.exceptions.AuthenticationException;
 import org.jsoup.Connection;
