@@ -1,44 +1,34 @@
 package com.my;
 
 import com.my.models.SubjectData;
-import com.my.services.CipherService;
 
-import javax.crypto.NoSuchPaddingException;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public final class Utils {
 
-    static CipherService cipherService = null;
-
-    private Utils () throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
-        cipherService = CipherService.getInstance();
-    }
+    private Utils () {}
 
     public static String formatDate (Date date) {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
     }
 
-    public static List<SubjectData> removeOldSubjectsDocuments (
+    // oldSubjectsData и newSubjectsData должны быть отсортированы в порядке возрастания имени
+    public static List<SubjectData> removeOldDocuments (
             List<SubjectData> oldSubjectsData, List<SubjectData> newSubjectsData) {
 
-        Map<String, SubjectData> oldDocumentsMap = new HashMap<>();
-        for (SubjectData data : oldSubjectsData) {
-            oldDocumentsMap.put(data.getName(), data);
-        }
+        Map<String, Set<String>> oldDocumentsMap = new HashMap<>();
+        for (SubjectData data : oldSubjectsData)
+            oldDocumentsMap.put(data.getName(), data.getDocumentNames());
 
-        Set<SubjectData> oldDataSet = new HashSet<>(oldSubjectsData);
         return newSubjectsData.stream()
-                .peek(newData -> {
-                    final Set<String> newDocuments = newData.getDocumentNames();
-                    if (oldDataSet.contains(newData)) {
-                        final var oldSubjectData = oldDocumentsMap.get(newData.getName());
-                        newDocuments.removeAll(oldSubjectData.getDocumentNames());
-                    }
+                .map(newData -> {
+                        final Set<String> newDocuments = newData.getDocumentNames();
+                        final var oldDocuments = oldDocumentsMap.get(newData.getName());
+                        newDocuments.removeAll(oldDocuments);
+                        return newData;
                 })
                 .filter(SubjectData::isNotEmpty)
                 .collect(Collectors.toList());

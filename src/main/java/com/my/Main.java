@@ -17,10 +17,11 @@ import java.util.regex.Pattern;
 public class Main {
 
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
-    static CipherService cipherService = null;
+    static CipherService cipherService;
     static final VkBotService vkBot = VkBotService.getInstance();
-    static final LstuAuthClient lstuAuthClient = new LstuAuthClient();
-    static final LstuParser lstuParser = new LstuParser();
+
+    static final LstuAuthClient lstuAuthClient = LstuAuthClient.getInstance();
+    static LstuParser lstuParser = LstuParser.getInstance();
 
     static final Map<Integer, String> groupNameByUserId = new HashMap<>();
 
@@ -59,7 +60,6 @@ public class Main {
                     for (Group group : groupsRepository.findAll()) {
                         LoggedUser loggedUser = group.getLoggedUser();
 
-
                         final GregorianCalendar calendar = new GregorianCalendar();
                         final var checkDate = calendar.getTime();
                         if (isSilentTime(group, calendar.get(Calendar.HOUR_OF_DAY)) ||
@@ -72,14 +72,13 @@ public class Main {
                             rememberUpdateAuthDataMessage(group.getLoggedUser(), group.getName(), true);
                             continue;
                         }
-                        vkBot.sendMessageTo(loggedUser.getId(), "Началось плановое обновление");
 
                         final var oldSubjectsData = group.getSubjectsData();
 
                         final List<SubjectData> newSubjectsData;
 
                         if (actualSemester.equals(newSemester))
-                            newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group.getLastCheckDate());
+                            newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group);
                         else {
                             actualSemester = newSemester;
                             newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
@@ -91,15 +90,14 @@ public class Main {
                         String report;
                         if (actualSemester.equals(newSemester))
                             report = ReportsMaker.getSubjectsData(
-                                    Utils.removeOldSubjectsDocuments(oldSubjectsData, newSubjectsData),
+                                    Utils.removeOldDocuments(oldSubjectsData, newSubjectsData),
                                     group.getNextCheckDate());
                         else
                             report = "Данные теперь приходят из семестра: " + newSemester + "\n" +
                                     ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
 
                         if (!report.startsWith("Нет новой")) {
-                            final var finalReport = "Плановое обновление:\n" + report;
-                            vkBot.sendLongMessageTo(group.getUsers(), finalReport);
+                            vkBot.sendLongMessageTo(group.getUserIds(), report);
                         } else {
                             if (loggedUser.isAlwaysNotify())
                                 vkBot.sendMessageTo(loggedUser.getId(), report);
@@ -132,9 +130,9 @@ public class Main {
     public static void main (String[] args)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
 
+        actualSemester = Utils.getNewScannedSemesterName();
         cipherService = CipherService.getInstance();
 
-        actualSemester = Utils.getNewScannedSemesterName();
         vkBot.setOnline(true);
         fillGroupNameByUserId();
 
@@ -157,7 +155,7 @@ public class Main {
 
             final var groupName = group.getName();
             group.getUsers()
-                    .forEach(userId -> groupNameByUserId.put(userId, groupName));
+                    .forEach(user -> groupNameByUserId.put(user.getId(), groupName));
             group.getLoginWaitingUsers()
                     .forEach(userId -> groupNameByUserId.put(userId, groupName));
         }
@@ -318,6 +316,12 @@ public class Main {
                 changeLoggedUserNotifying(userId, group, true);
                 break;
 
+            case "обновить расписание":
+                groupsRepository.updateField(groupName,
+                        "timetable", lstuParser.parseTimetable(group.getLkSemesterId(), group.getLkId()));
+                vkBot.sendMessageTo(group.getLoggedUser().getId(), "Расписание обновлено");
+                break;
+
             case "забудь меня":
                 if (loggedUser.is(userId))
                     vkBot.sendMessageTo(userId,
@@ -336,7 +340,7 @@ public class Main {
                                     "Я уверен, что хочу, чтобы ты забыл меня");
                 break;
 
-            case "я уверен, что хочу, чтобы ты забыл меня": // TODO Некорректно забывает лидера группы
+            case "я уверен, что хочу, чтобы ты забыл меня":
                 vkBot.unsetKeyboard();
                 if (loggedUser.is(userId)) {
                     vkBot.sendMessageTo(userId,
@@ -415,8 +419,7 @@ public class Main {
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBot.sendMessageTo(userId,
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам " +
-                        "(обновление было " + Utils.formatDate(group.getLastCheckDate()) + "):\n" +
+                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:" +
                         ReportsMaker.getSubjectsNames(group.getSubjectsData()));
 
         vkBot.sendMessageTo(userId, KeyboardService.getCommandsKeyboard(userId, group.getLoggedUser()),
@@ -438,7 +441,10 @@ public class Main {
                     +
                     (loggedUser.isAlwaysNotify() ?
                             "🔶 Не писать тебе, пока нет новой информации:\nБез пустых отчетов\n" :
-                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами");
+                            "🔶 Писать тебе, пока нет новой информации:\nС пустыми отчетами")
+                    +
+                    "🔶 Обновить расписание из ЛК для группы:\n" +
+                    "Обновить расписание";
 
         else return BASIC_COMMANDS;
     }
@@ -488,8 +494,7 @@ public class Main {
         }
         final var oldSubjectData = optionalSubjectData.get();
 
-        SubjectData newSubjectData = lstuParser.getNewSubjectData(
-                oldSubjectData.getName(), oldSubjectData.getLocalUrl(), group.getLastCheckDate());
+        SubjectData newSubjectData = lstuParser.getNewSubjectData(oldSubjectData, group);
         lstuAuthClient.logout();
 
         newSubjectData.setId(subjectIndex);
@@ -600,7 +605,14 @@ public class Main {
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
                 .setSubjectsData(newSubjectsData)
                 .setLastCheckDate(new Date());
-        newGroup.getUsers().add(userId);
+
+        final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
+        newGroup.setLkIds(
+                lkIds.get(LstuParser.SEMESTER_ID),
+                lkIds.get(LstuParser.GROUP_ID),
+                lkIds.get(LstuParser.CONTINGENT_ID)
+        );
+        newGroup.getUsers().add(new GroupUser(userId));
 
         groupsRepository.insert(newGroup);
         newUserSubjectsListMessage(userId, newGroup);

@@ -1,9 +1,6 @@
 package com.my;
 
-import com.my.models.AuthenticationData;
-import com.my.models.Group;
-import com.my.models.LoggedUser;
-import com.my.models.UserToVerify;
+import com.my.models.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +10,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// MONGO_STRING = "mongodb://localhost:27017/lk-bot?retryWrites=true&w=majority"
 class GroupsRepositoryTest {
 
     static final GroupsRepository repository = GroupsRepository.getInstance();
@@ -27,10 +25,10 @@ class GroupsRepositoryTest {
     }
 
     @Test
-    void userLogged_thenRelogged_thenUnlogged () {
+    void userLogged_thenRelogged_thenUnlogged_isCorrect () {
         // Подготовка
         testGroup
-                .setUsers(List.of(1234))
+                .setUsers(List.of(new GroupUser(1234)))
                 .setLoggedUser(new LoggedUser(
                 1234, new AuthenticationData("login", "pass"), true, false));
 
@@ -42,19 +40,19 @@ class GroupsRepositoryTest {
 
         // Проверка
         Group group = repository.findByGroupName(testGroupName).get();
-        assertEquals(Set.of(1234, 12345), new HashSet<>(group.getUsers()));
+        assertEquals(Set.of(new GroupUser(1234), new GroupUser(12345)), new HashSet<>(group.getUsers()));
 
         // Тестируемое
         repository.removeLoggedUser(testGroupName, 12345);
 
         // Проверка
         group = repository.findByGroupName(testGroupName).get();
-        assertEquals(Set.of(1234), new HashSet<>(group.getUsers()));
+        assertEquals(Set.of(new GroupUser(1234)), new HashSet<>(group.getUsers()));
         assertEquals(new LoggedUser(0, null, true, false), group.getLoggedUser());
     }
 
     @Test
-    void moveVerifiedUserToUsersIsCorrect () {
+    void moveVerifiedUserToUsers_IsCorrect () {
         // Подготовка
         final int userId = 123;
         final UserToVerify verifiesUser = new UserToVerify(userId, 123456);
@@ -72,16 +70,16 @@ class GroupsRepositoryTest {
 
         assertFalse(group.getUsersToVerify().contains(verifiesUser));
         assertEquals(2, group.getUsersToVerify().size());
-        assertEquals(1, group.getUsers().size());
-        assertTrue(group.getUsers().contains(userId));
+        assertTrue(group.getUsers().stream()
+                .allMatch(user -> user.getId().equals(userId)));
     }
 
     @Test
-    void moveLoginWaitingUsersToUsersIsCorrect () {
+    void moveLoginWaitingUsersToUsers_IsCorrect () {
         // Подготовка
         final int repeatedId = 1234;
         testGroup
-                .setUsers(List.of(1231, 1232, 1233, repeatedId))
+                .setUsers(List.of(new GroupUser(1231), new GroupUser(1232), new GroupUser(1233), new GroupUser(repeatedId)))
                 .setLoginWaitingUsers(List.of(repeatedId, 12345, 123456));
         repository.insert(testGroup);
 
@@ -96,7 +94,7 @@ class GroupsRepositoryTest {
 
         assertEquals(1,
                 group.getUsers().stream()
-                        .filter(integer -> integer.equals(repeatedId))
+                        .filter(user -> user.getId().equals(repeatedId))
                         .count());
     }
 }

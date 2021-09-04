@@ -7,6 +7,16 @@ import java.io.IOException;
 
 public class LstuAuthClient {
 
+    private static LstuAuthClient instance = null;
+
+    public static LstuAuthClient getInstance () {
+        if (instance == null)
+            instance = new LstuAuthClient();
+        return instance;
+    }
+
+    private LstuAuthClient () {}
+
     private static final LstuClient lstuClient = LstuClient.getInstance();
 
     public boolean login (AuthenticationData data) {

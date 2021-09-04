@@ -7,10 +7,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
-import com.my.models.Group;
-import com.my.models.LoggedUser;
-import com.my.models.SubjectData;
-import com.my.models.UserToVerify;
+import com.my.models.*;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
@@ -18,6 +15,7 @@ import org.bson.conversions.Bson;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Projections.*;
@@ -82,7 +80,7 @@ public class GroupsRepository {
     public void updateLoggedUser (@NotNull String groupName, @NotNull LoggedUser user) {
         groupsCollection.updateOne(eq("name", groupName),
                 combine(set(LOGGED_USER, user),
-                        addToSet(USERS, user.getId())));
+                        addToSet(USERS, new GroupUser(user.getId()))));
     }
 
     public void updateSubjectsData (@NotNull String groupName,
@@ -116,7 +114,7 @@ public class GroupsRepository {
         groupsCollection.updateOne(eq(NAME, groupName), combine(combineOperations));
     }
     private List<Bson> removeUserFromGroupOperations(Integer userId) {
-        return List.of(pull(USERS, userId),
+        return List.of(pull(USERS, eq("_id", userId)),
                        pull(USERS_TO_VERIFY, eq("_id", userId)),
                        pull(LOGIN_WAITING_USERS, userId));
     }
@@ -125,13 +123,15 @@ public class GroupsRepository {
         final Optional<Group> groupOptional = Optional.ofNullable(groupsCollection
                 .find(eq(NAME, groupName))
                 .projection(fields(
-                        include(USERS, LOGIN_WAITING_USERS),
+                        include(LOGIN_WAITING_USERS),
                         excludeId()
                 )).first());
 
         groupOptional.ifPresent(group -> groupsCollection.updateOne(
                 eq(NAME, groupName),
-                combine(addEachToSet(USERS, new ArrayList<>(group.getLoginWaitingUsers())),
+                combine(addEachToSet(USERS, group.getLoginWaitingUsers().stream()
+                                .map(GroupUser::new)
+                                .collect(Collectors.toList())),
                         set(LOGIN_WAITING_USERS, Collections.emptyList()))));
     }
 
@@ -163,7 +163,7 @@ public class GroupsRepository {
 
             groupsCollection.updateOne(
                     eq(NAME, groupName),
-                    combine(push(USERS, user1.getId()),
+                    combine(push(USERS, new GroupUser(user1.getId())),
                             pull(USERS_TO_VERIFY,
                                     combine(eq("_id", user.getId()),
                                             eq("code", user.getCode())))));
@@ -172,7 +172,7 @@ public class GroupsRepository {
         } else return false;
     }
 
-    public List<Integer> findGroupUsers (String groupName) {
+    public List<GroupUser> findGroupUsers (String groupName) {
         return Optional.ofNullable(groupsCollection.find(eq(NAME, groupName))
                 .projection(fields(include(USERS), excludeId()))
                 .first())

@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import java.util.List;
@@ -14,12 +15,13 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
+@Accessors (chain = true)
 public class SubjectData {
     private int id;
     @NonNull
-    private String name;
+    private String lkId;
     @NonNull
-    private String localUrl;
+    private String name;
     @NonNull
     private Set<String> documentNames;
     @NonNull

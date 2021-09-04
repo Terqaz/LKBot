@@ -43,13 +43,18 @@ public class LstuUrlBuilder {
                 .setPath("education/0/"));
     }
 
-    public static String buildNextMessagesUrl (String group, String discipline, String semester, Date date) {
+    public static String buildSubjectLocalUrl (String semester, String discipline, String group, String contingentId) {
+        return finallyUrlBuild(new URIBuilder()
+                .setPathSegments("education", "0", semester, discipline, group, contingentId, ""));
+    }
+
+    public static String buildNextMessagesUrl (String semesterId, String disciplineId, String groupId, Date date) {
         final URIBuilder builder = getLstuOriginUriBuilder()
                 .setPath("ajax.handler.php")
                 .addParameter("get_msg", "1")
-                .addParameter("group", group)
-                .addParameter("discipline", discipline)
-                .addParameter("semester", semester);
+                .addParameter("group", groupId)
+                .addParameter("discipline", disciplineId)
+                .addParameter("semester", semesterId);
                 if (date != null)
                     builder.addParameter("last_msg",
                             new SimpleDateFormat("dd.MM.yyyy+HH:mm").format(date));
@@ -59,5 +64,15 @@ public class LstuUrlBuilder {
     public static String buildByLocalUrl (String localRef) {
         return finallyUrlBuild(getLstuOriginUriBuilder()
                 .setPath(localRef));
+    }
+
+    // TODO Сохранять айдишники семестра и группы отдельно
+    public static String buildStudentScheduleUrl (String semesterId, String groupId) {
+        return finallyUrlBuild(getLstuOriginUriBuilder()
+                .setPath("ajax.handler.php")
+                .addParameter("student_schedule", "1")
+                .addParameter("semester", semesterId)
+                .addParameter("group", groupId)
+        );
     }
 }

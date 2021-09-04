@@ -4,28 +4,30 @@ import com.mongodb.lang.Nullable;
 import com.my.Utils;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
+import com.my.models.TimetableSubject;
 
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class ReportsMaker {
 
     private ReportsMaker () {}
 
     public static String getSubjectsNames (List<SubjectData> subjectsData) {
-        final var stringBuilder = new StringBuilder();
+        final var sb = new StringBuilder();
         for (SubjectData data : subjectsData) {
-            stringBuilder.append("➡ ").append(data.getId()).append(" ")
+            sb.append("➡ ").append(data.getId()).append(" ")
                     .append(data.getName()).append("\n");
         }
-        return stringBuilder.toString();
+        return sb.toString();
     }
 
     public static String getSubjectsData (List<SubjectData> subjectsData, @Nullable Date nextCheckDate) {
         if (subjectsData.isEmpty()) {
             return "Нет новой информации по предметам";
         }
-        final var builder = new StringBuilder();
+        final var sb = new StringBuilder();
         var partBuilder = new StringBuilder();
         for (SubjectData data : subjectsData) {
             if (!data.getDocumentNames().isEmpty()) {
@@ -35,7 +37,7 @@ public class ReportsMaker {
             }
         }
         if (partBuilder.length() > 0) {
-            builder.append("\uD83D\uDD34 Новые документы:\n").append(partBuilder);
+            sb.append("\uD83D\uDD34 Новые документы:\n").append(partBuilder);
         }
         partBuilder = new StringBuilder();
         for (SubjectData data : subjectsData) {
@@ -56,16 +58,32 @@ public class ReportsMaker {
             }
         }
         if (partBuilder.length() > 0)
-            builder.append("\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
+            sb.append("\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
 
         if (nextCheckDate != null)
-            builder.append(getNextUpdateDateText(nextCheckDate));
+            sb.append(getNextUpdateDateText(nextCheckDate));
 
-        return builder.toString();
+        return sb.toString();
     }
 
 
     public static String getNextUpdateDateText (Date nextCheckDate) {
         return "Следующее глобальное обновление будет " + Utils.formatDate(nextCheckDate);
     }
+
+    public static String getDaySchedule (List<TimetableSubject> subjects, String weekTypeInfo) {
+        final var sb = new StringBuilder();
+
+        sb.append("Сегодня ").append(weekTypeInfo).append('\n'); // Пример: Сегодня белая неделя
+
+        return sb.append(subjects.stream()
+                .map(subject -> "➡ " + subject.getInterval() + ' ' +
+                        subject.getName() + '\n' +
+                        subject.getPlace() + '\n' +
+                        subject.getAcademicName())
+                .collect(Collectors.joining("\n\n")))
+                .toString();
+
+    }
+
 }
