@@ -17,10 +17,11 @@ import java.util.regex.Pattern;
 public class Main {
 
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
-    static CipherService cipherService = null;
+    static CipherService cipherService;
     static final VkBotService vkBot = VkBotService.getInstance();
-    static final LstuAuthClient lstuAuthClient = new LstuAuthClient();
-    static final LstuParser lstuParser = new LstuParser();
+
+    static final LstuAuthClient lstuAuthClient = LstuAuthClient.getInstance();
+    static LstuParser lstuParser = LstuParser.getInstance();
 
     static final Map<Integer, String> groupNameByUserId = new HashMap<>();
 
@@ -72,7 +73,6 @@ public class Main {
                             rememberUpdateAuthDataMessage(group.getLoggedUser(), group.getName(), true);
                             continue;
                         }
-                        vkBot.sendMessageTo(loggedUser.getId(), "Началось плановое обновление");
 
                         final var oldSubjectsData = group.getSubjectsData();
 
@@ -98,8 +98,7 @@ public class Main {
                                     ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
 
                         if (!report.startsWith("Нет новой")) {
-                            final var finalReport = "Плановое обновление:\n" + report;
-                            vkBot.sendLongMessageTo(group.getUsers(), finalReport);
+                            vkBot.sendLongMessageTo(group.getUsers(), report);
                         } else {
                             if (loggedUser.isAlwaysNotify())
                                 vkBot.sendMessageTo(loggedUser.getId(), report);
@@ -132,9 +131,9 @@ public class Main {
     public static void main (String[] args)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
 
+        actualSemester = Utils.getNewScannedSemesterName();
         cipherService = CipherService.getInstance();
 
-        actualSemester = Utils.getNewScannedSemesterName();
         vkBot.setOnline(true);
         fillGroupNameByUserId();
 
@@ -415,8 +414,7 @@ public class Main {
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBot.sendMessageTo(userId,
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам " +
-                        "(обновление было " + Utils.formatDate(group.getLastCheckDate()) + "):\n" +
+                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:" +
                         ReportsMaker.getSubjectsNames(group.getSubjectsData()));
 
         vkBot.sendMessageTo(userId, KeyboardService.getCommandsKeyboard(userId, group.getLoggedUser()),
@@ -488,8 +486,7 @@ public class Main {
         }
         final var oldSubjectData = optionalSubjectData.get();
 
-        SubjectData newSubjectData = lstuParser.getNewSubjectData(
-                oldSubjectData.getName(), oldSubjectData.getLocalUrl(), group.getLastCheckDate());
+        SubjectData newSubjectData = lstuParser.getNewSubjectData(oldSubjectData, group);
         lstuAuthClient.logout();
 
         newSubjectData.setId(subjectIndex);
@@ -600,6 +597,13 @@ public class Main {
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
                 .setSubjectsData(newSubjectsData)
                 .setLastCheckDate(new Date());
+
+        final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
+        newGroup.setLkIds(
+                lkIds.get(LstuParser.SEMESTER_ID),
+                lkIds.get(LstuParser.GROUP_ID),
+                lkIds.get(LstuParser.CONTINGENT_ID)
+        );
         newGroup.getUsers().add(userId);
 
         groupsRepository.insert(newGroup);

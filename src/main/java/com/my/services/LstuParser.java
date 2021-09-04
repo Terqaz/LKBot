@@ -1,7 +1,10 @@
 package com.my.services;
 
+import com.my.ParserUtils;
+import com.my.models.Group;
 import com.my.models.MessageData;
 import com.my.models.SubjectData;
+import com.my.models.TimetableSubject;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
@@ -15,31 +18,42 @@ import java.util.stream.Stream;
 
 public class LstuParser {
 
+    private static LstuParser instance = null;
+
+    public static LstuParser getInstance () {
+        if (instance == null)
+            instance = new LstuParser();
+        return instance;
+    }
+
+    private LstuParser () {}
+
     private static final LstuClient lstuClient = LstuClient.getInstance();
     private static final Pattern groupNamePattern =
             Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
 
     // Загружает все документы и все сообщения
     public List<SubjectData> getSubjectsDataFirstTime (String semesterName) {
-        final List<SubjectData> subjectsData = getHtmlSubjectsLinks(semesterName)
-                .map(htmlSubjectLink -> getSubjectDataByHtmlLink(htmlSubjectLink, new Date(1)))
+        final List<SubjectData> subjectsData = getHtmlSubjectsUrls(semesterName)
+                .map(htmlSubjectUrl -> getSubjectDataByHtmlUrl(htmlSubjectUrl, new Date(1)))
                 .sorted(Comparator.comparing(SubjectData::getName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
     }
 
-    private Stream<Element> getHtmlSubjectsLinks(String semesterName) {
-        return Stream.of(getSemesterLink(semesterName))
-                .map(semesterLink -> lstuClient.get(LstuUrlBuilder.buildByLocalUrl(semesterLink)))
+    private Stream<Element> getHtmlSubjectsUrls(String semesterName) {
+        return Stream.of(lstuClient.get(
+                LstuUrlBuilder.buildByLocalUrl(
+                        getSemesterUrl(semesterName))))
                 .flatMap(semesterDataPage -> semesterDataPage.select("li.submenu.level3 > a").stream());
     }
 
-    private String getSemesterLink(String semesterName) {
+    private String getSemesterUrl(String semesterName) {
         Document semestersListPage = lstuClient.get(LstuUrlBuilder.buildSemestersUrl());
-        final Elements htmlSemestersLinks = semestersListPage.select(".ul-main > li > a");
-        for (Element link : htmlSemestersLinks) {
-            if (link.text().equals(semesterName)) {
-                return link.attr("href");
+        final Elements htmlSemestersUrls = semestersListPage.select(".ul-main > li > a");
+        for (Element htmlUrl : htmlSemestersUrls) {
+            if (htmlUrl.text().equals(semesterName)) {
+                return htmlUrl.attr("href");
             }
         }
         return null;
@@ -49,10 +63,32 @@ public class LstuParser {
     public List<SubjectData> getNewSubjectsData (List<SubjectData> oldSubjectsData, Date lastCheckDate) {
         final List<SubjectData> subjectsData = oldSubjectsData.stream()
                 .map(subjectData ->
-                        getNewSubjectData(subjectData.getName(), subjectData.getLocalUrl(), lastCheckDate))
+                        getNewSubjectData(subjectData.getName(), subjectData.getLkId(), lastCheckDate))
                 .sorted(Comparator.comparing(SubjectData::getName))
                 .collect(Collectors.toList());
         return addIds(subjectsData);
+    }
+
+    private SubjectData getSubjectDataByHtmlUrl (Element htmlSubjectUrl, Date lastCheckDate) {
+        final String localUrl = htmlSubjectUrl.attr("href");
+        return getNewSubjectData(ParserUtils.capitalize(htmlSubjectUrl.text()), localUrl, lastCheckDate);
+    }
+
+    private SubjectData getNewSubjectData(String subjectName, String subjectLocalUrl, Date lastCheckDate) {
+
+        final Document subjectDataPage = lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
+
+        final String[] pathSegments = subjectLocalUrl.split("/");
+        final String semesterId = pathSegments[3];
+        final String subjectId = pathSegments[4];
+        final String groupId = pathSegments[5];
+
+        return new SubjectData(
+                subjectId,
+                subjectName,
+                new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
+                loadMessagesAfterDate(semesterId, subjectId, groupId, lastCheckDate)
+        );
     }
 
     private List<SubjectData> addIds (List<SubjectData> subjectsData) {
@@ -63,27 +99,25 @@ public class LstuParser {
         return subjectsData;
     }
 
-    private SubjectData getSubjectDataByHtmlLink (Element htmlSubjectLink, Date lastCheckDate) {
-        return getNewSubjectData(htmlSubjectLink.text(), htmlSubjectLink.attr("href"), lastCheckDate);
-    }
-
     // Загружает все документы и только новые сообщения
-    public SubjectData getNewSubjectData(String subjectName, String localUrl, Date lastCheckDate) {
-        final Document subjectDataPage = lstuClient.get(
-                LstuUrlBuilder.buildByLocalUrl(localUrl));
+    public SubjectData getNewSubjectData(SubjectData oldSubjectData, Group group) {
 
-        final List<MessageData> messages = loadMessagesAfterDate(localUrl, lastCheckDate);
+        String subjectLocalUrl = LstuUrlBuilder.buildSubjectLocalUrl(
+                group.getLkSemesterId(), oldSubjectData.getLkId(), group.getLkId(), group.getLkUnknownId());
+
+        final Document subjectDataPage = lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
 
         return new SubjectData(
-                subjectName,
-                localUrl,
+                oldSubjectData.getLkId(),
+                oldSubjectData.getName(),
                 new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
-                messages
+                loadMessagesAfterDate(
+                        group.getLkSemesterId(), oldSubjectData.getLkId(), group.getLkId(), group.getLastCheckDate())
         );
     }
 
-    private List<MessageData> loadMessagesAfterDate (String subjectLink, Date lastCheckDate) {
-        final String[] pathSegments = subjectLink.split("/");
+    private List<MessageData> loadMessagesAfterDate (String semesterId, String subjectId,
+                                                     String groupId, Date lastCheckDate) {
         final List<MessageData> messageDataList = new ArrayList<>();
 
         Document pageWithMessages;
@@ -91,9 +125,7 @@ public class LstuParser {
         Date lastMessageDate = null;
         do {
             pageWithMessages = lstuClient.post(
-                    LstuUrlBuilder.buildNextMessagesUrl(
-                            pathSegments[5], pathSegments[4], pathSegments[3],
-                            lastMessageDate));
+                    LstuUrlBuilder.buildNextMessagesUrl(semesterId, subjectId, groupId, lastMessageDate));
 
             messagesDataChunk = parseMessagesDataChunk(pageWithMessages, lastCheckDate);
             if (messagesDataChunk.isEmpty())
@@ -134,17 +166,15 @@ public class LstuParser {
             if (!date.after(lastCheckDate))
                 break;
             try {
-                messageDataList.add(new MessageData(comments.next(), makeShortSenderName(senders.next()), date));
+                messageDataList.add(new MessageData(
+                        comments.next(),
+                        ParserUtils.makeShortSenderName(senders.next()),
+                        date));
             } catch (NoSuchElementException ignored) {
                 break;
             }
         }
         return messageDataList;
-    }
-
-    private static String makeShortSenderName (String name) {
-        final String[] chunks = name.split(" ");
-        return chunks[0] + " " + chunks[1].charAt(0) + chunks[2].charAt(0);
     }
 
     private Date getLastMessageDate (List<MessageData> messagesDataChunk) {
@@ -164,5 +194,87 @@ public class LstuParser {
                 .filter(s -> !s.isEmpty())
                 .filter(s -> groupNamePattern.matcher(s).find())
                 .findFirst();
+    }
+
+    // Белая ли неделя; номер дня недели
+    public Map<Boolean, Map<Integer, List<TimetableSubject>>> parseTimetable (String semesterId, String groupId) {
+        return Stream.of(lstuClient.get(
+                LstuUrlBuilder.buildStudentScheduleUrl(semesterId, groupId)))
+                .map(schedulePage -> {
+                    final Elements rows = schedulePage.select("#schedule_lections tbody tr");
+                    int dayOfWeek;
+
+                    Map<Integer, List<TimetableSubject>> subjectsByDayOfWeek = new HashMap<>();
+
+                    List<TimetableSubject> whiteSubjects;
+                    List<TimetableSubject> greenSubjects;
+                    Elements cells;
+
+                    for (Element row : rows) {
+                        whiteSubjects = new ArrayList<>();
+                        greenSubjects = new ArrayList<>();
+                        cells = row.select("td");
+
+                        final String newWeekDay = cells.get(0).text();
+                        if (!newWeekDay.isBlank())
+                            dayOfWeek = mapDayOfWeek(newWeekDay);
+
+                        String interval = cells.get(1).text().strip();
+                        interval = interval.substring(0, 5) + "-" + interval.substring(8, 13);
+
+                        if (!cells.get(2).text().isBlank())
+                            whiteSubjects.add(initTimetableSubject(cells.get(2), cells.get(3))
+                                        .setInterval(interval));
+                        if (!cells.get(4).text().isBlank())
+                            greenSubjects.add(initTimetableSubject(cells.get(4), cells.get(5))
+                                    .setInterval(interval));
+
+                    }
+                })
+    }
+
+    private TimetableSubject initTimetableSubject (Element firstCell, Element secondCell) {
+        String academicName = firstCell.select("a").text();
+
+        String subjectName = ParserUtils.capitalize(firstCell.textNodes().get(0).text().strip());
+
+        final List<TextNode> placeCellTextNodes = secondCell.textNodes();
+
+        String place = placeCellTextNodes.get(0).text().strip() + ", " +
+                mapСoupleType(placeCellTextNodes.get(1).text().strip());
+
+        return new TimetableSubject(subjectName, academicName, place);
+    }
+
+    private Integer mapDayOfWeek (String weekDay) {
+        switch (weekDay) {
+            case "ПН": return 1;
+            case "ВТ": return 2;
+            case "СР": return 3;
+            case "ЧТ": return 4;
+            case "ПТ": return 5;
+            case "СБ": return 6;
+        }
+    }
+
+    private String mapСoupleType (String strip) {
+
+    }
+
+    public static final String SEMESTER_ID = "semesterId";
+    public static final String GROUP_ID = "groupId";
+    public static final String CONTINGENT_ID = "contingentId";
+
+    public Map<String, String> getSubjectsGeneralLkIds (String semesterName) {
+        return getHtmlSubjectsUrls(semesterName).findFirst()
+                .map(htmlSubjectUrl -> htmlSubjectUrl.attr("href"))
+                .map(localUrl -> {
+                    String[] segments = localUrl.split("/");
+                    final HashMap<String, String> namedSegments = new HashMap<>();
+                    namedSegments.put(SEMESTER_ID, segments[3]);
+                    namedSegments.put(GROUP_ID, segments[5]);
+                    namedSegments.put(CONTINGENT_ID, segments[6]);
+                    return namedSegments;
+                }).orElse(new HashMap<>());
     }
 }

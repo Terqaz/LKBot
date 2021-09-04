@@ -13,14 +13,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith (MockitoExtension.class)
 class AnyUtilsTest {
 
     @Test
-    void translateFromEnglishKeyboardLayout_thenEqual () {
+    void translateFromEnglishKeyboardLayout_isCorrect () {
         final List<String> expected =
                 Arrays.asList("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
                 .stream().map(Utils::translateFromEnglishKeyboardLayoutIfNeeds)
@@ -33,7 +32,7 @@ class AnyUtilsTest {
     }
 
     @Test
-    void encryptThenSuccessDecrypt ()
+    void encrypt_ThenSuccessDecrypt ()
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
 
         CipherService cipherService = CipherService.getInstance();
@@ -41,5 +40,14 @@ class AnyUtilsTest {
         assertEquals(
                 new AuthenticationData("login", "password"),
                 cipherService.decrypt(encryptedData));
+    }
+
+    @Test
+    void ParserUtils_capitalize_IsCorrect () {
+        assertEquals("Тест", ParserUtils.capitalize("Тест"));
+        assertEquals("Тест", ParserUtils.capitalize("ТЕСТ"));
+        assertEquals("Тест", ParserUtils.capitalize("тест"));
+        assertThrows(StringIndexOutOfBoundsException.class,
+                () -> ParserUtils.capitalize(""));
     }
 }

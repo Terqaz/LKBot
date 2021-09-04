@@ -54,7 +54,7 @@ class GroupsRepositoryTest {
     }
 
     @Test
-    void moveVerifiedUserToUsersIsCorrect () {
+    void moveVerifiedUserToUsers_IsCorrect () {
         // Подготовка
         final int userId = 123;
         final UserToVerify verifiesUser = new UserToVerify(userId, 123456);
@@ -77,7 +77,7 @@ class GroupsRepositoryTest {
     }
 
     @Test
-    void moveLoginWaitingUsersToUsersIsCorrect () {
+    void moveLoginWaitingUsersToUsers_IsCorrect () {
         // Подготовка
         final int repeatedId = 1234;
         testGroup

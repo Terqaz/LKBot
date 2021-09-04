@@ -17,9 +17,9 @@ import java.util.Set;
 public class SubjectData {
     private int id;
     @NonNull
-    private String name;
+    private String lkId;
     @NonNull
-    private String localUrl;
+    private String name;
     @NonNull
     private Set<String> documentNames;
     @NonNull

@@ -1,23 +1,15 @@
 package com.my;
 
 import com.my.models.SubjectData;
-import com.my.services.CipherService;
 
-import javax.crypto.NoSuchPaddingException;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public final class Utils {
 
-    static CipherService cipherService = null;
-
-    private Utils () throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
-        cipherService = CipherService.getInstance();
-    }
+    private Utils () {}
 
     public static String formatDate (Date date) {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
