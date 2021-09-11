@@ -59,6 +59,17 @@ public final class Utils {
         }
     }
 
+
+    public static boolean isSilentTime (int start, int end, int nowHour) {
+        if (start < end)
+            return start <= nowHour && nowHour <= end;
+
+        else if (start > end) {
+            return start <= nowHour || nowHour <= end;
+
+        } else return true;
+    }
+
     private static final Map<Character, Character> enToRuCharsMap = new HashMap<>();
     static {
         final String enChars = "qwertyuiop[]asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?";

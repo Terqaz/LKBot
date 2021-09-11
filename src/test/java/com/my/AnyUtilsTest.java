@@ -92,4 +92,19 @@ class AnyUtilsTest {
     private <T> Set<T> mutableSetOf(T... elements) {
         return new HashSet<>(Arrays.asList(elements));
     }
+
+    @Test
+    @Disabled
+    void isSilentTime_isCorrect () {
+        assertTrue(Utils.isSilentTime(2, 6, 2));
+        assertTrue(Utils.isSilentTime(2, 6, 6));
+        assertTrue(Utils.isSilentTime(2, 6, 4));
+        assertFalse(Utils.isSilentTime(2, 6, 1));
+
+        assertTrue(Utils.isSilentTime(22, 4, 22));
+        assertTrue(Utils.isSilentTime(22, 4, 23));
+        assertTrue(Utils.isSilentTime(22, 4, 1));
+        assertTrue(Utils.isSilentTime(22, 4, 4));
+        assertFalse(Utils.isSilentTime(22, 4, 12));
+    }
 }
