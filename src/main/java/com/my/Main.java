@@ -1,8 +1,17 @@
 package com.my;
 
 import com.my.exceptions.ApplicationStopNeedsException;
+import com.my.exceptions.AuthenticationException;
+import com.my.exceptions.LkNotRespondingException;
 import com.my.models.*;
-import com.my.services.*;
+import com.my.services.CipherService;
+import com.my.services.ReportsMaker;
+import com.my.services.lstu.LstuAuthClient;
+import com.my.services.lstu.LstuParser;
+import com.my.services.text.KeyboardLayoutConverter;
+import com.my.services.text.SpecialWordsFinder;
+import com.my.services.vk.KeyboardService;
+import com.my.services.vk.VkBotService;
 import com.vk.api.sdk.objects.messages.Message;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -13,10 +22,12 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class Main {
 
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
+    public static final String APPLICATION_STOP_TEXT = "I WANT TO STOP THE APPLICATION";
     static CipherService cipherService;
     static final VkBotService vkBot = VkBotService.getInstance();
 
@@ -47,6 +58,7 @@ public class Main {
             Pattern.compile("((Т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,4}-)(П-)?\\d{2}(-\\d)?");
 
     private static String actualSemester;
+    private static boolean isActualWeekWhite;
 
     private static class PlannedSubjectsDataUpdate extends Thread {
         @SneakyThrows
@@ -54,47 +66,44 @@ public class Main {
         public void run() {
             while (true) {
                 try {
-                    Thread.sleep(60L * 1000); // 1 минута
-                    final var newSemester = Utils.getNewScannedSemesterName();
-
-                    for (Group group : groupsRepository.findAll()) {
+                    final var newSemester = Utils.actualizeSemesterName();
+                    for (Group group : groupsRepository.findAll()) { // TODO убрать timetable
                         LoggedUser loggedUser = group.getLoggedUser();
 
                         final GregorianCalendar calendar = new GregorianCalendar();
                         final var checkDate = calendar.getTime();
-                        if (isSilentTime(group, calendar.get(Calendar.HOUR_OF_DAY)) ||
-                                !checkDate.after(group.getNextCheckDate())) {
+                        if (isNotUpdateTime(group, calendar, checkDate))
                             continue;
-                        }
 
-                        if (group.isNotLoggedNow() || !lstuAuthClient.login(cipherService.decrypt(loggedUser.getAuthData()))) {
+                        if (isNotLoginSucceeded(group, loggedUser)) {
                             vkBot.sendMessageTo(loggedUser.getId(),"Не удалось обновить данные из ЛК");
-                            rememberUpdateAuthDataMessage(group.getLoggedUser(), group.getName(), true);
+                            Main.rememberUpdateAuthDataMessage(group.getLoggedUser(), group.getName(), true);
                             continue;
                         }
-
-                        final var oldSubjectsData = group.getSubjectsData();
 
                         final List<SubjectData> newSubjectsData;
-
-                        if (actualSemester.equals(newSemester))
+                        final String report;
+                        if (actualSemester.equals(newSemester)) {
+                            final var oldSubjectsData = group.getSubjectsData();
                             newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group);
-                        else {
-                            actualSemester = newSemester;
-                            newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
-                        }
-                        lstuAuthClient.logout();
-                        groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
-                        group.setLastCheckDate(checkDate);
-
-                        String report;
-                        if (actualSemester.equals(newSemester))
                             report = ReportsMaker.getSubjectsData(
                                     Utils.removeOldDocuments(oldSubjectsData, newSubjectsData),
                                     group.getNextCheckDate());
-                        else
-                            report = "Данные теперь приходят из семестра: " + newSemester + "\n" +
-                                    ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
+                            groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
+
+                        } else {
+                            actualSemester = newSemester;
+                            vkBot.sendMessageTo(group.getUserIds(),
+                                    "Данные теперь приходят из семестра: " + newSemester + "\n");
+                            newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
+                            final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
+                            report = ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
+                            groupsRepository.setNewSemesterData(group.getName(), newSubjectsData, checkDate,
+                                    lkIds.get(LstuParser.SEMESTER_ID));
+
+                        }
+                        lstuAuthClient.logout();
+                        group.setLastCheckDate(checkDate);
 
                         if (!report.startsWith("Нет новой")) {
                             vkBot.sendLongMessageTo(group.getUserIds(), report);
@@ -103,6 +112,7 @@ public class Main {
                                 vkBot.sendMessageTo(loggedUser.getId(), report);
                         }
                     }
+                    Thread.sleep(60L * 1000); // 1 минута
                 }
                 catch (InterruptedException e) {
                     break;
@@ -113,39 +123,96 @@ public class Main {
             }
         }
 
-        private static boolean isSilentTime (Group group, int nowHour) {
-            final int silentModeStart = group.getSilentModeStart();
-            final int silentModeEnd = group.getSilentModeEnd();
-
-            if (silentModeStart < silentModeEnd) {
-                return silentModeStart <= nowHour && nowHour <= silentModeEnd;
-
-            } else if (silentModeStart > silentModeEnd) {
-                return silentModeStart <= nowHour || nowHour <= silentModeEnd;
-
-            } else return true;
+        private boolean isNotUpdateTime (Group group, GregorianCalendar calendar, Date checkDate) {
+            return Utils.isSilentTime(group.getSilentModeStart(), group.getSilentModeEnd(),
+                    calendar.get(Calendar.HOUR_OF_DAY)) || !checkDate.after(group.getNextCheckDate());
         }
+
+        private boolean isNotLoginSucceeded (Group group, LoggedUser loggedUser) {
+            return group.isNotLoggedNow() || !lstuAuthClient.login(cipherService.decrypt(loggedUser.getAuthData()));
+        }
+    }
+
+    private static class PlannedScheduleSending extends Thread {
+        @SneakyThrows
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    GregorianCalendar calendar = new GregorianCalendar();
+                    int second = calendar.get(Calendar.SECOND);
+                    int minute = calendar.get(Calendar.MINUTE);
+                    int hour = calendar.get(Calendar.HOUR_OF_DAY);
+                    int weekDay = Utils.mapWeekDayFromCalendar(calendar);
+
+                    if (weekDay == 0 && hour == 0) {
+                        isActualWeekWhite = actualizeWeekType();
+                        Thread.sleep(3600L * 1000); // 1 час
+
+                    } else if (hour == 7) {
+                        for (Group group : groupsRepository.findAll()) { // TODO убрать subjectsData, оптимизировать загрузку
+                            vkBot.sendMessageTo(
+                                    group.getUsers().stream()
+                                            .filter(GroupUser::isEverydayScheduleEnabled)
+                                            .map(GroupUser::getId)
+                                            .collect(Collectors.toList()),
+                                    getDayScheduleReport(weekDay, group)
+                            );
+                        }
+                        Thread.sleep(3600L * 1000); // 1 час
+
+                    } else Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
+
+                } catch (InterruptedException e) {
+                    break;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private static String getDayScheduleReport(int weekDay, Group group) {
+        return ReportsMaker.getDaySchedule(isActualWeekWhite ?
+                        group.getTimetable().getWhiteWeekDaySubjects().get(weekDay) :
+                        group.getTimetable().getGreenWeekDaySubjects().get(weekDay),
+                isActualWeekWhite);
     }
 
     public static void main (String[] args)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
 
-        actualSemester = Utils.getNewScannedSemesterName();
         cipherService = CipherService.getInstance();
 
-        vkBot.setOnline(true);
+        actualSemester = Utils.actualizeSemesterName();
+        try {
+            isActualWeekWhite = actualizeWeekType();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         fillGroupNameByUserId();
+
+        final Integer ts = FilesService.loadLastTs();
+        if (ts != null) VkBotService.setTs(ts);
 
         final var plannedSubjectsDataUpdate = new PlannedSubjectsDataUpdate();
         plannedSubjectsDataUpdate.start();
+        final var plannedScheduleSending = new PlannedScheduleSending();
+        plannedScheduleSending.start();
 
+        vkBot.setOnline(true);
+        vkBot.sendMessageTo(APP_ADMIN_ID,
+                "APP STARTED.\nTO STOP TYPE: "+ APPLICATION_STOP_TEXT);
         try {
             runCycle();
-        } catch (ApplicationStopNeedsException ignored) {
-            vkBot.setOnline(false);
-            plannedSubjectsDataUpdate.interrupt();
-            vkBot.sendMessageTo(APP_ADMIN_ID, "WARNING: APP STOPPED");
-        }
+        } catch (ApplicationStopNeedsException ignored) {}
+
+        vkBot.setOnline(false);
+        plannedSubjectsDataUpdate.interrupt();
+        plannedScheduleSending.interrupt();
+        FilesService.saveLastTs(VkBotService.getTs());
+        vkBot.sendMessageTo(APP_ADMIN_ID, "WARNING: APP STOPPED");
     }
 
     private static void fillGroupNameByUserId () {
@@ -169,12 +236,14 @@ public class Main {
                 for (Message message : messages) {
                     final Integer userId = message.getFromId();
 
-                    if (userId.equals(APP_ADMIN_ID) && message.getText().equals("I WANT TO STOP THE APPLICATION"))
+                    if (userId.equals(APP_ADMIN_ID) && message.getText().equals(APPLICATION_STOP_TEXT))
                         throw new ApplicationStopNeedsException();
 
                     if (userId > 0) {
                         try {
                             executeBotDialog(userId, message.getText());
+                        } catch (LkNotRespondingException e) {
+                            vkBot.sendMessageTo(userId, "Кажется ЛК сейчас не работает, попробуй это позже");
                         } catch (Exception e) {
                             vkBot.sendMessageTo(userId, "Я не понял тебя или ошибся сам");
                             e.printStackTrace();
@@ -186,7 +255,8 @@ public class Main {
     }
 
     private static void executeBotDialog (Integer userId, String messageText) {
-        messageText = Utils.translateFromEnglishKeyboardLayoutIfNeeds(messageText);
+        messageText = KeyboardLayoutConverter.translateFromEnglishLayoutIfNeeds(messageText);
+        SpecialWordsFinder.findSpecialWords(userId, messageText);
 
         final var groupNameMatcher =
                 groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
@@ -209,7 +279,7 @@ public class Main {
         final var groupName = groupNameByUserId.get(userId);
         messageText = messageText.toLowerCase();
 
-        final var optionalGroup = groupsRepository.findByGroupName(groupName);
+        final var optionalGroup = groupsRepository.findByGroupName(groupName); // TODO убрать timetable
         
         switch (messageText) {
             case "я готов на все ради своей группы!":
@@ -233,7 +303,7 @@ public class Main {
                 return;
 
             case "я ошибся при вводе группы":
-                if (optionalGroup.map(group -> group.getUsers().contains(userId)).orElse(false)) {
+                if (optionalGroup.map(group -> group.containsUser(userId)).orElse(false)) {
                     vkBot.sendMessageTo(userId, "Напиши \"Забудь меня\", чтобы перезайти в меня");
                 } else {
                     vkBot.unsetKeyboard();
@@ -304,8 +374,16 @@ public class Main {
 
             case "команды":
                 vkBot.sendMessageTo(userId,
-                        KeyboardService.getCommandsKeyboard(userId, group.getLoggedUser()),
+                        KeyboardService.getCommands(userId, group),
                         getUserCommands(userId, group));
+                break;
+
+            case "присылай расписание":
+                changeUserSchedulingEnable(userId, group, true);
+                break;
+
+            case "не присылай расписание":
+                changeUserSchedulingEnable(userId, group, false);
                 break;
 
             case "без пустых отчетов":
@@ -317,9 +395,12 @@ public class Main {
                 break;
 
             case "обновить расписание":
-                groupsRepository.updateField(groupName,
-                        "timetable", lstuParser.parseTimetable(group.getLkSemesterId(), group.getLkId()));
-                vkBot.sendMessageTo(group.getLoggedUser().getId(), "Расписание обновлено");
+                if (group.getLoggedUser().is(userId)) {
+                    groupsRepository.updateField(groupName,
+                            "timetable", lstuParser.parseTimetable(group.getLkSemesterId(), group.getLkId()));
+                    vkBot.sendMessageTo(group.getLoggedUser().getId(), "Расписание обновлено");
+                } else
+                    userInsufficientPermissionsMessage(userId);
                 break;
 
             case "забудь меня":
@@ -417,10 +498,10 @@ public class Main {
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBot.sendMessageTo(userId,
-                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:" +
+                "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
                         ReportsMaker.getSubjectsNames(group.getSubjectsData()));
 
-        vkBot.sendMessageTo(userId, KeyboardService.getCommandsKeyboard(userId, group.getLoggedUser()),
+        vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),
                 "Также теперь ты можешь использовать эти команды:\n" + getUserCommands(userId, group));
     }
 
@@ -444,7 +525,12 @@ public class Main {
                     "🔶 Обновить расписание из ЛК для группы:\n" +
                     "Обновить расписание";
 
-        else return BASIC_COMMANDS;
+        else {
+            return BASIC_COMMANDS + "\n" +
+                    (group.getUserSchedulingEnabled(userId) ?
+                                    "🔶 Не присылать тебе ежедневное расписание:\nНе присылай расписание" :
+                                    "🔶 Присылать тебе ежедневное расписание:\nПрисылай расписание");
+        }
     }
 
     private static void groupAlreadyRegisteredMessage (Integer userId) {
@@ -452,13 +538,24 @@ public class Main {
                 "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать.");
     }
 
-    private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isAlwaysNotify) {
+    private static void changeUserSchedulingEnable(Integer userId, Group group, boolean isEnable) {
+        groupsRepository.updateUserScheduling(group.getName(), userId, isEnable);
+        group.getUsers().stream()
+                .filter(user -> user.getId().equals(userId))
+                .findFirst().get()
+                .setEverydayScheduleEnabled(isEnable);
+
+        vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),"Хорошо");
+        if (isEnable) // TODO загрузить timetable
+            vkBot.sendMessageTo(userId, "Держи расписание за сегодня:\n"+
+                    getDayScheduleReport(Utils.mapWeekDayFromCalendar(), group));
+    }
+
+    private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isEnable) {
         if (group.getLoggedUser().is(userId)) {
-            groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isAlwaysNotify);
-            group.getLoggedUser().setAlwaysNotify(isAlwaysNotify);
-            vkBot.sendMessageTo(userId,
-                            KeyboardService.getCommandsKeyboard(userId, group.getLoggedUser()),
-                    "Хорошо");
+            groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isEnable);
+            group.getLoggedUser().setAlwaysNotify(isEnable);
+            vkBot.sendMessageTo(userId, KeyboardService.getLoggedUserCommands(group),"Хорошо");
         } else
             userInsufficientPermissionsMessage(userId);
     }
@@ -603,6 +700,7 @@ public class Main {
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
                 .setSubjectsData(newSubjectsData)
                 .setLastCheckDate(new Date());
+        newGroup.getUsers().add(new GroupUser(userId));
 
         final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
         newGroup.setLkIds(
@@ -610,14 +708,30 @@ public class Main {
                 lkIds.get(LstuParser.GROUP_ID),
                 lkIds.get(LstuParser.CONTINGENT_ID)
         );
-        newGroup.getUsers().add(new GroupUser(userId));
 
-        groupsRepository.insert(newGroup);
         newUserSubjectsListMessage(userId, newGroup);
         vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
                 ReportsMaker.getSubjectsData(newSubjectsData, newGroup.getNextCheckDate()));
+
+        newGroup.setTimetable(lstuParser.parseTimetable(newGroup.getLkSemesterId(), newGroup.getLkId()));
+        groupsRepository.insert(newGroup);
     }
 
+    private static boolean actualizeWeekType() {
+        final var appAdminGroup = groupsRepository.findByGroupName("ПИ-19-1")
+                .orElseGet(() -> {
+                    vkBot.sendMessageTo(APP_ADMIN_ID,
+                            "Не удалось загрузить твою группу. Войди и перезапусти бота.");
+                    return null;
+                });
+
+        if (lstuAuthClient.login(cipherService.decrypt(appAdminGroup.getLoggedUser().getAuthData())))
+            return LstuParser.parseWeekType(appAdminGroup.getLkSemesterId());
+        else {
+            vkBot.sendMessageTo(APP_ADMIN_ID, "Срочно скажи мне свой новый пароль.");
+            throw new AuthenticationException("Не удалось зайти в группу для актуализации типа недели.");
+        }
+    }
 
     // TODO Новый функционал и оптимизация
     //  функция: напомни имена и отчества преподавателей
@@ -626,7 +740,6 @@ public class Main {
     //  Удаление сообщения с данными входа (пока что не получилось, хотя согласно докам можно)
 
     // TODO Для массового распространения бота:
-    //  Написать подробные возможности бота в группе
-    //  добавить асинхронное скачивание данных из лк по группам при глобальном обновлении
+    //  добавить асинхронное скачивание данных из лк по группам куда получится
     //  оптимизация запросов к лк через очередь
 }

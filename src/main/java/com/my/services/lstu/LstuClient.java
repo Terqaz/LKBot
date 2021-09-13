@@ -1,12 +1,15 @@
-package com.my.services;
+package com.my.services.lstu;
 
 import com.my.exceptions.AuthenticationException;
+import com.my.exceptions.LkNotRespondingException;
 import org.jsoup.Connection;
 import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 
 public class LstuClient {
 
@@ -38,7 +41,7 @@ public class LstuClient {
         return Jsoup.connect("http://lk.stu.lipetsk.ru/")
                 .userAgent(USER_AGENT)
                 .header("Accept", "text/html")
-                .header("Connection", "keep-alive");
+                .header("Connection", "Keep-alive");
     }
 
     private Connection getOriginSessionConnection(String url) {
@@ -54,34 +57,25 @@ public class LstuClient {
                 .cookie("PHPSESSID", phpSessId);
     }
 
-    private Document executeRequest(Connection connection) {
-        try {
-            return connection.execute().parse();
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    public Document executeLoginRequest (String authUrl) {
-        return executeRequest(getOriginSessionConnection(authUrl)
-                .method(Connection.Method.POST));
-    }
-
-    public void executeLogoutRequest (String logoutUrl){
-        executeRequest(getOriginSessionConnection(logoutUrl)
-                .method(Connection.Method.POST));
-        sessId = null;
-        phpSessId = null;
-    }
-
     public Response openLoginPage () {
         try {
-            return getOriginConnection()
-                    .method(Connection.Method.GET).execute();
+            return getOriginConnection().method(Connection.Method.GET).execute();
+        } catch (ConnectException | SocketTimeoutException e) {
+            throw new LkNotRespondingException();
         } catch (IOException e) {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public Document executeLoginRequest (String authUrl) {
+        return post(authUrl);
+    }
+
+    public void executeLogoutRequest (String logoutUrl) {
+        post(logoutUrl);
+        sessId = null;
+        phpSessId = null;
     }
 
     public Document get (String url) {
@@ -92,6 +86,18 @@ public class LstuClient {
     public Document post (String url) {
         return executeRequest(getOriginSessionConnection(url)
                 .method(Connection.Method.POST));
+    }
 
+    private Document executeRequest(Connection connection) {
+        for (int triesCount = 3; triesCount > 0; triesCount--) {
+            try {
+                return connection.execute().parse();
+            } catch (ConnectException | SocketTimeoutException ignored) {
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+        throw new LkNotRespondingException();
     }
 }

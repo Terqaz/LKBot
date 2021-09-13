@@ -24,65 +24,58 @@ public class ReportsMaker {
     }
 
     public static String getSubjectsData (List<SubjectData> subjectsData, @Nullable Date nextCheckDate) {
-        if (subjectsData.isEmpty()) {
-            return "Нет новой информации по предметам";
-        }
+        if (subjectsData.isEmpty())
+            return "Нет новой информации по предметам\n" + getNextUpdateDateText(nextCheckDate);
+
         final var sb = new StringBuilder();
-        var partBuilder = new StringBuilder();
-        for (SubjectData data : subjectsData) {
-            if (!data.getDocumentNames().isEmpty()) {
-                partBuilder.append("➡ ").append(data.getId()).append(" ").append(data.getName()).append(": ")
-                        .append(String.join(", ", data.getDocumentNames()))
-                        .append("\n\n");
-            }
-        }
-        if (partBuilder.length() > 0) {
-            sb.append("\uD83D\uDD34 Новые документы:\n").append(partBuilder);
-        }
-        partBuilder = new StringBuilder();
-        for (SubjectData data : subjectsData) {
-            final List<MessageData> messagesData = data.getMessagesData();
-            if (!messagesData.isEmpty()) {
-                var messagesBuilder = new StringBuilder();
-                for (MessageData messageData : messagesData) {
-                    final String shortName = messageData.getSender();
-                    messagesBuilder.append("☑ ").append(shortName)
-                            .append(" в ")
-                            .append(Utils.formatDate(messageData.getDate()))
-                            .append(":\n")
-                            .append(messageData.getComment())
-                            .append("\n\n");
-                }
-                partBuilder.append("➡ ").append(data.getId()).append(" ").append(data.getName()).append(":\n")
-                        .append(messagesBuilder);
-            }
-        }
+
+        String partBuilder = subjectsData.stream()
+                .filter(data -> !data.getDocumentNames().isEmpty())
+                .map(data -> "➡ " + data.getId() + " " + data.getName() + ": " +
+                        String.join(", ", data.getDocumentNames())
+                ).collect(Collectors.joining("\n"));
+
         if (partBuilder.length() > 0)
-            sb.append("\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
+            sb.append("\uD83D\uDD34 Новые документы:\n" + partBuilder);
+
+        partBuilder = subjectsData.stream()
+                .filter(data -> !data.getMessagesData().isEmpty())
+                .map(data -> "➡ " + data.getId() + " " + data.getName() + ":\n" +
+                        getSubjectMessages(data.getMessagesData())
+                ).collect(Collectors.joining("\n\n"));
+
+        if (partBuilder.length() > 0)
+            sb.append("\n\n\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
 
         if (nextCheckDate != null)
-            sb.append(getNextUpdateDateText(nextCheckDate));
+            sb.append("\n\n").append(getNextUpdateDateText(nextCheckDate));
 
         return sb.toString();
     }
 
+    private static String getSubjectMessages(List<MessageData> messages) {
+        return messages.stream()
+                .map(messageData ->
+                        "☑ " + messageData.getSender() + " в " +
+                                Utils.formatDate(messageData.getDate()) + ":\n" +
+                                messageData.getComment()
+                ).collect(Collectors.joining("\n\n"));
+    }
 
     public static String getNextUpdateDateText (Date nextCheckDate) {
         return "Следующее глобальное обновление будет " + Utils.formatDate(nextCheckDate);
     }
 
-    public static String getDaySchedule (List<TimetableSubject> subjects, String weekTypeInfo) {
-        final var sb = new StringBuilder();
-
-        sb.append("Сегодня ").append(weekTypeInfo).append('\n'); // Пример: Сегодня белая неделя
-
-        return sb.append(subjects.stream()
-                .map(subject -> "➡ " + subject.getInterval() + ' ' +
-                        subject.getName() + '\n' +
-                        subject.getPlace() + '\n' +
-                        subject.getAcademicName())
-                .collect(Collectors.joining("\n\n")))
-                .toString();
+    public static String getDaySchedule (List<TimetableSubject> subjects, boolean isWhiteWeek) {
+        return "Сегодня " +
+                (isWhiteWeek ? "белая неделя" : "зеленая неделя") +
+                '\n' +
+                subjects.stream()
+                        .map(subject -> "➡ " + subject.getInterval() + ' ' +
+                                subject.getName() + '\n' +
+                                subject.getPlace() + '\n' +
+                                subject.getAcademicName())
+                        .collect(Collectors.joining("\n\n"));
 
     }
 

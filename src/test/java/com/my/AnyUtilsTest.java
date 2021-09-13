@@ -1,6 +1,7 @@
 package com.my;
 
 import com.my.models.SubjectData;
+import com.my.services.text.KeyboardLayoutConverter;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +23,7 @@ class AnyUtilsTest {
     void translateFromEnglishKeyboardLayout_isCorrect () {
         final List<String> expected =
                 Arrays.asList("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
-                .stream().map(Utils::translateFromEnglishKeyboardLayoutIfNeeds)
+                .stream().map(KeyboardLayoutConverter::translateFromEnglishLayoutIfNeeds)
                 .collect(Collectors.toList());
 
         final List<String> actual =
@@ -106,5 +107,12 @@ class AnyUtilsTest {
         assertTrue(Utils.isSilentTime(22, 4, 1));
         assertTrue(Utils.isSilentTime(22, 4, 4));
         assertFalse(Utils.isSilentTime(22, 4, 12));
+    }
+
+    @Test
+    void getSleepTimeToHourStart_isCorrect () {
+        assertEquals( 3600L * 1000 , Utils.getSleepTimeToHourStart(0, 0));
+        assertEquals( 1800L * 1000 , Utils.getSleepTimeToHourStart(30, 0));
+        assertEquals( 1L * 1000 , Utils.getSleepTimeToHourStart(59, 59));
     }
 }

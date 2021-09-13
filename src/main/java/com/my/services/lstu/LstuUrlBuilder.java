@@ -1,4 +1,4 @@
-package com.my.services;
+package com.my.services.lstu;
 
 import org.apache.http.client.utils.URIBuilder;
 
@@ -8,6 +8,8 @@ import java.util.Date;
 
 public class LstuUrlBuilder {
 
+    private LstuUrlBuilder () {}
+
     public static final String LSTU_HOST_NAME = "lk.stu.lipetsk.ru";
 
     private static URIBuilder getLstuOriginUriBuilder () {
@@ -16,7 +18,7 @@ public class LstuUrlBuilder {
                 .setHost(LSTU_HOST_NAME);
     }
 
-    private static String finallyUrlBuild (URIBuilder uriBuilder) {
+    private static String build(URIBuilder uriBuilder) {
         try {
             return uriBuilder.build().toString();
         } catch (URISyntaxException ignored) {
@@ -25,7 +27,7 @@ public class LstuUrlBuilder {
     }
 
     public static String buildAuthUrl (String login, String password, String sessId) {
-        return finallyUrlBuild(getLstuOriginUriBuilder()
+        return build(getLstuOriginUriBuilder()
                 .setPath("index.php")
                 .addParameter("AUTH_FORM", "1")
                 .addParameter("sessid", sessId)
@@ -34,18 +36,24 @@ public class LstuUrlBuilder {
     }
 
     public static String buildLogoutUrl () {
-        return finallyUrlBuild(getLstuOriginUriBuilder()
+        return build(getLstuOriginUriBuilder()
                 .addParameter("logout", "Y"));
     }
 
+    public static String buildSemesterUrl (String semesterId) {
+        return build(getLstuOriginUriBuilder()
+                .setPathSegments("education", "0", semesterId, ""));
+    }
+
     public static String buildSemestersUrl () {
-        return finallyUrlBuild(getLstuOriginUriBuilder()
+        return build(getLstuOriginUriBuilder()
                 .setPath("education/0/"));
     }
 
-    public static String buildSubjectLocalUrl (String semester, String discipline, String group, String contingentId) {
-        return finallyUrlBuild(new URIBuilder()
-                .setPathSegments("education", "0", semester, discipline, group, contingentId, ""));
+    public static String buildSubjectLocalUrl (String semesterId, String disciplineId,
+                                               String groupId, String contingentId) {
+        return build(new URIBuilder()
+                .setPathSegments("education", "0", semesterId, disciplineId, groupId, contingentId, ""));
     }
 
     public static String buildNextMessagesUrl (String semesterId, String disciplineId, String groupId, Date date) {
@@ -58,17 +66,16 @@ public class LstuUrlBuilder {
                 if (date != null)
                     builder.addParameter("last_msg",
                             new SimpleDateFormat("dd.MM.yyyy+HH:mm").format(date));
-        return finallyUrlBuild(builder);
+        return build(builder);
     }
 
     public static String buildByLocalUrl (String localRef) {
-        return finallyUrlBuild(getLstuOriginUriBuilder()
+        return build(getLstuOriginUriBuilder()
                 .setPath(localRef));
     }
 
-    // TODO Сохранять айдишники семестра и группы отдельно
     public static String buildStudentScheduleUrl (String semesterId, String groupId) {
-        return finallyUrlBuild(getLstuOriginUriBuilder()
+        return build(getLstuOriginUriBuilder()
                 .setPath("ajax.handler.php")
                 .addParameter("student_schedule", "1")
                 .addParameter("semester", semesterId)

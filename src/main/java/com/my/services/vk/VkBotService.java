@@ -1,4 +1,4 @@
-package com.my.services;
+package com.my.services.vk;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +16,8 @@ import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
 import com.vk.api.sdk.objects.users.GetNameCase;
 import com.vk.api.sdk.objects.users.responses.GetResponse;
 import com.vk.api.sdk.queries.users.UsersGetQuery;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -44,6 +46,7 @@ public class VkBotService {
 
     private static String server;
     private static String key;
+    @Getter @Setter
     private static Integer ts;
     private static Integer longPollVersion = 3;
 

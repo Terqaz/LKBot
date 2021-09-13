@@ -1,5 +1,6 @@
-package com.my.services;
+package com.my.services.lstu;
 
+import com.my.exceptions.LkNotRespondingException;
 import com.my.models.AuthenticationData;
 import org.jsoup.nodes.Document;
 
@@ -23,7 +24,10 @@ public class LstuAuthClient {
         if (lstuClient.isNotLoggedIn()) {
             try {
                 return auth(data.getLogin(), data.getPassword());
+            } catch (LkNotRespondingException e) {
+                throw e;
             } catch (Exception e) {
+                e.printStackTrace();
                 return false;
             }
         } else return true;

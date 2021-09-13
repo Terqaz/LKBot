@@ -2,7 +2,6 @@ package com.my;
 
 import com.my.models.SubjectData;
 
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,7 +33,7 @@ public final class Utils {
                 .collect(Collectors.toList());
     }
 
-    public static String getNewScannedSemesterName () {
+    public static String actualizeSemesterName() {
         Calendar now = new GregorianCalendar();
         Calendar autumnSemesterStart = new GregorianCalendar();
         autumnSemesterStart.set(Calendar.MONTH, Calendar.AUGUST);
@@ -70,31 +69,6 @@ public final class Utils {
         } else return true;
     }
 
-    private static final Map<Character, Character> enToRuCharsMap = new HashMap<>();
-    static {
-        final String enChars = "qwertyuiop[]asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?";
-        final String ruChars = "йцукенгшщзхъфывапролджэячсмитьбю.ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ.";
-        for (int i = 0; i < enChars.length(); i++) {
-            enToRuCharsMap.put(enChars.charAt(i), ruChars.charAt(i));
-        }
-    }
-
-    private static boolean isEnCharsString(String s) {
-        return StandardCharsets.US_ASCII.newEncoder().canEncode(s);
-    }
-
-    public static String translateFromEnglishKeyboardLayoutIfNeeds (String s1) {
-        if (!isEnCharsString(s1))
-            return s1;
-
-        StringBuilder s2 = new StringBuilder();
-        for (int i = 0; i < s1.length(); i++) {
-            final char s1char = s1.charAt(i);
-            s2.append(enToRuCharsMap.getOrDefault(s1char, s1char));
-        }
-        return s2.toString();
-    }
-
     private static final Random random = new Random();
 
     public static Integer generateVerificationCode () {
@@ -103,5 +77,18 @@ public final class Utils {
 
     private static int nextRandomInt(int min, int max) {
         return random.nextInt(max - min) + min;
+    }
+
+    // Возвращает время, необходимое, чтобы трэд спал до начала следующего часа
+    public static long getSleepTimeToHourStart(int nowMinute, int nowSecond) {
+        return ((59 - nowMinute) * 60L + (60 - nowSecond)) * 1000L;
+    }
+
+    public static int mapWeekDayFromCalendar() {
+        return new GregorianCalendar().get(Calendar.DAY_OF_WEEK) - 2;
+    }
+
+    public static int mapWeekDayFromCalendar(GregorianCalendar calendar) {
+        return calendar.get(Calendar.DAY_OF_WEEK) - 2;
     }
 }

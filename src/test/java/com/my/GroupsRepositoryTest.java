@@ -97,4 +97,23 @@ class GroupsRepositoryTest {
                         .filter(user -> user.getId().equals(repeatedId))
                         .count());
     }
+
+    @Test
+    void updateUserScheduling_isCorrect() {
+        testGroup.setUsers(List.of(
+                new GroupUser(1, false),
+                new GroupUser(2, false),
+                new GroupUser(3, true)
+                ));
+
+        repository.insert(testGroup);
+        repository.updateUserScheduling(testGroupName, 2, true);
+
+        assertIterableEquals(List.of(
+                new GroupUser(1, false),
+                new GroupUser(2, true),
+                new GroupUser(3, true)
+        ),
+                repository.findByGroupName(testGroupName).get().getUsers());
+    }
 }

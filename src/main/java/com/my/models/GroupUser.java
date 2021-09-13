@@ -7,10 +7,11 @@ import lombok.experimental.Accessors;
 @Setter
 @NoArgsConstructor
 @RequiredArgsConstructor
+@AllArgsConstructor
 @Accessors (chain = true)
 @EqualsAndHashCode
 public class GroupUser {
     @NonNull
     Integer id;
-    boolean isEverydayScheduleEnabled = false;
+    boolean everydayScheduleEnabled = false;
 }

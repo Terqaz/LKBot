@@ -1,4 +1,4 @@
-package com.my.services;
+package com.my.services.lstu;
 
 import com.my.ParserUtils;
 import com.my.models.*;
@@ -274,5 +274,11 @@ public class LstuParser {
                     namedSegments.put(CONTINGENT_ID, segments[6]);
                     return namedSegments;
                 }).orElse(new HashMap<>());
+    }
+
+    public static boolean parseWeekType(String semesterId) {
+        return lstuClient.get(LstuUrlBuilder.buildSemesterUrl(semesterId))
+                .select(".wl_content .mtop-15").text()
+                .toLowerCase(Locale.ROOT).contains("белая");
     }
 }

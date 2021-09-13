@@ -12,6 +12,7 @@ import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import java.util.*;
@@ -78,32 +79,38 @@ public class GroupsRepository {
     }
 
     public void updateLoggedUser (@NotNull String groupName, @NotNull LoggedUser user) {
-        groupsCollection.updateOne(eq("name", groupName),
-                combine(set(LOGGED_USER, user),
-                        addToSet(USERS, new GroupUser(user.getId()))));
+        updateBy(groupName, combine(
+                set(LOGGED_USER, user),
+                addToSet(USERS, new GroupUser(user.getId()))));
     }
 
-    public void updateSubjectsData (@NotNull String groupName,
-                                    @NotEmpty List<SubjectData> subjectsData,
-                                    @NotNull Date lastCheckDate) {
-        groupsCollection.updateOne(eq(NAME, groupName),
-                combine(set("subjectsData", subjectsData),
-                        set("lastCheckDate", lastCheckDate)));
+    public void updateSubjectsData(@NotNull String groupName,
+                                   @NotEmpty List<SubjectData> subjectsData,
+                                   @NotNull Date lastCheckDate) {
+        updateBy(groupName, combine(
+                set("subjectsData", subjectsData),
+                set("lastCheckDate", lastCheckDate)
+        ));
     }
 
-    public <T> void updateField (String groupName, String fieldName, T value) {
-        groupsCollection.updateOne(eq(NAME, groupName),
-                set(fieldName, value));
+    public void setNewSemesterData(@NotNull String groupName,
+                                   @NotEmpty List<SubjectData> subjectsData,
+                                   @NotNull Date lastCheckDate,
+                                   @NotBlank String newLkSemesterId) {
+        updateBy(groupName, combine(
+                set("subjectsData", subjectsData),
+                set("lastCheckDate", lastCheckDate),
+                set("lkSemesterId", newLkSemesterId)
+        ));
     }
 
     public void addToIntegerArray (String groupName, String fieldName, Integer value) {
-        groupsCollection.updateOne(eq(NAME, groupName),
-                addToSet(fieldName, value));
+        updateBy(groupName, addToSet(fieldName, value));
     }
 
     public void removeUserFromGroup (String groupName, Integer userId) {
-        groupsCollection.updateOne(eq(NAME, groupName),
-                combine(removeUserFromGroupOperations(userId)));
+        updateBy(groupName, combine(
+                removeUserFromGroupOperations(userId)));
     }
 
     public void removeLoggedUser(String groupName, Integer loggedUserId) {
@@ -111,7 +118,7 @@ public class GroupsRepository {
         combineOperations.add(set(LOGGED_USER, new LoggedUser().setId(0).setAuthData(null)));
         combineOperations.addAll(removeUserFromGroupOperations(loggedUserId));
 
-        groupsCollection.updateOne(eq(NAME, groupName), combine(combineOperations));
+        updateBy(groupName, combine(combineOperations));
     }
     private List<Bson> removeUserFromGroupOperations(Integer userId) {
         return List.of(pull(USERS, eq("_id", userId)),
@@ -127,9 +134,8 @@ public class GroupsRepository {
                         excludeId()
                 )).first());
 
-        groupOptional.ifPresent(group -> groupsCollection.updateOne(
-                eq(NAME, groupName),
-                combine(addEachToSet(USERS, group.getLoginWaitingUsers().stream()
+        groupOptional.ifPresent(group -> updateBy(groupName, combine(
+                        addEachToSet(USERS, group.getLoginWaitingUsers().stream()
                                 .map(GroupUser::new)
                                 .collect(Collectors.toList())),
                         set(LOGIN_WAITING_USERS, Collections.emptyList()))));
@@ -141,8 +147,7 @@ public class GroupsRepository {
                 eq(USERS_TO_VERIFY+"._id", user.getId())
         ));
         if (count == 0)
-            groupsCollection.updateOne(eq(NAME, groupName),
-                    addToSet(USERS_TO_VERIFY, user));
+            updateBy(groupName, addToSet(USERS_TO_VERIFY, user));
         return count == 0;
     }
 
@@ -161,12 +166,11 @@ public class GroupsRepository {
         if (groupOptional.isPresent()) {
             final UserToVerify user1 = groupOptional.get().getUsersToVerify().get(0);
 
-            groupsCollection.updateOne(
-                    eq(NAME, groupName),
-                    combine(push(USERS, new GroupUser(user1.getId())),
-                            pull(USERS_TO_VERIFY,
-                                    combine(eq("_id", user.getId()),
-                                            eq("code", user.getCode())))));
+            updateBy(groupName, combine(
+                    push(USERS, new GroupUser(user1.getId())),
+                    pull(USERS_TO_VERIFY,
+                            combine(eq("_id", user.getId()),
+                                    eq("code", user.getCode())))));
             return true;
 
         } else return false;
@@ -181,12 +185,27 @@ public class GroupsRepository {
     }
 
     public void updateSilentMode (String groupName, int silentModeStart, int silentModeEnd) {
-        groupsCollection.updateOne(eq(NAME, groupName),
-                combine(set("silentModeStart", silentModeStart),
-                        set("silentModeEnd", silentModeEnd)));
+        updateBy(groupName, combine(
+                set("silentModeStart", silentModeStart),
+                set("silentModeEnd", silentModeEnd)));
+    }
+
+    public <T> void updateField (String groupName, String fieldName, T value) {
+        updateBy(groupName, set(fieldName, value));
+    }
+
+    private void updateBy(@NotNull String groupName, Bson updateQuery) {
+        groupsCollection.updateOne(eq(NAME, groupName), updateQuery);
     }
 
     public void deleteMany (String groupName) {
         groupsCollection.deleteMany(eq(NAME, groupName));
+    }
+
+    public void updateUserScheduling(String groupName, Integer userId, boolean isEnable) {
+        groupsCollection.updateOne(combine(
+                eq(NAME, groupName),
+                eq("users._id", userId)),
+                set("users.$.everydayScheduleEnabled", isEnable));
     }
 }

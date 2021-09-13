@@ -52,7 +52,8 @@ public class Group {
 
     @BsonIgnore
     public boolean containsUser(Integer userId) {
-        return users.contains(userId);
+        return users.stream()
+                .anyMatch(user -> user.getId().equals(userId));
     }
 
     @BsonIgnore
@@ -67,5 +68,14 @@ public class Group {
         return users.stream()
                 .map(GroupUser::getId)
                 .collect(Collectors.toList());
+    }
+
+    @BsonIgnore
+    public boolean getUserSchedulingEnabled (Integer userId) {
+        return users.stream()
+                .filter(user -> user.getId().equals(userId))
+                .map(GroupUser::isEverydayScheduleEnabled)
+                .findFirst().orElseThrow(() -> new IllegalArgumentException(
+                        "Неизвестный id пользователя: "+userId+" в группе: "+name));
     }
 }

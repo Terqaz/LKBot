@@ -2,6 +2,8 @@ package com.my.services;
 
 import com.my.Utils;
 import com.my.models.*;
+import com.my.services.lstu.LstuAuthClient;
+import com.my.services.lstu.LstuParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
