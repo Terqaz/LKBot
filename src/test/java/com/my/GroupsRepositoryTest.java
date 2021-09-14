@@ -1,6 +1,7 @@
 package com.my;
 
 import com.my.models.*;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,13 +16,17 @@ class GroupsRepositoryTest {
 
     static final GroupsRepository repository = GroupsRepository.getInstance();
 
-    final String testGroupName = "Тест";
+    static final String testGroupName = "Тест";
     static Group testGroup;
 
     @BeforeEach
     void init() {
-        repository.deleteMany(testGroupName);
         testGroup = new Group(testGroupName);
+    }
+
+    @AfterAll
+    static void end () {
+        repository.deleteMany(testGroupName);
     }
 
     @Test
@@ -115,5 +120,22 @@ class GroupsRepositoryTest {
                 new GroupUser(3, true)
         ),
                 repository.findByGroupName(testGroupName).get().getUsers());
+    }
+
+    @Test
+    void groupScheduleCorrectSaves () {
+        final var timetable = new Timetable()
+                .addWhiteWeekSubject(0, new TimetableSubject("a1", "b1", "c1", "d1"))
+                .addWhiteWeekSubject(0, new TimetableSubject("a2", "b2", "c2", "d3"))
+                .addWhiteWeekSubject(3, new TimetableSubject("a3", "b3", "c3", "d3"))
+                .addGreenWeekDaySubject(1, new TimetableSubject("a4", "b4", "c4", "d4"))
+                .addGreenWeekDaySubject(1, new TimetableSubject("a5", "b5", "c5", "d5"))
+                .addGreenWeekDaySubject(5, new TimetableSubject("a6", "b6", "c6", "d6"));
+
+        testGroup.setTimetable(timetable);
+        repository.insert(testGroup);
+
+        final var group2 = repository.findByGroupName(testGroupName).get();
+        assertEquals(timetable, group2.getTimetable());
     }
 }

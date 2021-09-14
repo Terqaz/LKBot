@@ -123,7 +123,7 @@
                 <artifactId>heroku-maven-plugin</artifactId>
                 <version>3.0.3</version>
                 <configuration>
-                    <appName>damp-forest-43527</appName>
+                    <appName>dorime-lk</appName>
                     <jdkVersion>${java.version}</jdkVersion>
                     <processTypes>
                         <worker>java $JAVA_OPTS -cp ./target/classes:./target/dependency/* com.my.Main</worker>

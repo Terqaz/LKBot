@@ -1,11 +1,16 @@
 package com.my.models;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.Setter;
+import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Getter
+@Setter
+@EqualsAndHashCode
 public class Timetable {
     List<List<TimetableSubject>> whiteWeekDaySubjects = new ArrayList<>();
     List<List<TimetableSubject>> greenWeekDaySubjects = new ArrayList<>();
@@ -18,11 +23,15 @@ public class Timetable {
             greenWeekDaySubjects.add(new ArrayList<>());
     }
 
-    public void addWhiteWeekSubject (Integer weekDay, TimetableSubject subject) {
+    @BsonIgnore
+    public Timetable addWhiteWeekSubject (Integer weekDay, TimetableSubject subject) {
         whiteWeekDaySubjects.get(weekDay).add(subject);
+        return this;
     }
 
-    public void addGreenWeekDaySubject (Integer weekDay, TimetableSubject subject) {
+    @BsonIgnore
+    public Timetable addGreenWeekDaySubject (Integer weekDay, TimetableSubject subject) {
         greenWeekDaySubjects.get(weekDay).add(subject);
+        return this;
     }
 }

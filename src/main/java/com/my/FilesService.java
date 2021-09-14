@@ -12,7 +12,11 @@ public class FilesService {
     private FilesService() {}
 
     public static Integer loadLastTs() {
-        return Integer.parseInt(readLines(TS_PATH).get(0));
+        try {
+            return Integer.parseInt(readLines(TS_PATH).get(0));
+        } catch (ArrayIndexOutOfBoundsException e) {
+            return null;
+        }
     }
 
     public static void saveLastTs(Integer ts) {
@@ -31,7 +35,7 @@ public class FilesService {
         try (var reader = new BufferedReader(new FileReader(path))) {
             return reader.lines().collect(Collectors.toList());
         } catch (IOException ignored) {
-            return null;
+            return List.of();
         }
     }
 }

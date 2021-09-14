@@ -93,13 +93,15 @@ public class GroupsRepository {
         ));
     }
 
-    public void setNewSemesterData(@NotNull String groupName,
-                                   @NotEmpty List<SubjectData> subjectsData,
-                                   @NotNull Date lastCheckDate,
-                                   @NotBlank String newLkSemesterId) {
+    public void setNewSemesterData (@NotNull String groupName,
+                                    @NotEmpty List<SubjectData> subjectsData,
+                                    @NotNull Date lastCheckDate,
+                                    @NotNull Timetable timetable,
+                                    @NotBlank String newLkSemesterId) {
         updateBy(groupName, combine(
                 set("subjectsData", subjectsData),
                 set("lastCheckDate", lastCheckDate),
+                set("timetable", timetable),
                 set("lkSemesterId", newLkSemesterId)
         ));
     }

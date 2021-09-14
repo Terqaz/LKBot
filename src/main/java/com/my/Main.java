@@ -9,7 +9,6 @@ import com.my.services.ReportsMaker;
 import com.my.services.lstu.LstuAuthClient;
 import com.my.services.lstu.LstuParser;
 import com.my.services.text.KeyboardLayoutConverter;
-import com.my.services.text.SpecialWordsFinder;
 import com.my.services.vk.KeyboardService;
 import com.my.services.vk.VkBotService;
 import com.vk.api.sdk.objects.messages.Message;
@@ -71,8 +70,7 @@ public class Main {
                         LoggedUser loggedUser = group.getLoggedUser();
 
                         final GregorianCalendar calendar = new GregorianCalendar();
-                        final var checkDate = calendar.getTime();
-                        if (isNotUpdateTime(group, calendar, checkDate))
+                        if (isNotUpdateTime(group, calendar, calendar.getTime()))
                             continue;
 
                         if (isNotLoginSucceeded(group, loggedUser)) {
@@ -81,29 +79,40 @@ public class Main {
                             continue;
                         }
 
-                        final List<SubjectData> newSubjectsData;
                         final String report;
                         if (actualSemester.equals(newSemester)) {
                             final var oldSubjectsData = group.getSubjectsData();
-                            newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group);
+                            final List<SubjectData> newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group);
+
+                            final var checkDate = new Date();
+                            group.setLastCheckDate(checkDate);
+                            groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
+
                             report = ReportsMaker.getSubjectsData(
                                     Utils.removeOldDocuments(oldSubjectsData, newSubjectsData),
                                     group.getNextCheckDate());
-                            groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
 
                         } else {
                             actualSemester = newSemester;
                             vkBot.sendMessageTo(group.getUserIds(),
-                                    "Данные теперь приходят из семестра: " + newSemester + "\n");
-                            newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
-                            final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
-                            report = ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
-                            groupsRepository.setNewSemesterData(group.getName(), newSubjectsData, checkDate,
-                                    lkIds.get(LstuParser.SEMESTER_ID));
+                                    "Данные теперь приходят из семестра: " + newSemester + "\n" +
+                                    "Также советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
 
+                            final List<SubjectData> newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
+
+                            final var checkDate = new Date();
+                            group.setLastCheckDate(checkDate);
+
+                            report = ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
+
+                            final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
+                            final var newLkSemesterId = lkIds.get(LstuParser.SEMESTER_ID);
+                            groupsRepository.setNewSemesterData(group.getName(), newSubjectsData, checkDate,
+                                    lstuParser.parseTimetable(newLkSemesterId, group.getLkId()),
+                                    newLkSemesterId);
                         }
+
                         lstuAuthClient.logout();
-                        group.setLastCheckDate(checkDate);
 
                         if (!report.startsWith("Нет новой")) {
                             vkBot.sendLongMessageTo(group.getUserIds(), report);
@@ -236,16 +245,20 @@ public class Main {
                 for (Message message : messages) {
                     final Integer userId = message.getFromId();
 
-                    if (userId.equals(APP_ADMIN_ID) && message.getText().equals(APPLICATION_STOP_TEXT))
+                    final var messageText = message.getText();
+                    if (userId.equals(APP_ADMIN_ID) && messageText.equals(APPLICATION_STOP_TEXT))
                         throw new ApplicationStopNeedsException();
 
                     if (userId > 0) {
+                        if (messageText.length() > 100)
+                            vkBot.sendMessageTo(userId,
+                                    "Твое сообщение похоже на спам.\n Напиши корректную команду");
                         try {
-                            executeBotDialog(userId, message.getText());
+                            executeBotDialog(userId, messageText);
                         } catch (LkNotRespondingException e) {
                             vkBot.sendMessageTo(userId, "Кажется ЛК сейчас не работает, попробуй это позже");
                         } catch (Exception e) {
-                            vkBot.sendMessageTo(userId, "Я не понял тебя или ошибся сам");
+                            vkBot.sendMessageTo(userId, "Я не понял тебя или ошибся сам.");
                             e.printStackTrace();
                         }
                     }
@@ -256,7 +269,7 @@ public class Main {
 
     private static void executeBotDialog (Integer userId, String messageText) {
         messageText = KeyboardLayoutConverter.translateFromEnglishLayoutIfNeeds(messageText);
-        SpecialWordsFinder.findSpecialWords(userId, messageText);
+//        SpecialWordsFinder.findSpecialWords(userId, messageText);
 
         final var groupNameMatcher =
                 groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
@@ -478,7 +491,7 @@ public class Main {
                                     vkBot.getUserName(userId)+": "+ verificationCode);
                     vkBot.sendMessageTo(userId, "Скажи мне проверочный код, присланный лидеру твоей группы");
                 } else
-                    vkBot.sendMessageTo(userId, "Я уже прислал проверочный код лидеру твоей группы");
+                    vkBot.sendMessageTo(userId, "Я уже присылал проверочный код лидеру твоей группы");
             }
         } else {
             vkBot.sendMessageTo(userId, "Я не знаю группы " + groupName);
@@ -501,6 +514,7 @@ public class Main {
                 "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
                         ReportsMaker.getSubjectsNames(group.getSubjectsData()));
 
+        group.getUsers().add(new GroupUser(userId));
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),
                 "Также теперь ты можешь использовать эти команды:\n" + getUserCommands(userId, group));
     }
@@ -547,7 +561,7 @@ public class Main {
 
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),"Хорошо");
         if (isEnable) // TODO загрузить timetable
-            vkBot.sendMessageTo(userId, "Держи расписание за сегодня:\n"+
+            vkBot.sendMessageTo(userId, "Держи расписание на сегодня:\n"+
                     getDayScheduleReport(Utils.mapWeekDayFromCalendar(), group));
     }
 

@@ -1,7 +1,7 @@
 package com.my;
 
 import com.my.models.Group;
-import com.my.services.LstuParser;
+import com.my.services.lstu.LstuParser;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

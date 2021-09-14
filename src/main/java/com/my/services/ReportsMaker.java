@@ -67,9 +67,9 @@ public class ReportsMaker {
     }
 
     public static String getDaySchedule (List<TimetableSubject> subjects, boolean isWhiteWeek) {
-        return "Сегодня " +
+        return "\uD83D\uDD36 Сегодня " +
                 (isWhiteWeek ? "белая неделя" : "зеленая неделя") +
-                '\n' +
+                " \uD83D\uDD36\n" +
                 subjects.stream()
                         .map(subject -> "➡ " + subject.getInterval() + ' ' +
                                 subject.getName() + '\n' +

@@ -15,9 +15,8 @@ public final class Utils {
     }
 
     // oldSubjectsData и newSubjectsData должны быть отсортированы в порядке возрастания имени
-    public static List<SubjectData> removeOldDocuments (
-            List<SubjectData> oldSubjectsData, List<SubjectData> newSubjectsData) {
-
+    public static List<SubjectData> removeOldDocuments (List<SubjectData> oldSubjectsData,
+                                                        List<SubjectData> newSubjectsData) {
         Map<String, Set<String>> oldDocumentsMap = new HashMap<>();
         for (SubjectData data : oldSubjectsData)
             oldDocumentsMap.put(data.getName(), data.getDocumentNames());
