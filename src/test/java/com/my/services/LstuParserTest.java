@@ -92,13 +92,13 @@ class LstuParserTest {
     }
 
     @Test
-    void getSubjectsDataFirstTime_isCorrect () {
-        final List<SubjectData> subjectsData = lstuParser.getSubjectsDataFirstTime(testSemester);
+    void getSubjectsFirstTime_isCorrect () {
+        final List<Subject> subjectsData = lstuParser.getSubjectsFirstTime(testSemester);
 
         assertEquals(subjectsData.stream()
                 .filter(subjectData -> subjectData.getName().equals("Правоведение"))
                 .findFirst()
-                .map(SubjectData::getDocumentNames)
+                .map(Subject::getDocumentNames)
                 .orElse(null),
             Set.of("Рабочая программа", "ИДЗ", "Гражданское право (конспект)", "Уголовное право (конспект)", "Информационное право")
         );
@@ -123,12 +123,12 @@ class LstuParserTest {
     }
 
     @Test
-    void getSubjectsDataFirstTime_thenGetNewSubjectsData_isCorrect () {
+    void getSubjectsFirstTime_thenGetNewSubjects_isCorrect () {
 
         // Получили первые данные
-        final List<SubjectData> firstSubjectsData = lstuParser.getSubjectsDataFirstTime(testSemester);
+        final List<Subject> firstSubjects = lstuParser.getSubjectsFirstTime(testSemester);
 
-        assertTrue(firstSubjectsData.stream()
+        assertTrue(firstSubjects.stream()
                 .anyMatch(subjectData -> !subjectData.getMessagesData().isEmpty()));
 
         // Получаем новые данные
@@ -140,26 +140,26 @@ class LstuParserTest {
         );
         testGroup.setLastCheckDate(new Date());
 
-        final List<SubjectData> newSubjectsData = lstuParser.getNewSubjectsData(firstSubjectsData, testGroup);
+        final List<Subject> newSubjectsData = lstuParser.getNewSubjects(firstSubjects, testGroup);
 
         // Проверяем
         assertTrue(newSubjectsData.stream()
                 .allMatch(subjectData -> subjectData.getMessagesData().isEmpty()));
 
-        final SubjectData oldSubjectData1 = assertDoesNotThrow(() ->
-                firstSubjectsData.stream()
+        final Subject oldSubject1 = assertDoesNotThrow(() ->
+                firstSubjects.stream()
                         .filter(subjectData -> subjectData.getName().equals("Правоведение"))
                         .findFirst()
                         .orElseThrow(NullPointerException::new));
 
-        final SubjectData newSubjectData1 = assertDoesNotThrow(() ->
+        final Subject newSubject1 = assertDoesNotThrow(() ->
                 newSubjectsData.stream()
                         .filter(subjectData -> subjectData.getName().equals("Правоведение"))
                         .findFirst()
                         .orElseThrow(NullPointerException::new));
 
-        assertEquals(oldSubjectData1.getDocumentNames(), newSubjectData1.getDocumentNames());
+        assertEquals(oldSubject1.getDocumentNames(), newSubject1.getDocumentNames());
 
-        assertTrue(Utils.removeOldDocuments(firstSubjectsData, newSubjectsData).isEmpty());
+        assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjectsData).isEmpty());
     }
 }

@@ -16,7 +16,7 @@ import java.util.Set;
 @NoArgsConstructor
 @RequiredArgsConstructor
 @Accessors (chain = true)
-public class SubjectData {
+public class Subject {
     private int id;
     @NonNull
     private String lkId;
@@ -37,7 +37,7 @@ public class SubjectData {
     public boolean equals (Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SubjectData that = (SubjectData) o;
+        Subject that = (Subject) o;
         return name.equals(that.name);
     }
 

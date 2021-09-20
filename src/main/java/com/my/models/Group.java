@@ -21,7 +21,7 @@ public class Group {
     private String lkId;
     private String lkSemesterId;
     private String lkContingentId;
-    private List<SubjectData> subjectsData = new ArrayList<>();
+    private List<Subject> subjects = new ArrayList<>();
     private Date lastCheckDate;
     private long updateInterval = 12L * 3600 * 1000; // 12 часов
 
@@ -42,7 +42,7 @@ public class Group {
 
     @BsonIgnore
     public boolean isLoggedBefore () {
-        return !(subjectsData.isEmpty() && users.isEmpty());
+        return !(subjects.isEmpty() && users.isEmpty());
     }
 
     @BsonIgnore

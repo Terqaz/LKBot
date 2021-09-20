@@ -30,12 +30,12 @@ public class LstuParser {
             Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
 
     // Загружает все документы и все сообщения
-    public List<SubjectData> getSubjectsDataFirstTime (String semesterName) {
-        final List<SubjectData> subjectsData = getHtmlSubjectsUrls(semesterName)
-                .map(htmlSubjectUrl -> getSubjectDataByHtmlUrl(htmlSubjectUrl, new Date(1)))
-                .sorted(Comparator.comparing(SubjectData::getName))
+    public List<Subject> getSubjectsFirstTime (String semesterName) {
+        final List<Subject> subjects = getHtmlSubjectsUrls(semesterName)
+                .map(htmlSubjectUrl -> getSubjectByHtmlUrl(htmlSubjectUrl, new Date(1)))
+                .sorted(Comparator.comparing(Subject::getName))
                 .collect(Collectors.toList());
-        return addIds(subjectsData);
+        return addIds(subjects);
     }
 
     private Stream<Element> getHtmlSubjectsUrls(String semesterName) {
@@ -57,60 +57,69 @@ public class LstuParser {
     }
 
     // Загружает все документы и только новые сообщения
-    public List<SubjectData> getNewSubjectsData (List<SubjectData> oldSubjectsData, Group group) {
-        final List<SubjectData> subjectsData = oldSubjectsData.stream()
-                .map(subjectData ->
-                        getNewSubjectData(subjectData, group))
-                .sorted(Comparator.comparing(SubjectData::getName))
-                .collect(Collectors.toList());
-        return addIds(subjectsData);
+    public List<Subject> getNewSubjects (List<Subject> oldSubjects, Group group) {
+        return addIds(oldSubjects.stream()
+                .map(subjects1 ->
+                        getNewSubject(subjects1, group))
+                .sorted(Comparator.comparing(Subject::getName))
+                .collect(Collectors.toList()));
     }
 
-    private SubjectData getSubjectDataByHtmlUrl (Element htmlSubjectUrl, Date lastCheckDate) {
+    private Subject getSubjectByHtmlUrl (Element htmlSubjectUrl, Date lastCheckDate) {
         final String localUrl = htmlSubjectUrl.attr("href");
-        return getNewSubjectData(ParserUtils.capitalize(htmlSubjectUrl.text()), localUrl, lastCheckDate);
+        return getNewSubject(ParserUtils.capitalize(htmlSubjectUrl.text()), localUrl, lastCheckDate);
     }
 
-    private SubjectData getNewSubjectData(String subjectName, String subjectLocalUrl, Date lastCheckDate) {
+    private Subject getNewSubject(String subjectName, String subjectLocalUrl, Date lastCheckDate) {
 
-        final Document subjectDataPage = lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
+        final Document subjectPage = lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
 
         final String[] pathSegments = subjectLocalUrl.split("/");
         final String semesterId = pathSegments[3];
         final String subjectId = pathSegments[4];
         final String groupId = pathSegments[5];
 
-        return new SubjectData(
+        return new Subject(
                 subjectId,
                 subjectName,
-                new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
+                getDocumentNamesFromSubjectPage(subjectPage),
                 loadMessagesAfterDate(semesterId, subjectId, groupId, lastCheckDate)
         );
     }
 
-    private List<SubjectData> addIds (List<SubjectData> subjectsData) {
+    private List<Subject> addIds (List<Subject> subjects) {
         var id = 1;
-        for (SubjectData subjectData : subjectsData) {
-            subjectData.setId(id++);
-        }
-        return subjectsData;
+        for (Subject subject : subjects)
+            subject.setId(id++);
+        return subjects;
     }
 
     // Загружает все документы и только новые сообщения
-    public SubjectData getNewSubjectData(SubjectData oldSubjectData, Group group) {
+    public Subject getNewSubject(Subject subject, Group group) {
+        final Document subjectPage = getSubjectPage(subject.getLkId(), group);
 
-        String subjectLocalUrl = LstuUrlBuilder.buildSubjectLocalUrl(
-                group.getLkSemesterId(), oldSubjectData.getLkId(), group.getLkId(), group.getLkContingentId());
-
-        final Document subjectDataPage = lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
-
-        return new SubjectData(
-                oldSubjectData.getLkId(),
-                oldSubjectData.getName(),
-                new HashSet<>(subjectDataPage.select("ul.list-inline > li").eachText()),
+        return new Subject(
+                subject.getLkId(),
+                subject.getName(),
+                getDocumentNamesFromSubjectPage(subjectPage),
                 loadMessagesAfterDate(
-                        group.getLkSemesterId(), oldSubjectData.getLkId(), group.getLkId(), group.getLastCheckDate())
+                        group.getLkSemesterId(), subject.getLkId(), group.getLkId(), group.getLastCheckDate())
         );
+    }
+
+    private Set<String> getDocumentNamesFromSubjectPage(Document subjectPage) {
+        return new HashSet<>(subjectPage.select("ul.list-inline > li").eachText());
+    }
+
+    public Set<String> getSubjectDocumentNames(String subjectLkId, Group group) {
+        return getDocumentNamesFromSubjectPage(getSubjectPage(subjectLkId, group));
+    }
+
+    private static Document getSubjectPage(String subjectLkId, Group group) {
+        String subjectLocalUrl = LstuUrlBuilder.buildSubjectLocalUrl(
+                group.getLkSemesterId(), subjectLkId, group.getLkId(), group.getLkContingentId());
+
+        return lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
     }
 
     private List<MessageData> loadMessagesAfterDate (String semesterId, String subjectId,

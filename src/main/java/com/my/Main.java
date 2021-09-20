@@ -59,7 +59,7 @@ public class Main {
     private static String actualSemester;
     private static boolean isActualWeekWhite;
 
-    private static class PlannedSubjectsDataUpdate extends Thread {
+    private static class PlannedSubjectsUpdate extends Thread {
         @SneakyThrows
         @Override
         public void run() {
@@ -80,37 +80,10 @@ public class Main {
                         }
 
                         final String report;
-                        if (actualSemester.equals(newSemester)) {
-                            final var oldSubjectsData = group.getSubjectsData();
-                            final List<SubjectData> newSubjectsData = lstuParser.getNewSubjectsData(oldSubjectsData, group);
-
-                            final var checkDate = new Date();
-                            group.setLastCheckDate(checkDate);
-                            groupsRepository.updateSubjectsData(group.getName(), newSubjectsData, checkDate);
-
-                            report = ReportsMaker.getSubjectsData(
-                                    Utils.removeOldDocuments(oldSubjectsData, newSubjectsData),
-                                    group.getNextCheckDate());
-
-                        } else {
-                            actualSemester = newSemester;
-                            vkBot.sendMessageTo(group.getUserIds(),
-                                    "Данные теперь приходят из семестра: " + newSemester + "\n" +
-                                    "Также советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
-
-                            final List<SubjectData> newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
-
-                            final var checkDate = new Date();
-                            group.setLastCheckDate(checkDate);
-
-                            report = ReportsMaker.getSubjectsData(newSubjectsData, group.getNextCheckDate());
-
-                            final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
-                            final var newLkSemesterId = lkIds.get(LstuParser.SEMESTER_ID);
-                            groupsRepository.setNewSemesterData(group.getName(), newSubjectsData, checkDate,
-                                    lstuParser.parseTimetable(newLkSemesterId, group.getLkId()),
-                                    newLkSemesterId);
-                        }
+                        if (actualSemester.equals(newSemester))
+                            report = sameSemesterUpdate(group);
+                        else
+                            report = newSemesterUpdate(newSemester, group);
 
                         lstuAuthClient.logout();
 
@@ -140,6 +113,63 @@ public class Main {
         private boolean isNotLoginSucceeded (Group group, LoggedUser loggedUser) {
             return group.isNotLoggedNow() || !lstuAuthClient.login(cipherService.decrypt(loggedUser.getAuthData()));
         }
+
+        private String sameSemesterUpdate(Group group) {
+            final List<Subject> oldSubjects = group.getSubjects();
+            Map<Integer, Subject> oldSubjectsById = new HashMap<>();
+            for (Subject subject : oldSubjects)
+                oldSubjectsById.put(subject.getId(), subject);
+
+            final List<Subject> newSubjects = lstuParser.getNewSubjects(oldSubjects, group).stream()
+                    .map(subject -> {
+                        final Set<String> oldDocumentNames = oldSubjectsById.get(subject.getId()).getDocumentNames();
+                        // Загружаем еще раз документы, где они в первый раз оказались пустыми
+                        if (subject.getDocumentNames().isEmpty() && !oldDocumentNames.isEmpty()) {
+                            final Set<String> newDocumentNames =
+                                    lstuParser.getSubjectDocumentNames(subject.getLkId(), group);
+                            if (newDocumentNames.isEmpty())
+                                subject.setDocumentNames(oldDocumentNames);
+                            else
+                                subject.setDocumentNames(newDocumentNames);
+                        }
+                        return subject;
+                    }).collect(Collectors.toList());
+
+            final var checkDate = new Date();
+            group.setLastCheckDate(checkDate);
+            groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);
+
+            return ReportsMaker.getSubjects (
+                    Utils.removeOldDocuments(oldSubjects, newSubjects),
+                    group.getNextCheckDate());
+        }
+
+        private boolean allDocumentNamesIsEmpty(List<Subject> newSubjects) {
+            return newSubjects.stream()
+                    .allMatch(subject ->
+                            subject.getDocumentNames().isEmpty());
+        }
+
+        private String newSemesterUpdate(String newSemester, Group group) {
+            actualSemester = newSemester;
+            vkBot.sendMessageTo(group.getUserIds(),
+                    "Данные теперь приходят из семестра: " + newSemester + "\n" +
+                    "Также советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
+
+            final List<Subject> newSubjects = lstuParser.getSubjectsFirstTime(actualSemester);
+
+            final var checkDate = new Date();
+            group.setLastCheckDate(checkDate);
+
+            final String report = ReportsMaker.getSubjects(newSubjects, group.getNextCheckDate());
+
+            final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(actualSemester);
+            final var newLkSemesterId = lkIds.get(LstuParser.SEMESTER_ID);
+            groupsRepository.setNewSemesterData(group.getName(), newSubjects, checkDate,
+                    lstuParser.parseTimetable(newLkSemesterId, group.getLkId()),
+                    newLkSemesterId);
+            return report;
+        }
     }
 
     private static class PlannedScheduleSending extends Thread {
@@ -159,14 +189,15 @@ public class Main {
                         Thread.sleep(3600L * 1000); // 1 час
 
                     } else if (hour == 7) {
-                        for (Group group : groupsRepository.findAll()) { // TODO убрать subjectsData, оптимизировать загрузку
-                            vkBot.sendMessageTo(
-                                    group.getUsers().stream()
-                                            .filter(GroupUser::isEverydayScheduleEnabled)
-                                            .map(GroupUser::getId)
-                                            .collect(Collectors.toList()),
-                                    getDayScheduleReport(weekDay, group)
-                            );
+                        for (Group group : groupsRepository.findAll()) { // TODO убрать subjects, оптимизировать загрузку
+                            final String dayScheduleReport = getDayScheduleReport(weekDay, group);
+                            if (!dayScheduleReport.isEmpty())
+                                vkBot.sendMessageTo(
+                                        group.getUsers().stream()
+                                                .filter(GroupUser::isEverydayScheduleEnabled)
+                                                .map(GroupUser::getId)
+                                                .collect(Collectors.toList()),
+                                        dayScheduleReport);
                         }
                         Thread.sleep(3600L * 1000); // 1 час
 
@@ -205,8 +236,8 @@ public class Main {
         final Integer ts = FilesService.loadLastTs();
         if (ts != null) VkBotService.setTs(ts);
 
-        final var plannedSubjectsDataUpdate = new PlannedSubjectsDataUpdate();
-        plannedSubjectsDataUpdate.start();
+        final var plannedSubjectsUpdate = new PlannedSubjectsUpdate();
+        plannedSubjectsUpdate.start();
         final var plannedScheduleSending = new PlannedScheduleSending();
         plannedScheduleSending.start();
 
@@ -218,7 +249,7 @@ public class Main {
         } catch (ApplicationStopNeedsException ignored) {}
 
         vkBot.setOnline(false);
-        plannedSubjectsDataUpdate.interrupt();
+        plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
         FilesService.saveLastTs(VkBotService.getTs());
         vkBot.sendMessageTo(APP_ADMIN_ID, "WARNING: APP STOPPED");
@@ -335,7 +366,7 @@ public class Main {
         Integer integer = Utils.tryParseInteger(messageText);
         if (integer != null) {
             if (group.containsUser(userId) && integer < 100) // Если номер предмета (с запасом)
-                getActualSubjectDataMessage(userId, group, integer);
+                getActualSubjectMessage(userId, group, integer);
 
             else if (!group.containsUser(userId) && 100_000 <= integer && integer < 1_000_000) // Если проверочный код
                 addUserByVerificationCode(group, userId, integer);
@@ -382,7 +413,7 @@ public class Main {
 
         switch (messageText) {
             case "предметы":
-                vkBot.sendMessageTo(userId, ReportsMaker.getSubjectsNames(group.getSubjectsData()));
+                vkBot.sendMessageTo(userId, ReportsMaker.getSubjectsNames(group.getSubjects()));
                 break;
 
             case "команды":
@@ -512,7 +543,7 @@ public class Main {
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBot.sendMessageTo(userId,
                 "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
-                        ReportsMaker.getSubjectsNames(group.getSubjectsData()));
+                        ReportsMaker.getSubjectsNames(group.getSubjects()));
 
         group.getUsers().add(new GroupUser(userId));
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),
@@ -561,8 +592,12 @@ public class Main {
 
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),"Хорошо");
         if (isEnable) // TODO загрузить timetable
-            vkBot.sendMessageTo(userId, "Держи расписание на сегодня:\n"+
-                    getDayScheduleReport(Utils.mapWeekDayFromCalendar(), group));
+        {
+            final String dayScheduleReport = getDayScheduleReport(Utils.mapWeekDayFromCalendar(), group);
+            if (!dayScheduleReport.isEmpty())
+                vkBot.sendMessageTo(userId, "Держи расписание на сегодня:\n"+
+                        dayScheduleReport);
+        }
     }
 
     private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isEnable) {
@@ -587,35 +622,35 @@ public class Main {
                 "Я разрешаю эту операцию только человеку, вошедшему от имени группы");
     }
 
-    private static void getActualSubjectDataMessage (Integer userId, Group group, Integer subjectIndex) {
+    private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
         final LoggedUser loggedUser = group.getLoggedUser();
         if (group.isNotLoggedNow() || !lstuAuthClient.login(cipherService.decrypt(loggedUser.getAuthData()))) {
             repeatLoginFailedMessages(userId, group);
             return;
         }
 
-        final var optionalSubjectData = group.getSubjectsData().stream()
-                .filter(subjectData1 -> subjectData1.getId() == subjectIndex)
+        final var optionalSubject = group.getSubjects().stream()
+                .filter(subject1 -> subject1.getId() == subjectIndex)
                 .findFirst();
-        if (optionalSubjectData.isEmpty()) {
+        if (optionalSubject.isEmpty()) {
             vkBot.sendMessageTo(userId, "Неправильный номер предмета");
             return;
         }
-        final var oldSubjectData = optionalSubjectData.get();
+        final var oldSubject = optionalSubject.get();
 
-        SubjectData newSubjectData = lstuParser.getNewSubjectData(oldSubjectData, group);
+        Subject newSubject = lstuParser.getNewSubject(oldSubject, group);
         lstuAuthClient.logout();
 
-        newSubjectData.setId(subjectIndex);
-        newSubjectData.getDocumentNames()
-                .removeAll(oldSubjectData.getDocumentNames());
+        newSubject.setId(subjectIndex);
+        newSubject.getDocumentNames()
+                .removeAll(oldSubject.getDocumentNames());
 
-        if (newSubjectData.isNotEmpty()) {
+        if (newSubject.isNotEmpty()) {
             vkBot.sendLongMessageTo(userId,
-                    ReportsMaker.getSubjectsData(List.of(newSubjectData), null));
+                    ReportsMaker.getSubjects(List.of(newSubject), null));
         } else {
             vkBot.sendMessageTo(userId,
-                    "Нет новой информации по предмету " + newSubjectData.getName());
+                    "Нет новой информации по предмету " + newSubject.getName());
         }
     }
 
@@ -709,10 +744,10 @@ public class Main {
                         "Тебе нужно просто позвать их пообщаться со мной. " +
                         "Но позволь я сначала проверю твой ЛК...");
 
-        List<SubjectData> newSubjectsData = lstuParser.getSubjectsDataFirstTime(actualSemester);
+        List<Subject> newSubjects = lstuParser.getSubjectsFirstTime(actualSemester);
         final var newGroup = new Group(groupName)
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
-                .setSubjectsData(newSubjectsData)
+                .setSubjects(newSubjects)
                 .setLastCheckDate(new Date());
         newGroup.getUsers().add(new GroupUser(userId));
 
@@ -725,7 +760,7 @@ public class Main {
 
         newUserSubjectsListMessage(userId, newGroup);
         vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
-                ReportsMaker.getSubjectsData(newSubjectsData, newGroup.getNextCheckDate()));
+                ReportsMaker.getSubjects(newSubjects, newGroup.getNextCheckDate()));
 
         newGroup.setTimetable(lstuParser.parseTimetable(newGroup.getLkSemesterId(), newGroup.getLkId()));
         groupsRepository.insert(newGroup);

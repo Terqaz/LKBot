@@ -1,6 +1,6 @@
 package com.my;
 
-import com.my.models.SubjectData;
+import com.my.models.Subject;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -15,10 +15,10 @@ public final class Utils {
     }
 
     // oldSubjectsData и newSubjectsData должны быть отсортированы в порядке возрастания имени
-    public static List<SubjectData> removeOldDocuments (List<SubjectData> oldSubjectsData,
-                                                        List<SubjectData> newSubjectsData) {
+    public static List<Subject> removeOldDocuments (List<Subject> oldSubjectsData,
+                                                    List<Subject> newSubjectsData) {
         Map<String, Set<String>> oldDocumentsMap = new HashMap<>();
-        for (SubjectData data : oldSubjectsData)
+        for (Subject data : oldSubjectsData)
             oldDocumentsMap.put(data.getName(), data.getDocumentNames());
 
         return newSubjectsData.stream()
@@ -28,7 +28,7 @@ public final class Utils {
                         newDocuments.removeAll(oldDocuments);
                         return newData;
                 })
-                .filter(SubjectData::isNotEmpty)
+                .filter(Subject::isNotEmpty)
                 .collect(Collectors.toList());
     }
 

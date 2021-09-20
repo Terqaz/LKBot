@@ -1,6 +1,6 @@
 package com.my;
 
-import com.my.models.SubjectData;
+import com.my.models.Subject;
 import com.my.services.text.KeyboardLayoutConverter;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -45,41 +45,41 @@ class AnyUtilsTest {
     @Test
     @Disabled
     void removeOldSubjectsDocuments_isCorrect () {
-        List<SubjectData> oldSubjectData = Arrays.asList(
-                new SubjectData().setMessagesData(Arrays.asList())
+        List<Subject> oldSubjectData = Arrays.asList(
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd", "1abcde")),
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde")),
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("d").setDocumentNames(mutableSetOf("3abc", "3abcd", "3abcde"))
         );
 
-        List<SubjectData> newSubjectData = Arrays.asList(
-                new SubjectData().setMessagesData(Arrays.asList()) // Нет изменений
+        List<Subject> newSubjectData = Arrays.asList(
+                new Subject().setMessagesData(Arrays.asList()) // Нет изменений
                         .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
 
-                new SubjectData().setMessagesData(Arrays.asList())  // Удалили элемент
+                new Subject().setMessagesData(Arrays.asList())  // Удалили элемент
                         .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd")),
 
-                new SubjectData().setMessagesData(Arrays.asList()) // Добавили элемент
+                new Subject().setMessagesData(Arrays.asList()) // Добавили элемент
                         .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde", "2abcdef")),
 
-                new SubjectData().setMessagesData(Arrays.asList())  // Удалили и добавили элементы
+                new Subject().setMessagesData(Arrays.asList())  // Удалили и добавили элементы
                         .setName("d").setDocumentNames(mutableSetOf("3abcd", "3abcde", "3abcdef"))
         );
 
-        List<SubjectData> postSubjectData = Utils.removeOldDocuments(oldSubjectData, newSubjectData);
+        List<Subject> postSubjectData = Utils.removeOldDocuments(oldSubjectData, newSubjectData);
 
         assertEquals(Arrays.asList(
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd", "1abcde")),
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde")),
-                new SubjectData().setMessagesData(Arrays.asList())
+                new Subject().setMessagesData(Arrays.asList())
                         .setName("d").setDocumentNames(mutableSetOf("3abc", "3abcd", "3abcde"))
                 ),
                 newSubjectData); // newSubjectData не изменилась

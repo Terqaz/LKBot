@@ -3,7 +3,7 @@ package com.my.services;
 import com.mongodb.lang.Nullable;
 import com.my.Utils;
 import com.my.models.MessageData;
-import com.my.models.SubjectData;
+import com.my.models.Subject;
 import com.my.models.TimetableSubject;
 
 import java.util.Date;
@@ -14,31 +14,33 @@ public class ReportsMaker {
 
     private ReportsMaker () {}
 
-    public static String getSubjectsNames (List<SubjectData> subjectsData) {
+    public static String getSubjectsNames (List<Subject> subjects) {
         final var sb = new StringBuilder();
-        for (SubjectData data : subjectsData) {
+        for (Subject data : subjects) {
             sb.append("➡ ").append(data.getId()).append(" ")
                     .append(data.getName()).append("\n");
         }
         return sb.toString();
     }
 
-    public static String getSubjectsData (List<SubjectData> subjectsData, @Nullable Date nextCheckDate) {
-        if (subjectsData.isEmpty())
+    public static String getSubjects(List<Subject> subjects, @Nullable Date nextCheckDate) {
+        if (subjects.isEmpty())
             return "Нет новой информации по предметам\n" + getNextUpdateDateText(nextCheckDate);
 
         final var sb = new StringBuilder();
 
-        String partBuilder = subjectsData.stream()
-                .filter(data -> !data.getDocumentNames().isEmpty())
-                .map(data -> "➡ " + data.getId() + " " + data.getName() + ": " +
-                        String.join(", ", data.getDocumentNames())
-                ).collect(Collectors.joining("\n"));
+        String partBuilder = subjects.stream()
+                .filter(subject -> !subject.getDocumentNames().isEmpty())
+                .map(data -> "➡ " + data.getId() + " " + data.getName() + ":\n" +
+                        data.getDocumentNames().stream()
+                                .sorted()
+                                .collect(Collectors.joining("\n"))
+                ).collect(Collectors.joining("\n\n"));
 
         if (partBuilder.length() > 0)
             sb.append("\uD83D\uDD34 Новые документы:\n" + partBuilder);
 
-        partBuilder = subjectsData.stream()
+        partBuilder = subjects.stream()
                 .filter(data -> !data.getMessagesData().isEmpty())
                 .map(data -> "➡ " + data.getId() + " " + data.getName() + ":\n" +
                         getSubjectMessages(data.getMessagesData())
@@ -67,7 +69,8 @@ public class ReportsMaker {
     }
 
     public static String getDaySchedule (List<TimetableSubject> subjects, boolean isWhiteWeek) {
-        return "\uD83D\uDD36 Сегодня " +
+        return subjects.isEmpty() ? "" :
+                "\uD83D\uDD36 Сегодня " +
                 (isWhiteWeek ? "белая неделя" : "зеленая неделя") +
                 " \uD83D\uDD36\n" +
                 subjects.stream()

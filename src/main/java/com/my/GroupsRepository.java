@@ -84,22 +84,22 @@ public class GroupsRepository {
                 addToSet(USERS, new GroupUser(user.getId()))));
     }
 
-    public void updateSubjectsData(@NotNull String groupName,
-                                   @NotEmpty List<SubjectData> subjectsData,
+    public void updateSubjects(@NotNull String groupName,
+                                   @NotEmpty List<Subject> subjects,
                                    @NotNull Date lastCheckDate) {
         updateBy(groupName, combine(
-                set("subjectsData", subjectsData),
+                set("subjects", subjects),
                 set("lastCheckDate", lastCheckDate)
         ));
     }
 
     public void setNewSemesterData (@NotNull String groupName,
-                                    @NotEmpty List<SubjectData> subjectsData,
+                                    @NotEmpty List<Subject> subjects,
                                     @NotNull Date lastCheckDate,
                                     @NotNull Timetable timetable,
                                     @NotBlank String newLkSemesterId) {
         updateBy(groupName, combine(
-                set("subjectsData", subjectsData),
+                set("subjects", subjects),
                 set("lastCheckDate", lastCheckDate),
                 set("timetable", timetable),
                 set("lkSemesterId", newLkSemesterId)
