@@ -85,8 +85,6 @@ public class PlannedSubjectsUpdate extends Thread {
         else
             report = newSemesterUpdate(newSemester, group);
 
-        group.getLkParser().logout();
-
         if (!report.startsWith("Нет новой"))
             vkBot.sendLongMessageTo(group.getUserIds(), report);
 

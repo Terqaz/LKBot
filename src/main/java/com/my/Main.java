@@ -86,6 +86,7 @@ public class Main {
             runCycle();
         } catch (ApplicationStopNeedsException ignored) {}
 
+        groupByGroupName.values().forEach(group -> group.getLkParser().logout());
         vkBot.setOnline(false);
         plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
