@@ -32,7 +32,7 @@ public final class Utils {
                 .collect(Collectors.toList());
     }
 
-    public static String actualizeSemesterName() {
+    public static String getSemesterName() {
         Calendar now = new GregorianCalendar();
         Calendar autumnSemesterStart = new GregorianCalendar();
         autumnSemesterStart.set(Calendar.MONTH, Calendar.AUGUST);

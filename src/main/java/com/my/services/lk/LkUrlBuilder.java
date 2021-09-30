@@ -1,4 +1,4 @@
-package com.my.services.lstu;
+package com.my.services.lk;
 
 import org.apache.http.client.utils.URIBuilder;
 
@@ -6,9 +6,11 @@ import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class LstuUrlBuilder {
+public class LkUrlBuilder {
 
-    private LstuUrlBuilder () {}
+    public static final String AJAX_HANDLER_PHP = "ajax.handler.php";
+
+    private LkUrlBuilder() {}
 
     public static final String LSTU_HOST_NAME = "lk.stu.lipetsk.ru";
 
@@ -58,7 +60,7 @@ public class LstuUrlBuilder {
 
     public static String buildNextMessagesUrl (String semesterId, String disciplineId, String groupId, Date date) {
         final URIBuilder builder = getLstuOriginUriBuilder()
-                .setPath("ajax.handler.php")
+                .setPath(AJAX_HANDLER_PHP)
                 .addParameter("get_msg", "1")
                 .addParameter("group", groupId)
                 .addParameter("discipline", disciplineId)
@@ -76,10 +78,16 @@ public class LstuUrlBuilder {
 
     public static String buildStudentScheduleUrl (String semesterId, String groupId) {
         return build(getLstuOriginUriBuilder()
-                .setPath("ajax.handler.php")
+                .setPath(AJAX_HANDLER_PHP)
                 .addParameter("student_schedule", "1")
                 .addParameter("semester", semesterId)
                 .addParameter("group", groupId)
+        );
+    }
+
+    public static String buildKeepAuthUrl() {
+        return build(getLstuOriginUriBuilder()
+            .addParameter("auth", "1")
         );
     }
 }

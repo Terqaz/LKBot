@@ -27,7 +27,6 @@ import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 public class GroupsRepository {
 
     private static GroupsRepository instance = null;
-
     public static GroupsRepository getInstance () {
         if (instance == null)
             instance = new GroupsRepository();
@@ -54,24 +53,43 @@ public class GroupsRepository {
                 .getCollection("groups", Group.class);
     }
 
-    public static final String USERS = "users";
+    public static final String _ID = "_id";
     public static final String NAME = "name";
+    public static final String USERS = "users";
     private static final String USERS_TO_VERIFY = "usersToVerify";
     private static final String LOGIN_WAITING_USERS = "loginWaitingUsers";
     public static final String LOGGED_USER = "loggedUser";
+    public static final String SUBJECTS = "subjects";
+    public static final String TIMETABLE = "timetable";
+    public static final String LAST_CHECK_DATE = "lastCheckDate";
+    public static final String LK_SEMESTER_ID = "lkSemesterId";
 
     public void insert (Group group) {
         groupsCollection.insertOne(group);
     }
 
-    public FindIterable<Group> findAll () {
-        return groupsCollection.find();
+    public FindIterable<Group> findAllWithoutTimetable () {
+        return findAll(fields(
+                exclude(TIMETABLE)));
+    }
+
+    public FindIterable<Group> findAllWithoutSubjects () {
+        return findAll(fields(
+                exclude(SUBJECTS)));
     }
 
     public FindIterable<Group> findAllUsersOfGroups () {
-        return groupsCollection.find().projection(
-                fields(include(NAME, USERS, LOGIN_WAITING_USERS),
-                        excludeId()));
+        return findAll(fields(
+                include(NAME, USERS, LOGIN_WAITING_USERS),
+                excludeId()));
+    }
+
+    public FindIterable<Group> findAll() {
+        return groupsCollection.find();
+    }
+
+    private FindIterable<Group> findAll(Bson projection) {
+        return groupsCollection.find().projection(projection);
     }
 
     public Optional<Group> findByGroupName (String groupName) {
@@ -88,8 +106,8 @@ public class GroupsRepository {
                                    @NotEmpty List<Subject> subjects,
                                    @NotNull Date lastCheckDate) {
         updateBy(groupName, combine(
-                set("subjects", subjects),
-                set("lastCheckDate", lastCheckDate)
+                set(SUBJECTS, subjects),
+                set(LAST_CHECK_DATE, lastCheckDate)
         ));
     }
 
@@ -99,10 +117,10 @@ public class GroupsRepository {
                                     @NotNull Timetable timetable,
                                     @NotBlank String newLkSemesterId) {
         updateBy(groupName, combine(
-                set("subjects", subjects),
-                set("lastCheckDate", lastCheckDate),
-                set("timetable", timetable),
-                set("lkSemesterId", newLkSemesterId)
+                set(SUBJECTS, subjects),
+                set(LAST_CHECK_DATE, lastCheckDate),
+                set(TIMETABLE, timetable),
+                set(LK_SEMESTER_ID, newLkSemesterId)
         ));
     }
 
@@ -123,8 +141,8 @@ public class GroupsRepository {
         updateBy(groupName, combine(combineOperations));
     }
     private List<Bson> removeUserFromGroupOperations(Integer userId) {
-        return List.of(pull(USERS, eq("_id", userId)),
-                       pull(USERS_TO_VERIFY, eq("_id", userId)),
+        return List.of(pull(USERS, eq(_ID, userId)),
+                       pull(USERS_TO_VERIFY, eq(_ID, userId)),
                        pull(LOGIN_WAITING_USERS, userId));
     }
 
@@ -160,30 +178,30 @@ public class GroupsRepository {
                         eq(USERS_TO_VERIFY, user)))
                 .projection(fields(
                         Projections.elemMatch(USERS_TO_VERIFY,
-                                combine(eq("_id", user.getId()),
+                                combine(eq(_ID, user.getId()),
                                         eq("code", user.getCode()))),
                         excludeId()))
                 .first());
 
         if (groupOptional.isPresent()) {
-            final UserToVerify user1 = groupOptional.get().getUsersToVerify().get(0);
+            final UserToVerify user1 = groupOptional.get().getUsersToVerify().stream().findFirst().get();
 
             updateBy(groupName, combine(
-                    push(USERS, new GroupUser(user1.getId())),
+                    addToSet(USERS, new GroupUser(user1.getId())),
                     pull(USERS_TO_VERIFY,
-                            combine(eq("_id", user.getId()),
+                            combine(eq(_ID, user.getId()),
                                     eq("code", user.getCode())))));
             return true;
 
         } else return false;
     }
 
-    public List<GroupUser> findGroupUsers (String groupName) {
+    public Set<GroupUser> findGroupUsers (String groupName) {
         return Optional.ofNullable(groupsCollection.find(eq(NAME, groupName))
                 .projection(fields(include(USERS), excludeId()))
                 .first())
                 .map(Group::getUsers)
-                .orElseGet(Collections::emptyList);
+                .orElseGet(Collections::emptySet);
     }
 
     public void updateSilentMode (String groupName, int silentModeStart, int silentModeEnd) {

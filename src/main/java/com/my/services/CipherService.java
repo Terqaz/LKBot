@@ -45,14 +45,14 @@ public final class CipherService {
         iv = new IvParameterSpec(encryptionKey.substring(0, 16).getBytes());
     }
 
-    public AuthenticationData encrypt (String login, String password) {
+    public synchronized AuthenticationData encrypt (String login, String password) {
         changeMode(Cipher.ENCRYPT_MODE);
         return new AuthenticationData(
                 encryptString(login),
                 encryptString(password));
     }
 
-    public AuthenticationData decrypt (AuthenticationData data) {
+    public synchronized AuthenticationData decrypt (AuthenticationData data) {
         changeMode(Cipher.DECRYPT_MODE);
         return new AuthenticationData(
                 decryptString(data.getLogin()),

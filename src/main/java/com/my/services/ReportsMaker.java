@@ -65,13 +65,13 @@ public class ReportsMaker {
     }
 
     public static String getNextUpdateDateText (Date nextCheckDate) {
-        return "Следующее глобальное обновление будет " + Utils.formatDate(nextCheckDate);
+        return "Следующее обновление в " + Utils.formatDate(nextCheckDate);
     }
 
     public static String getDaySchedule (List<TimetableSubject> subjects, boolean isWhiteWeek) {
         return subjects.isEmpty() ? "" :
-                "\uD83D\uDD36 Сегодня " +
-                (isWhiteWeek ? "белая неделя" : "зеленая неделя") +
+                "\uD83D\uDD36 " +
+                (isWhiteWeek ? "Белая неделя" : "Зеленая неделя") +
                 " \uD83D\uDD36\n" +
                 subjects.stream()
                         .map(subject -> "➡ " + subject.getInterval() + ' ' +

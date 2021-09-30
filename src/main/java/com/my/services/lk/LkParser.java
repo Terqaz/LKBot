@@ -1,4 +1,4 @@
-package com.my.services.lstu;
+package com.my.services.lk;
 
 import com.my.ParserUtils;
 import com.my.models.*;
@@ -13,24 +13,32 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class LstuParser {
+public class LkParser {
 
-    private static LstuParser instance = null;
+    private final LkClient lkClient;
 
-    public static LstuParser getInstance () {
-        if (instance == null)
-            instance = new LstuParser();
-        return instance;
+    public LkParser() {
+        lkClient = new LkClient();
     }
 
-    private LstuParser () {}
-
-    private static final LstuClient lstuClient = LstuClient.getInstance();
     private static final Pattern groupNamePattern =
             Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
 
+    public boolean login (AuthenticationData data) {
+        return lkClient.login(data);
+    }
+
+    public void logout () {
+        lkClient.logout();
+    }
+
+    public boolean isNotLoggedIn () {
+        return lkClient.isNotLoggedIn();
+    }
+
     // Загружает все документы и все сообщения
     public List<Subject> getSubjectsFirstTime (String semesterName) {
+        lkClient.keepAuth();
         final List<Subject> subjects = getHtmlSubjectsUrls(semesterName)
                 .map(htmlSubjectUrl -> getSubjectByHtmlUrl(htmlSubjectUrl, new Date(1)))
                 .sorted(Comparator.comparing(Subject::getName))
@@ -39,14 +47,14 @@ public class LstuParser {
     }
 
     private Stream<Element> getHtmlSubjectsUrls(String semesterName) {
-        return Stream.of(lstuClient.get(
-                LstuUrlBuilder.buildByLocalUrl(
+        return Stream.of(lkClient.loggedGet(
+                LkUrlBuilder.buildByLocalUrl(
                         getSemesterUrl(semesterName))))
                 .flatMap(semesterDataPage -> semesterDataPage.select("li.submenu.level3 > a").stream());
     }
 
     private String getSemesterUrl(String semesterName) {
-        Document semestersListPage = lstuClient.get(LstuUrlBuilder.buildSemestersUrl());
+        Document semestersListPage = lkClient.loggedGet(LkUrlBuilder.buildSemestersUrl());
         final Elements htmlSemestersUrls = semestersListPage.select(".ul-main > li > a");
         for (Element htmlUrl : htmlSemestersUrls) {
             if (htmlUrl.text().equals(semesterName)) {
@@ -58,6 +66,7 @@ public class LstuParser {
 
     // Загружает все документы и только новые сообщения
     public List<Subject> getNewSubjects (List<Subject> oldSubjects, Group group) {
+        lkClient.keepAuth();
         return addIds(oldSubjects.stream()
                 .map(subjects1 ->
                         getNewSubject(subjects1, group))
@@ -72,7 +81,7 @@ public class LstuParser {
 
     private Subject getNewSubject(String subjectName, String subjectLocalUrl, Date lastCheckDate) {
 
-        final Document subjectPage = lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
+        final Document subjectPage = lkClient.loggedGet(LkUrlBuilder.buildByLocalUrl(subjectLocalUrl));
 
         final String[] pathSegments = subjectLocalUrl.split("/");
         final String semesterId = pathSegments[3];
@@ -97,7 +106,7 @@ public class LstuParser {
     // Загружает все документы и только новые сообщения
     public Subject getNewSubject(Subject subject, Group group) {
         final Document subjectPage = getSubjectPage(subject.getLkId(), group);
-
+        lkClient.keepAuth();
         return new Subject(
                 subject.getLkId(),
                 subject.getName(),
@@ -112,14 +121,15 @@ public class LstuParser {
     }
 
     public Set<String> getSubjectDocumentNames(String subjectLkId, Group group) {
+        lkClient.keepAuth();
         return getDocumentNamesFromSubjectPage(getSubjectPage(subjectLkId, group));
     }
 
-    private static Document getSubjectPage(String subjectLkId, Group group) {
-        String subjectLocalUrl = LstuUrlBuilder.buildSubjectLocalUrl(
+    private Document getSubjectPage(String subjectLkId, Group group) {
+        String subjectLocalUrl = LkUrlBuilder.buildSubjectLocalUrl(
                 group.getLkSemesterId(), subjectLkId, group.getLkId(), group.getLkContingentId());
 
-        return lstuClient.get(LstuUrlBuilder.buildByLocalUrl(subjectLocalUrl));
+        return lkClient.loggedGet(LkUrlBuilder.buildByLocalUrl(subjectLocalUrl));
     }
 
     private List<MessageData> loadMessagesAfterDate (String semesterId, String subjectId,
@@ -130,8 +140,8 @@ public class LstuParser {
         List<MessageData> messagesDataChunk;
         Date lastMessageDate = null;
         do {
-            pageWithMessages = lstuClient.post(
-                    LstuUrlBuilder.buildNextMessagesUrl(semesterId, subjectId, groupId, lastMessageDate));
+            pageWithMessages = lkClient.loggedPost(
+                    LkUrlBuilder.buildNextMessagesUrl(semesterId, subjectId, groupId, lastMessageDate));
 
             messagesDataChunk = parseMessagesDataChunk(pageWithMessages, lastCheckDate);
             if (messagesDataChunk.isEmpty())
@@ -192,8 +202,9 @@ public class LstuParser {
     }
 
     public Optional<String> getGroupName () {
-        return lstuClient.get(
-                LstuUrlBuilder.buildByLocalUrl("/personal")
+        lkClient.keepAuth();
+        return lkClient.loggedGet(
+                LkUrlBuilder.buildByLocalUrl("/personal")
         ).select(".col-xs-12 > p").textNodes().stream()
                 .map(TextNode::text)
                 .map(String::strip)
@@ -203,8 +214,9 @@ public class LstuParser {
     }
 
     public Timetable parseTimetable (String semesterId, String groupId) {
-        return Stream.of(lstuClient.get(
-                LstuUrlBuilder.buildStudentScheduleUrl(semesterId, groupId)))
+        lkClient.keepAuth();
+        return Stream.of(lkClient.loggedGet(
+                LkUrlBuilder.buildStudentScheduleUrl(semesterId, groupId)))
                 .map(schedulePage -> {
                     final Elements rows = schedulePage.select("#schedule_lections tbody tr");
 
@@ -273,6 +285,7 @@ public class LstuParser {
     public static final String CONTINGENT_ID = "contingentId";
 
     public Map<String, String> getSubjectsGeneralLkIds (String semesterName) {
+        lkClient.keepAuth();
         return getHtmlSubjectsUrls(semesterName).findFirst()
                 .map(htmlSubjectUrl -> htmlSubjectUrl.attr("href"))
                 .map(localUrl -> {
@@ -285,8 +298,9 @@ public class LstuParser {
                 }).orElse(new HashMap<>());
     }
 
-    public static boolean parseWeekType(String semesterId) {
-        return lstuClient.get(LstuUrlBuilder.buildSemesterUrl(semesterId))
+    public boolean parseWeekType(String semesterId) {
+        lkClient.keepAuth();
+        return lkClient.loggedGet(LkUrlBuilder.buildSemesterUrl(semesterId))
                 .select(".wl_content .mtop-15").text()
                 .toLowerCase(Locale.ROOT).contains("белая");
     }

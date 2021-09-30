@@ -1,12 +1,11 @@
 package com.my.models;
 
+import com.my.services.lk.LkParser;
 import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Getter
@@ -26,14 +25,17 @@ public class Group {
     private long updateInterval = 12L * 3600 * 1000; // 12 часов
 
     private LoggedUser loggedUser;
-    private List<GroupUser> users = new ArrayList<>();
-    private List<UserToVerify> usersToVerify = new ArrayList<>();
-    private List<Integer> loginWaitingUsers = new ArrayList<>();
+    private Set<GroupUser> users = new HashSet<>();
+    private Set<UserToVerify> usersToVerify = new HashSet<>();
+    private Set<Integer> loginWaitingUsers = new HashSet<>();
 
     private Timetable timetable;
 
     private int silentModeStart = 2; // Час [0, 23]
     private int silentModeEnd = 6;   // Час [0, 23]
+
+    @BsonIgnore
+    private LkParser lkParser;
 
     @BsonIgnore
     public boolean isNotLoggedNow () {
@@ -77,5 +79,32 @@ public class Group {
                 .map(GroupUser::isEverydayScheduleEnabled)
                 .findFirst().orElseThrow(() -> new IllegalArgumentException(
                         "Неизвестный id пользователя: "+userId+" в группе: "+name));
+    }
+
+    @BsonIgnore
+    public void removeLoggedUser(Integer id) {
+        removeUserFromGroup(id);
+        loggedUser.setId(0).setAuthData(null);
+    }
+
+    @BsonIgnore
+    public void removeUserFromGroup(Integer id) {
+        users = users.stream()
+                .filter(user -> !user.getId().equals(id))
+                .collect(Collectors.toSet());
+
+        usersToVerify = usersToVerify.stream()
+                .filter(user -> !user.getId().equals(id))
+                .collect(Collectors.toSet());
+
+        loginWaitingUsers.remove(id);
+    }
+
+    @BsonIgnore
+    public void moveVerifiedUserToUsers(UserToVerify user) {
+        users.add(new GroupUser(user.getId()));
+        usersToVerify = usersToVerify.stream()
+                .filter(user1 -> !user1.equals(user))
+                .collect(Collectors.toSet());
     }
 }

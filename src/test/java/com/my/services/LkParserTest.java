@@ -2,8 +2,7 @@ package com.my.services;
 
 import com.my.Utils;
 import com.my.models.*;
-import com.my.services.lstu.LstuAuthClient;
-import com.my.services.lstu.LstuParser;
+import com.my.services.lk.LkParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,10 +15,9 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class LstuParserTest {
+class LkParserTest {
 
-    static final LstuAuthClient lstuAuthClient = LstuAuthClient.getInstance();
-    static LstuParser lstuParser = LstuParser.getInstance();
+    static LkParser lkParser = new LkParser();
 
     static String testSemester = "2021-В";
     static Group testGroup;
@@ -28,12 +26,12 @@ class LstuParserTest {
     static void init () {
         String login = System.getenv("LOGIN");
         String password = System.getenv("PASSWORD");
-        lstuAuthClient.login(new AuthenticationData(login, password));
+        lkParser.login(new AuthenticationData(login, password));
     }
 
     @AfterAll
     static void end () {
-        lstuAuthClient.logout();
+        lkParser.logout();
     }
 
     @BeforeEach
@@ -43,23 +41,23 @@ class LstuParserTest {
 
     @Test
     void getSubjectsGeneralLkIds_IsCorrect () {
-        final Map<String, String> ids = lstuParser.getSubjectsGeneralLkIds(testSemester);
-        assertEquals("5:94052862", ids.get(LstuParser.SEMESTER_ID));
-        assertEquals("5:94564750", ids.get(LstuParser.GROUP_ID));
-        assertEquals("5:95319097", ids.get(LstuParser.CONTINGENT_ID));
+        final Map<String, String> ids = lkParser.getSubjectsGeneralLkIds(testSemester);
+        assertEquals("5:94052862", ids.get(LkParser.SEMESTER_ID));
+        assertEquals("5:94564750", ids.get(LkParser.GROUP_ID));
+        assertEquals("5:95319097", ids.get(LkParser.CONTINGENT_ID));
     }
 
     @Test
     void parseTimetable_IsCorrect () {
-        final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(testSemester);
+        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
         testGroup.setLkIds(
-                lkIds.get(LstuParser.SEMESTER_ID),
-                lkIds.get(LstuParser.GROUP_ID),
-                lkIds.get(LstuParser.CONTINGENT_ID)
+                lkIds.get(LkParser.SEMESTER_ID),
+                lkIds.get(LkParser.GROUP_ID),
+                lkIds.get(LkParser.CONTINGENT_ID)
         );
         // Семестр, в котором не поменяют расписание
         final Timetable timetable =
-                lstuParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
+                lkParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
 
         assertEquals(15, listsSizeCount(timetable.getWhiteWeekDaySubjects()));
         assertEquals(18, listsSizeCount(timetable.getGreenWeekDaySubjects()));
@@ -93,7 +91,7 @@ class LstuParserTest {
 
     @Test
     void getSubjectsFirstTime_isCorrect () {
-        final List<Subject> subjectsData = lstuParser.getSubjectsFirstTime(testSemester);
+        final List<Subject> subjectsData = lkParser.getSubjectsFirstTime(testSemester);
 
         assertEquals(subjectsData.stream()
                 .filter(subjectData -> subjectData.getName().equals("Правоведение"))
@@ -126,21 +124,21 @@ class LstuParserTest {
     void getSubjectsFirstTime_thenGetNewSubjects_isCorrect () {
 
         // Получили первые данные
-        final List<Subject> firstSubjects = lstuParser.getSubjectsFirstTime(testSemester);
+        final List<Subject> firstSubjects = lkParser.getSubjectsFirstTime(testSemester);
 
         assertTrue(firstSubjects.stream()
                 .anyMatch(subjectData -> !subjectData.getMessagesData().isEmpty()));
 
         // Получаем новые данные
-        final Map<String, String> lkIds = lstuParser.getSubjectsGeneralLkIds(testSemester);
+        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
         testGroup.setLkIds(
-                lkIds.get(LstuParser.SEMESTER_ID),
-                lkIds.get(LstuParser.GROUP_ID),
-                lkIds.get(LstuParser.CONTINGENT_ID)
+                lkIds.get(LkParser.SEMESTER_ID),
+                lkIds.get(LkParser.GROUP_ID),
+                lkIds.get(LkParser.CONTINGENT_ID)
         );
         testGroup.setLastCheckDate(new Date());
 
-        final List<Subject> newSubjectsData = lstuParser.getNewSubjects(firstSubjects, testGroup);
+        final List<Subject> newSubjectsData = lkParser.getNewSubjects(firstSubjects, testGroup);
 
         // Проверяем
         assertTrue(newSubjectsData.stream()

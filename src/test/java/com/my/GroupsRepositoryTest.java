@@ -1,14 +1,17 @@
 package com.my;
 
 import com.my.models.*;
-import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static com.mongodb.client.model.Filters.eq;
 import static org.junit.jupiter.api.Assertions.*;
 
 // MONGO_STRING = "mongodb://localhost:27017/lk-bot?retryWrites=true&w=majority"
@@ -24,8 +27,8 @@ class GroupsRepositoryTest {
         testGroup = new Group(testGroupName);
     }
 
-    @AfterAll
-    static void end () {
+    @AfterEach
+    void end () {
         repository.deleteMany(testGroupName);
     }
 
@@ -33,7 +36,7 @@ class GroupsRepositoryTest {
     void userLogged_thenRelogged_thenUnlogged_isCorrect () {
         // Подготовка
         testGroup
-                .setUsers(List.of(new GroupUser(1234)))
+                .setUsers(Set.of(new GroupUser(1234)))
                 .setLoggedUser(new LoggedUser(
                 1234, new AuthenticationData("login", "pass"), true, false));
 
@@ -64,7 +67,7 @@ class GroupsRepositoryTest {
         final UserToVerify user2 = new UserToVerify(userId, 345678);
         final UserToVerify user3 = new UserToVerify(12345, 123456);
 
-        testGroup.setUsersToVerify(List.of(verifiesUser, user2, user3));
+        testGroup.setUsersToVerify(Set.of(verifiesUser, user2, user3));
         repository.insert(testGroup);
 
         // Тестируемое
@@ -84,8 +87,8 @@ class GroupsRepositoryTest {
         // Подготовка
         final int repeatedId = 1234;
         testGroup
-                .setUsers(List.of(new GroupUser(1231), new GroupUser(1232), new GroupUser(1233), new GroupUser(repeatedId)))
-                .setLoginWaitingUsers(List.of(repeatedId, 12345, 123456));
+                .setUsers(Set.of(new GroupUser(1231), new GroupUser(1232), new GroupUser(1233), new GroupUser(repeatedId)))
+                .setLoginWaitingUsers(Set.of(repeatedId, 12345, 123456));
         repository.insert(testGroup);
 
         // Тестируемое
@@ -105,7 +108,7 @@ class GroupsRepositoryTest {
 
     @Test
     void updateUserScheduling_isCorrect() {
-        testGroup.setUsers(List.of(
+        testGroup.setUsers(Set.of(
                 new GroupUser(1, false),
                 new GroupUser(2, false),
                 new GroupUser(3, true)
@@ -119,7 +122,9 @@ class GroupsRepositoryTest {
                 new GroupUser(2, true),
                 new GroupUser(3, true)
         ),
-                repository.findByGroupName(testGroupName).get().getUsers());
+                repository.findByGroupName(testGroupName).get().getUsers().stream()
+                        .sorted(Comparator.comparing(GroupUser::getId))
+                        .collect(Collectors.toList()));
     }
 
     @Test
@@ -137,5 +142,22 @@ class GroupsRepositoryTest {
 
         final var group2 = repository.findByGroupName(testGroupName).get();
         assertEquals(timetable, group2.getTimetable());
+    }
+
+    @Test
+    void findAllWithoutTimetable_isCorrect () {
+        final var timetable = new Timetable()
+                .addWhiteWeekSubject(0, new TimetableSubject("a1", "b1", "c1", "d1"))
+                .addGreenWeekDaySubject(5, new TimetableSubject("a6", "b6", "c6", "d6"));
+
+        testGroup.setTimetable(timetable);
+        repository.insert(testGroup);
+
+        final Group group2 = assertDoesNotThrow(() ->
+                repository.findAllWithoutTimetable().
+                        filter(eq("name", testGroupName))
+                        .first());
+
+        assertNull(group2.getTimetable());
     }
 }

@@ -23,6 +23,7 @@ import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 public class VkBotService {
 
@@ -79,6 +80,17 @@ public class VkBotService {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public <T> void executeVoidRequestAsync(ApiRequest<T> apiRequest) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                apiRequest.execute();
+            } catch (JsonSyntaxException ignore) {
+            } catch (ApiException | ClientException e) {
+                throw new RuntimeException("An exception when async request execution ", e);
+            }
+        });
     }
 
     public List<Message> getNewMessages () {
@@ -149,7 +161,7 @@ public class VkBotService {
                 .randomId(random.nextInt(Integer.MAX_VALUE))
                 .dontParseLinks(true)
                 .keyboard(keyboard);
-        executeRequest(query);
+        executeVoidRequestAsync(query);
     }
 
     public void sendMessageTo (@NotNull Integer userId, String message) {
@@ -162,7 +174,7 @@ public class VkBotService {
             query.keyboard(emptyKeyboard);
             unsetKeyboard = false;
         }
-        executeRequest(query);
+        executeVoidRequestAsync(query);
     }
 
     public void sendMessageTo (Collection<Integer> userIds, String message) {
@@ -177,7 +189,7 @@ public class VkBotService {
             query.keyboard(emptyKeyboard);
             unsetKeyboard = false;
         }
-        executeRequest(query);
+        executeVoidRequestAsync(query);
     }
 
     // Дублировал, чтобы каждый раз не вылетала ошибка из вк API о неизвестном респонсе
