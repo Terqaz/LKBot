@@ -1,6 +1,6 @@
 package com.my.services.text;
 
-import com.my.FilesService;
+import com.my.services.FilesService;
 
 import java.util.List;
 import java.util.Set;

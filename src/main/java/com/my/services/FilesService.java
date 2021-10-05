@@ -1,4 +1,4 @@
-package com.my;
+package com.my.services;
 
 import java.io.*;
 import java.util.List;

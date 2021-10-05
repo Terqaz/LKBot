@@ -10,6 +10,7 @@ import com.vk.api.sdk.client.actors.GroupActor;
 import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
+import com.vk.api.sdk.objects.docs.GetMessagesUploadServerType;
 import com.vk.api.sdk.objects.messages.Keyboard;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
@@ -22,8 +23,10 @@ import lombok.Setter;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import java.io.IOException;
+import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 public class VkBotService {
 
@@ -93,17 +96,19 @@ public class VkBotService {
         });
     }
 
-    public List<Message> getNewMessages () {
+    public Stream<Message> getNewMessages () {
         try {
             List<Message> messages;
             do {
                 messages = fetchNewMessages();
             } while (messages.isEmpty());
-            return messages;
+            return messages.stream()
+                    // На всякий случай, чтобы бот не ответил на свое сообщение
+                    .filter(message -> message.getFromId() > 0);
 
         } catch (IOException e) {
             e.printStackTrace();
-            return Collections.emptyList();
+            return Stream.empty();
         }
     }
 

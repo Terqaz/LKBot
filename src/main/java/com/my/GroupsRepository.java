@@ -115,12 +115,12 @@ public class GroupsRepository {
                                     @NotEmpty List<Subject> subjects,
                                     @NotNull Date lastCheckDate,
                                     @NotNull Timetable timetable,
-                                    @NotBlank String newLkSemesterId) {
+                                    @NotBlank String lkSemesterId) {
         updateBy(groupName, combine(
                 set(SUBJECTS, subjects),
                 set(LAST_CHECK_DATE, lastCheckDate),
                 set(TIMETABLE, timetable),
-                set(LK_SEMESTER_ID, newLkSemesterId)
+                set(LK_SEMESTER_ID, lkSemesterId)
         ));
     }
 

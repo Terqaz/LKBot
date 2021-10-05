@@ -69,8 +69,7 @@ public class KeyboardService {
     private static Keyboard getLoggedUserCommands(LoggedUser loggedUser, boolean isSchedulingEnabled) {
         return new Keyboard().setButtons(List.of(
                 List.of(subjectsButton, commandsButton),
-                List.of(isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton,
-                        timetableUpdateButton),
+                List.of(timetableUpdateButton, isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
                 List.of(forgetMeButton,
                         loggedUser.isAlwaysNotify() ? withoutEmptyReportsButton : withEmptyReportsButton)));
     }

@@ -1,14 +1,15 @@
 package com.my.threads;
 
+import com.my.Bot;
 import com.my.GroupsRepository;
-import com.my.Main;
 import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
-import com.my.exceptions.ReloginNeedsException;
+import com.my.exceptions.LoginNeedsException;
 import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.Subject;
+import com.my.models.Timetable;
 import com.my.services.CipherService;
 import com.my.services.ReportsMaker;
 import com.my.services.lk.LkParser;
@@ -30,6 +31,7 @@ public class PlannedSubjectsUpdate extends Thread {
 
     public PlannedSubjectsUpdate() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
         cipherService = CipherService.getInstance();
+        start();
     }
 
     @SneakyThrows
@@ -49,7 +51,7 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private void updateSubjects(String newSemester) {
-        Main.getGroupByGroupName().values().forEach(group -> {
+        Bot.getGroupByGroupName().values().forEach(group -> {
             LoggedUser loggedUser = group.getLoggedUser();
             final GregorianCalendar calendar = new GregorianCalendar();
             if (isNotUpdateTime(group, calendar, calendar.getTime()))
@@ -60,11 +62,12 @@ public class PlannedSubjectsUpdate extends Thread {
 
             } catch (AuthenticationException e) {
                 vkBot.sendMessageTo(loggedUser.getId(), "Не удалось обновить данные из ЛК");
-                Main.rememberUpdateAuthDataMessage(group, group.getLoggedUser(), group.getName(), true);
+                Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
 
-            } catch (ReloginNeedsException e) {
-                Main.login(group);
-                updateGroupSubjects(newSemester, group, loggedUser);
+            } catch (LoginNeedsException e) {
+                Bot.login(group);
+                CompletableFuture.runAsync(() ->
+                        updateGroupSubjects(newSemester, group, loggedUser));
 
             } catch (LkNotRespondingException e) {
                 if (loggedUser.isAlwaysNotify()) {
@@ -78,9 +81,9 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private void updateGroupSubjects(String newSemester, Group group, LoggedUser loggedUser) {
-        Main.login(group);
+        Bot.login(group);
         final String report;
-        if (Main.getActualSemester().equals(newSemester))
+        if (Bot.getActualSemester().equals(newSemester))
             report = sameSemesterUpdate(group);
         else
             report = newSemesterUpdate(newSemester, group);
@@ -99,24 +102,18 @@ public class PlannedSubjectsUpdate extends Thread {
 
     private String sameSemesterUpdate(Group group) {
         final List<Subject> oldSubjects = group.getSubjects();
-        Map<Integer, Subject> oldSubjectsById = new HashMap<>();
-        for (Subject subject : oldSubjects)
-            oldSubjectsById.put(subject.getId(), subject);
+        List<Subject> newSubjects = group.getLkParser().getNewSubjects(oldSubjects, group);
 
-        final List<Subject> newSubjects = group.getLkParser().getNewSubjects(oldSubjects, group).stream()
-                .map(subject -> {
-                    final Set<String> oldDocumentNames = oldSubjectsById.get(subject.getId()).getDocumentNames();
-                    // Загружаем еще раз документы, где они в первый раз оказались пустыми
-                    if (subject.getDocumentNames().isEmpty() && !oldDocumentNames.isEmpty()) {
-                        final Set<String> newDocumentNames =
-                                group.getLkParser().getSubjectDocumentNames(subject.getLkId(), group);
-                        if (newDocumentNames.isEmpty())
-                            subject.setDocumentNames(oldDocumentNames);
-                        else
-                            subject.setDocumentNames(newDocumentNames);
-                    }
-                    return subject;
-                }).collect(Collectors.toList());
+        Map<Integer, Subject> newSubjectsById = newSubjects.stream()
+                .collect(Collectors.toMap(Subject::getId, subject -> subject));
+
+        newSubjects = oldSubjects.stream()
+            .map(oldSubject -> { // На всякий
+                Subject newSubject = newSubjectsById.get(oldSubject.getId());
+                if (!oldSubject.getDocumentNames().isEmpty() && newSubject.getDocumentNames().isEmpty())
+                        newSubject.setDocumentNames(oldSubject.getDocumentNames());
+                return newSubject;
+            }).collect(Collectors.toList());
 
         final var checkDate = new Date();
         groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);
@@ -128,14 +125,8 @@ public class PlannedSubjectsUpdate extends Thread {
                 group.getNextCheckDate());
     }
 
-    private boolean allDocumentNamesIsEmpty(List<Subject> newSubjects) {
-        return newSubjects.stream()
-                .allMatch(subject ->
-                        subject.getDocumentNames().isEmpty());
-    }
-
     private String newSemesterUpdate(String newSemester, Group group) {
-        Main.setActualSemester(newSemester);
+        Bot.setActualSemester(newSemester);
         vkBot.sendMessageTo(group.getUserIds(),
                 "Данные теперь приходят из семестра: " + newSemester + "\n" +
                         "Также советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
@@ -145,14 +136,17 @@ public class PlannedSubjectsUpdate extends Thread {
 
         final var checkDate = new Date();
         group.setLastCheckDate(checkDate);
-
         final String report = ReportsMaker.getSubjects(newSubjects, group.getNextCheckDate());
 
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(newSemester);
         final var newLkSemesterId = lkIds.get(LkParser.SEMESTER_ID);
-        groupsRepository.setNewSemesterData(group.getName(), newSubjects, checkDate,
-                lkParser.parseTimetable(newLkSemesterId, group.getLkId()),
-                newLkSemesterId);
+
+        Timetable timetable = lkParser.parseTimetable(newLkSemesterId, group.getLkId());
+
+        groupsRepository.setNewSemesterData(group.getName(),
+                newSubjects, checkDate, timetable, newLkSemesterId);
+        group.setNewSemesterData(newSubjects, timetable, newLkSemesterId);
+
         return report;
     }
 }

@@ -22,12 +22,12 @@ class AnyUtilsTest {
     @Disabled
     void translateFromEnglishKeyboardLayout_isCorrect () {
         final List<String> expected =
-                Arrays.asList("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
+                List.of("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
                 .stream().map(KeyboardLayoutConverter::translateFromEnglishLayoutIfNeeds)
                 .collect(Collectors.toList());
 
         final List<String> actual =
-                Arrays.asList("команды", "комАНды", "кjvFYls", "кjvF Yls", "комА Нды", "комА Нды 2", "кjvF Yls 2");
+                List.of("команды", "комАНды", "кjvFYls", "кjvF Yls", "комА Нды", "комА Нды 2", "кjvF Yls 2");
 
         assertIterableEquals(expected, actual);
     }
@@ -45,48 +45,43 @@ class AnyUtilsTest {
     @Test
     @Disabled
     void removeOldSubjectsDocuments_isCorrect () {
-        List<Subject> oldSubjectData = Arrays.asList(
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd", "1abcde")),
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde")),
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("d").setDocumentNames(mutableSetOf("3abc", "3abcd", "3abcde"))
-        );
-
-        List<Subject> newSubjectData = Arrays.asList(
-                new Subject().setMessagesData(Arrays.asList()) // Нет изменений
-                        .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
-
-                new Subject().setMessagesData(Arrays.asList())  // Удалили элемент
-                        .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd")),
-
-                new Subject().setMessagesData(Arrays.asList()) // Добавили элемент
-                        .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde", "2abcdef")),
-
-                new Subject().setMessagesData(Arrays.asList())  // Удалили и добавили элементы
-                        .setName("d").setDocumentNames(mutableSetOf("3abcd", "3abcde", "3abcdef"))
-        );
+        List<Subject> oldSubjectData = createSubjects1();
+        List<Subject> newSubjectData = createSubjects2();
 
         List<Subject> postSubjectData = Utils.removeOldDocuments(oldSubjectData, newSubjectData);
 
-        assertEquals(Arrays.asList(
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd", "1abcde")),
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde")),
-                new Subject().setMessagesData(Arrays.asList())
-                        .setName("d").setDocumentNames(mutableSetOf("3abc", "3abcd", "3abcde"))
-                ),
-                newSubjectData); // newSubjectData не изменилась
+        assertIterableEquals(createSubjects1(), oldSubjectData); // oldSubjectData не изменилась
+        assertIterableEquals(createSubjects2(), newSubjectData); // newSubjectData не изменилась
 
         assertEquals(2, postSubjectData.size());
         assertEquals(Set.of("2abcdef"), postSubjectData.get(0).getDocumentNames());
         assertEquals(Set.of("3abcdef"), postSubjectData.get(1).getDocumentNames());
+    }
+
+    private List<Subject> createSubjects1() {
+        return List.of(
+                createSubject1().setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
+                createSubject1().setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd", "1abcde")),
+                createSubject1().setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde")),
+                createSubject1().setName("d").setDocumentNames(mutableSetOf("3abc", "3abcd", "3abcde"))
+        );
+    }
+
+    private List<Subject> createSubjects2() {
+        return List.of(
+                createSubject1() // Нет изменений
+                        .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
+                createSubject1()  // Удалили элемент
+                        .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd")),
+                createSubject1() // Добавили элемент
+                        .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde", "2abcdef")),
+                createSubject1()  // Удалили и добавили элементы
+                        .setName("d").setDocumentNames(mutableSetOf("3abcd", "3abcde", "3abcdef"))
+        );
+    }
+
+    private Subject createSubject1() {
+        return new Subject().setId(234634).setLkId("346346").setMessagesData(List.of());
     }
 
     @SafeVarargs

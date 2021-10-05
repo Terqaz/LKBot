@@ -1,12 +1,11 @@
 package com.my.services;
 
 import com.my.Utils;
+import com.my.exceptions.LoginNeedsException;
 import com.my.models.*;
 import com.my.services.lk.LkParser;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import lombok.extern.log4j.Log4j2;
+import org.junit.jupiter.api.*;
 
 import java.util.Date;
 import java.util.List;
@@ -15,6 +14,8 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// Переменные среды: LOGIN, PASSWORD
+@Log4j2
 class LkParserTest {
 
     static LkParser lkParser = new LkParser();
@@ -26,7 +27,16 @@ class LkParserTest {
     static void init () {
         String login = System.getenv("LOGIN");
         String password = System.getenv("PASSWORD");
-        lkParser.login(new AuthenticationData(login, password));
+        AuthenticationData data = new AuthenticationData(login, password);
+        lkParser.login(data);
+        loginTest(data);
+    }
+
+    static void loginTest(AuthenticationData data) {
+        assertDoesNotThrow(() -> lkParser.getGroupName());
+        lkParser.logout();
+        assertThrows(LoginNeedsException.class, () -> lkParser.getGroupName());
+        lkParser.login(data);
     }
 
     @AfterAll
@@ -121,10 +131,11 @@ class LkParserTest {
     }
 
     @Test
-    void getSubjectsFirstTime_thenGetNewSubjects_isCorrect () {
-
+    @Disabled
+    void getSubjectsFirstTime_thenGetNewSubjects_thenCorrect() {
         // Получили первые данные
         final List<Subject> firstSubjects = lkParser.getSubjectsFirstTime(testSemester);
+        log.info("First subjects loaded");
 
         assertTrue(firstSubjects.stream()
                 .anyMatch(subjectData -> !subjectData.getMessagesData().isEmpty()));
@@ -139,6 +150,7 @@ class LkParserTest {
         testGroup.setLastCheckDate(new Date());
 
         final List<Subject> newSubjectsData = lkParser.getNewSubjects(firstSubjects, testGroup);
+        log.info("New subjects loaded");
 
         // Проверяем
         assertTrue(newSubjectsData.stream()
@@ -157,7 +169,6 @@ class LkParserTest {
                         .orElseThrow(NullPointerException::new));
 
         assertEquals(oldSubject1.getDocumentNames(), newSubject1.getDocumentNames());
-
         assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjectsData).isEmpty());
     }
 }

@@ -1,7 +1,7 @@
 package com.my.threads;
 
+import com.my.Bot;
 import com.my.GroupsRepository;
-import com.my.Main;
 import com.my.Utils;
 import com.my.models.Group;
 import com.my.models.GroupUser;
@@ -16,7 +16,10 @@ public class PlannedScheduleSending extends Thread {
 
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
     static final VkBotService vkBot = VkBotService.getInstance();
-    private boolean isActualWeekWhite;
+
+    public PlannedScheduleSending() {
+        start();
+    }
 
     @SneakyThrows
     @Override
@@ -30,12 +33,12 @@ public class PlannedScheduleSending extends Thread {
                 int weekDay = (Utils.mapWeekDayFromCalendar(calendar) + 1) % 7;
 
                 if (weekDay == 0 && hour == 0) {
-                    Main.actualizeWeekType();
+                    Bot.actualizeWeekType();
                     Thread.sleep(3600L * 1000); // 1 час
 
                 } else if (hour == 18) {
                     for (Group group : groupsRepository.findAllWithoutSubjects()) {
-                        final String dayScheduleReport = Main.getDayScheduleReport(weekDay, group);
+                        final String dayScheduleReport = Bot.getDayScheduleReport(weekDay, group);
                         if (!dayScheduleReport.isEmpty())
                             vkBot.sendMessageTo(
                                     group.getUsers().stream()

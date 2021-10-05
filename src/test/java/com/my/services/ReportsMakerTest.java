@@ -1,6 +1,6 @@
 package com.my.services;
 
-import com.my.models.MessageData;
+import com.my.TestUtils;
 import com.my.models.Subject;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -35,25 +35,9 @@ class ReportsMakerTest {
                 "Прошел тест\n\n" +
                 "Следующее глобальное обновление будет 11.09.2021 18:46";
 
-        Date date1 = new SimpleDateFormat("dd.MM.yyyy HH:mm").parse("11.09.2021 18:45");
         Date date2 = new SimpleDateFormat("dd.MM.yyyy HH:mm").parse("11.09.2021 18:46");
 
-        List<Subject> list = List.of(
-                new Subject("1", "Матеша",
-                        Set.of("лекция 1", "лекция 2"),
-                        List.of(
-                                new MessageData("Выкладывайте лабы)))", "Игорев ИИ", date1),
-                                new MessageData("Выложил лр3", "Сергеев СС", date1)))
-                .setId(1),
-                new Subject("2", "Прога",
-                        Set.of("варианты", "рабочая программа"),
-                        List.of(
-                                new MessageData("Где лабы?", "Олегов ОО", date1),
-                                new MessageData("Прошел тест", "Владимиров ВВ", date1)))
-                .setId(2),
-                new Subject("3", "Пустой предмет", new TreeSet<>(List.of()), List.of())
-                        .setId(3)
-        );
+        List<Subject> list = TestUtils.createSubjects();
         assertEquals(report, ReportsMaker.getSubjects(list, date2));
 
         String report2 = "\uD83D\uDD34 Новые документы:\n" +

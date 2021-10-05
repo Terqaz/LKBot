@@ -66,7 +66,6 @@ public class LkParser {
 
     // Загружает все документы и только новые сообщения
     public List<Subject> getNewSubjects (List<Subject> oldSubjects, Group group) {
-        lkClient.keepAuth();
         return addIds(oldSubjects.stream()
                 .map(subjects1 ->
                         getNewSubject(subjects1, group))

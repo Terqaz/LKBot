@@ -25,7 +25,7 @@ public class ReportsMaker {
 
     public static String getSubjects(List<Subject> subjects, @Nullable Date nextCheckDate) {
         if (subjects.isEmpty())
-            return "Нет новой информации по предметам\n" + getNextUpdateDateText(nextCheckDate);
+            return emptySubjectsReport(nextCheckDate);
 
         final var sb = new StringBuilder();
 
@@ -53,6 +53,10 @@ public class ReportsMaker {
             sb.append("\n\n").append(getNextUpdateDateText(nextCheckDate));
 
         return sb.toString();
+    }
+
+    public static String emptySubjectsReport(@Nullable Date nextCheckDate) {
+        return "Нет новой информации по предметам\n" + getNextUpdateDateText(nextCheckDate);
     }
 
     private static String getSubjectMessages(List<MessageData> messages) {

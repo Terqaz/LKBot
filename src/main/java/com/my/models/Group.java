@@ -5,6 +5,9 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -106,5 +109,14 @@ public class Group {
         usersToVerify = usersToVerify.stream()
                 .filter(user1 -> !user1.equals(user))
                 .collect(Collectors.toSet());
+    }
+
+    @BsonIgnore
+    public void setNewSemesterData(@NotEmpty List<Subject> subjects,
+                                   @NotNull Timetable timetable,
+                                   @NotBlank String lkSemesterId) {
+        this.subjects = subjects;
+        this.timetable = timetable;
+        this.lkSemesterId = lkSemesterId;
     }
 }

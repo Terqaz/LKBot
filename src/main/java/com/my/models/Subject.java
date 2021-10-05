@@ -1,22 +1,21 @@
 package com.my.models;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
+import java.io.Serializable;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
+@AllArgsConstructor
 @Accessors (chain = true)
-public class Subject {
+@EqualsAndHashCode
+public class Subject implements Serializable {
     private int id;
     @NonNull
     private String lkId;
@@ -30,20 +29,5 @@ public class Subject {
     @BsonIgnore
     public boolean isNotEmpty () {
         return !(documentNames.isEmpty() && messagesData.isEmpty());
-    }
-
-    @Override
-    @BsonIgnore
-    public boolean equals (Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Subject that = (Subject) o;
-        return name.equals(that.name);
-    }
-
-    @Override
-    @BsonIgnore
-    public int hashCode () {
-        return Objects.hash(name);
     }
 }

@@ -1,6 +1,7 @@
 package com.my;
 
 import com.my.models.Subject;
+import org.apache.commons.lang3.SerializationUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -14,19 +15,20 @@ public final class Utils {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
     }
 
-    // oldSubjectsData и newSubjectsData должны быть отсортированы в порядке возрастания имени
-    public static List<Subject> removeOldDocuments (List<Subject> oldSubjectsData,
-                                                    List<Subject> newSubjectsData) {
+    // oldSubjects и newSubjects должны быть отсортированы в порядке возрастания имени
+    public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
+                                                    List<Subject> newSubjects) {
         Map<String, Set<String>> oldDocumentsMap = new HashMap<>();
-        for (Subject data : oldSubjectsData)
+        for (Subject data : oldSubjects)
             oldDocumentsMap.put(data.getName(), data.getDocumentNames());
 
-        return newSubjectsData.stream()
-                .map(newData -> {
-                        final Set<String> newDocuments = newData.getDocumentNames();
-                        final var oldDocuments = oldDocumentsMap.get(newData.getName());
-                        newDocuments.removeAll(oldDocuments);
-                        return newData;
+        return newSubjects.stream()
+                .map(SerializationUtils::clone)
+                .map(newSubject -> {
+                    final Set<String> newDocuments = newSubject.getDocumentNames();
+                    final var oldDocuments = oldDocumentsMap.get(newSubject.getName());
+                    newDocuments.removeAll(oldDocuments);
+                    return newSubject;
                 })
                 .filter(Subject::isNotEmpty)
                 .collect(Collectors.toList());

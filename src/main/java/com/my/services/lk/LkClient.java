@@ -1,7 +1,7 @@
 package com.my.services.lk;
 
 import com.my.exceptions.LkNotRespondingException;
-import com.my.exceptions.ReloginNeedsException;
+import com.my.exceptions.LoginNeedsException;
 import com.my.models.AuthenticationData;
 import org.apache.http.HttpStatus;
 import org.jsoup.Connection;
@@ -15,9 +15,7 @@ import java.net.SocketTimeoutException;
 
 public class LkClient {
 
-    public static final String LOGGED_IN_BEFORE = "You must be logged in before";
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
-    private static String sessId = null;
     private static String phpSessId = null;
 
     public LkClient() {}
@@ -46,7 +44,7 @@ public class LkClient {
         String sessId = document1.select("input[name=\"sessid\"]")
                 .get(0)
                 .attr("value");
-        updateSessionTokens(sessId, phpSessId);
+        this.phpSessId = phpSessId;
 
         final Document document = post(
                 LkUrlBuilder.buildAuthUrl(login, password, sessId));
@@ -71,15 +69,6 @@ public class LkClient {
         }
     }
 
-    private void updateSessionTokens (String sessId, String phpSessId) {
-        this.sessId = sessId;
-        this.phpSessId = phpSessId;
-    }
-
-    public boolean isNotLoggedIn() {
-        return (sessId == null || phpSessId == null);
-    }
-
     private Connection getOriginConnection () {
         return Jsoup.connect("http://lk.stu.lipetsk.ru/")
                 .userAgent(USER_AGENT)
@@ -88,6 +77,9 @@ public class LkClient {
     }
 
     private Connection getOriginSessionConnection(String url) {
+        if (isNotLoggedIn())
+            throw new LoginNeedsException("Relogin is needed");
+
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
                 .header("Accept", "*/*")
@@ -112,8 +104,6 @@ public class LkClient {
         try {
             return executeSessionRequest(getOriginSessionConnection(url)
                     .method(Connection.Method.GET)).parse();
-        } catch (LkNotRespondingException e) {
-            throw e;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -124,9 +114,6 @@ public class LkClient {
         try {
             return executeSessionRequest(getOriginSessionConnection(url)
                     .method(Connection.Method.POST)).parse();
-        } catch (LkNotRespondingException e) {
-            throw e;
-
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -166,13 +153,13 @@ public class LkClient {
         if (code == HttpStatus.SC_MOVED_TEMPORARILY || code == HttpStatus.SC_UNAUTHORIZED ||
                 code == HttpStatus.SC_FORBIDDEN) {
             discardSession();
-            throw new ReloginNeedsException("Relogin is needed");
+            throw new LoginNeedsException("Relogin is needed");
         }
         return response;
     }
 
     private Response executeRequest(Connection connection) {
-        for (int triesCount = 3; triesCount > 0; triesCount--) {
+        for (int triesCount = 5; triesCount > 0; triesCount--) {
             try {
                 return connection.execute();
             } catch (ConnectException | SocketTimeoutException ignored) {
@@ -185,7 +172,11 @@ public class LkClient {
         throw new LkNotRespondingException();
     }
 
+    public boolean isNotLoggedIn() {
+        return phpSessId == null;
+    }
+
     private void discardSession() {
-        updateSessionTokens(null, null);
+        phpSessId = null;
     }
 }
