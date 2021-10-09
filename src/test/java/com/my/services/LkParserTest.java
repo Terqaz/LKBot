@@ -7,6 +7,8 @@ import com.my.services.lk.LkParser;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.*;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -170,5 +172,14 @@ class LkParserTest {
 
         assertEquals(oldSubject1.getDocumentNames(), newSubject1.getDocumentNames());
         assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjectsData).isEmpty());
+    }
+
+    @Test
+    void loadFile_isCorrect () throws MalformedURLException {
+        final var document = new LkDocument("тест",
+                new URL("http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:103379817"));
+        final var file = lkParser.loadFile(document, "ПИ-19-1");
+        assertTrue(file.exists());
+        //file.delete();
     }
 }

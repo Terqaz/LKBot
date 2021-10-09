@@ -7,6 +7,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -125,10 +126,10 @@ public class LkParser {
     }
 
     private Document getSubjectPage(String subjectLkId, Group group) {
-        String subjectLocalUrl = LkUrlBuilder.buildSubjectLocalUrl(
+        String subjectUrl = LkUrlBuilder.buildSubjectStringUrl(
                 group.getLkSemesterId(), subjectLkId, group.getLkId(), group.getLkContingentId());
 
-        return lkClient.loggedGet(LkUrlBuilder.buildByLocalUrl(subjectLocalUrl));
+        return lkClient.loggedGet(subjectUrl);
     }
 
     private List<MessageData> loadMessagesAfterDate (String semesterId, String subjectId,
@@ -302,5 +303,13 @@ public class LkParser {
         return lkClient.loggedGet(LkUrlBuilder.buildSemesterUrl(semesterId))
                 .select(".wl_content .mtop-15").text()
                 .toLowerCase(Locale.ROOT).contains("белая");
+    }
+
+    public File loadFile(LkDocument document, String groupName) {
+        String fileDir = "\\" + groupName;
+        var file = new File(fileDir + "\\" + document.getName());
+        if (file.exists())
+            return file;
+        else return lkClient.loadFileTo(fileDir, document.getUrl());
     }
 }

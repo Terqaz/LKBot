@@ -4,6 +4,8 @@ import com.my.services.vk.VkBotService;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -19,9 +21,9 @@ class VkBotServiceTest {
     }
 
     @Test
-    void fileUpload () {
+    void fileUpload () throws URISyntaxException {
         vkBot.sendMessageTo(APP_ADMIN_ID,
-                new File("C:\\Users\\Terqaz\\Desktop\\LKBot\\src\\main\\java\\com\\my\\Main.java"),
+                new File(new URI("https://i.stack.imgur.com/C93kI.png")),
                 "Тестовый файл");
     }
 }
