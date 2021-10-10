@@ -305,11 +305,11 @@ public class LkParser {
                 .toLowerCase(Locale.ROOT).contains("белая");
     }
 
-    public File loadFile(LkDocument document, String groupName) {
-        String fileDir = "\\" + groupName;
-        var file = new File(fileDir + "\\" + document.getName());
+    public File loadFile(LkDocument document, String groupName, String subjectName) {
+        String fileDir = ".\\" + groupName + "\\" + subjectName;
+        var file = new File(fileDir + "\\" + document.getFileName());
         if (file.exists())
             return file;
-        else return lkClient.loadFileTo(fileDir, document.getUrl());
+        else return lkClient.loadFileTo(fileDir, LkUrlBuilder.buildDocumentUrl(document));
     }
 }

@@ -1,5 +1,6 @@
 package com.my.services.lk;
 
+import com.my.models.LkDocument;
 import org.apache.http.client.utils.URIBuilder;
 
 import java.net.MalformedURLException;
@@ -109,5 +110,18 @@ public class LkUrlBuilder {
         return build(getLstuOriginUriBuilder()
             .addParameter("auth", "1")
         );
+    }
+
+    public static URL buildDocumentUrl(LkDocument document) {
+        switch (document.getDestination()) {
+            case MATERIALS: // example: http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:109842995
+                return buildUrl(getLstuOriginUriBuilder().setPathSegments("file", "me_teachingmaterials", document.getLkId()));
+
+            case MESSAGE: // example: http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108535269
+                return buildUrl(getLstuOriginUriBuilder().setPathSegments("file", "me_msg_lk", document.getLkId()));
+
+            default:
+                throw new IllegalStateException("Unexpected value: " + document.getDestination());
+        }
     }
 }

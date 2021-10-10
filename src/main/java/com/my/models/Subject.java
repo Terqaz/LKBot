@@ -8,13 +8,11 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Set;
 
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @RequiredArgsConstructor
 @AllArgsConstructor
 @Accessors (chain = true)
-@EqualsAndHashCode
 public class Subject implements Serializable {
     private int id;
     @NonNull
@@ -22,7 +20,7 @@ public class Subject implements Serializable {
     @NonNull
     private String name;
     @NonNull
-    private Set<String> documentNames;
+    private Set<LkDocument> documentNames;
     @NonNull
     private List<MessageData> messagesData;
 

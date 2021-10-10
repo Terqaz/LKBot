@@ -1,10 +1,10 @@
 package com.my.services.lk;
 
+import com.my.ParserUtils;
 import com.my.exceptions.FileLoadingException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.exceptions.LoginNeedsException;
 import com.my.models.AuthenticationData;
-import com.vk.api.sdk.httpclient.HttpTransportClient;
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpStatus;
 import org.jsoup.Connection;
@@ -18,10 +18,11 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.util.zip.GZIPInputStream;
 
 public class LkClient {
 
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0";
     private static String phpSessId = null;
 
     public LkClient() {}
@@ -108,16 +109,16 @@ public class LkClient {
 
     public File loadFileTo(String fileDir, URL inputUrl) {
         try {
-            final var httpTransportClient = new HttpTransportClient();
             HttpURLConnection connection = (HttpURLConnection) inputUrl.openConnection();
             connection.addRequestProperty("User-Agent", USER_AGENT);
-            connection.addRequestProperty("Accept", "*/*");
+            connection.addRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+            connection.addRequestProperty("Accept-Language", "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3");
             connection.addRequestProperty("Accept-Encoding", "gzip, deflate");
             connection.addRequestProperty("Connection", "Keep-alive");
+            connection.addRequestProperty("DNT", "1");
             connection.addRequestProperty("Upgrade-Insecure-Requests", "1");
             connection.addRequestProperty("Cookie", "PHPSESSID=" + phpSessId);
 
-            connection.setReadTimeout(40 * 1000); //40 секунд
             connection.connect();
 
             if (isNotAuthorized(connection.getResponseCode())) {
@@ -128,20 +129,8 @@ public class LkClient {
                 throw new FileLoadingException("Server returned HTTP " + connection.getResponseCode()
                         + " " + connection.getResponseMessage());
 
-            final var contentLength = connection.getContentLength();
-//            final var dir = Paths.get(fileDir);
-//            System.out.println(dir.toAbsolutePath());
-//            Files.createDirectories(dir);
             File newFile = new File(fileDir + "\\" + getFileNameFromConnection(connection));
-//            newFile.createNewFile();
-            FileUtils.copyInputStreamToFile(connection.getInputStream(), newFile);
-            System.out.println("content length:" + contentLength + ";file length: " + newFile.length());
-            System.out.println(newFile.getAbsolutePath());
-//            try (FileOutputStream fileOutputStream = new FileOutputStream(newFile)) {
-//                final var readableByteChannel = Channels.newChannel(connection.getInputStream());
-//                fileOutputStream.getChannel().transferFrom(
-//                        readableByteChannel, 0, Long.MAX_VALUE);
-//            }
+            FileUtils.copyInputStreamToFile(new GZIPInputStream(connection.getInputStream()), newFile);
             connection.disconnect();
             return newFile;
 
@@ -159,7 +148,8 @@ public class LkClient {
         if (contentDisposition == null)
             throw new LoginNeedsException("Relogin is needed");
 
-        final var value = contentDisposition.split("=")[1];
+        var value = contentDisposition.split("=")[1];
+        value = ParserUtils.changeEncodingIso_8859_1_Windows_1251(value);
         return value.substring(1, value.length()-1); // Убрали кавычки
     }
 

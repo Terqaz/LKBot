@@ -1,18 +1,23 @@
 package com.my.services;
 
+import com.my.ParserUtils;
 import com.my.Utils;
 import com.my.exceptions.LoginNeedsException;
 import com.my.models.*;
+import com.my.models.enums.LkDocumentDestination;
 import com.my.services.lk.LkParser;
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.*;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,14 +36,6 @@ class LkParserTest {
         String password = System.getenv("PASSWORD");
         AuthenticationData data = new AuthenticationData(login, password);
         lkParser.login(data);
-        loginTest(data);
-    }
-
-    static void loginTest(AuthenticationData data) {
-        assertDoesNotThrow(() -> lkParser.getGroupName());
-        lkParser.logout();
-        assertThrows(LoginNeedsException.class, () -> lkParser.getGroupName());
-        lkParser.login(data);
     }
 
     @AfterAll
@@ -49,6 +46,18 @@ class LkParserTest {
     @BeforeEach
     void eachInit () {
         testGroup = new Group("Тест");
+    }
+
+    @Test
+    void loginTest() {
+        assertDoesNotThrow(() -> lkParser.getGroupName());
+        lkParser.logout();
+        assertThrows(LoginNeedsException.class, () -> lkParser.getGroupName());
+
+        String login = System.getenv("LOGIN");
+        String password = System.getenv("PASSWORD");
+        lkParser.login(new AuthenticationData(login, password));
+        assertDoesNotThrow(() -> lkParser.getGroupName());
     }
 
     @Test
@@ -133,7 +142,7 @@ class LkParserTest {
     }
 
     @Test
-    @Disabled
+    @Disabled ("Пройден")
     void getSubjectsFirstTime_thenGetNewSubjects_thenCorrect() {
         // Получили первые данные
         final List<Subject> firstSubjects = lkParser.getSubjectsFirstTime(testSemester);
@@ -175,11 +184,49 @@ class LkParserTest {
     }
 
     @Test
-    void loadFile_isCorrect () throws MalformedURLException {
-        final var document = new LkDocument("тест",
-                new URL("http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:103379817"));
-        final var file = lkParser.loadFile(document, "ПИ-19-1");
-        assertTrue(file.exists());
-        //file.delete();
+    @Disabled ("Пройден")
+    void changeEncodingIso_8859_1_Utf_8_isCorrect() {
+        final var strings1 = List.of("Èíôîðìàöèîííîå ïðàâî.docx", "Çàçåìëåíèå_2590.doc",
+                "fffffËåêöèÿ 01.04 Ïðåäïðèÿòèå,ff ïðîèçâîäñòâî, èçäåðæêè.docx").stream()
+                .map(ParserUtils::changeEncodingIso_8859_1_Windows_1251)
+                .collect(Collectors.toList());
+
+        final var strings2 = List.of("Информационное право.docx", "Заземление_2590.doc",
+                "fffffЛекция 01.04 Предприятие,ff производство, издержки.docx");
+
+        assertIterableEquals(strings2, strings1);
+    }
+
+    @Test
+    @Disabled ("Пройден")
+    void loadFile_isCorrect () throws IOException {
+
+        final var lkDocuments = List.of(
+                // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:110038482
+                new LkDocument("тест1", "5:110038482", LkDocumentDestination.MATERIALS),
+
+                // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:111571856
+                new LkDocument("тест2", "5:111571856", LkDocumentDestination.MATERIALS),
+
+                // http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108785375
+                new LkDocument("тест3", "5:108785375", LkDocumentDestination.MESSAGE));
+
+        String groupName = "ПИ-19-1";
+
+        final var files = lkDocuments.stream()
+                .map(lkDocument -> lkParser.loadFile(lkDocument, groupName, "Предмет"))
+                .collect(Collectors.toList());
+
+        assertTrue(files.stream().allMatch(File::exists));
+
+        assertEquals(18127, files.get(0).length());
+        assertEquals("Информационное право.docx", files.get(0).getName());
+        assertEquals(4327936, files.get(1).length());
+        assertEquals("Заземление_2590.doc", files.get(1).getName());
+        assertEquals(56239, files.get(2).length());
+        assertEquals("Лекция 01.04 Предприятие, производство, издержки.docx", files.get(2).getName());
+
+        FileUtils.deleteDirectory(Path.of(groupName).toFile());
+        assertFalse(Path.of(groupName).toFile().exists());
     }
 }

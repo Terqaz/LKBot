@@ -86,4 +86,9 @@ public class ReportsMaker {
 
     }
 
+    public static String getSubjectDocumentNames(Subject subject) {
+        return "Документы предмета " + subject.getName() + "\n" +
+                subject.getDocumentNames().stream()
+                        .map(document)
+    }
 }

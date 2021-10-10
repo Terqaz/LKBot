@@ -160,7 +160,7 @@ public class Bot {
 
         final var groupNameMatcher =
                 groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
-        if (groupNameMatcher.find()) { // Я из ПИ-19-1 и тд.
+        if (groupNameMatcher.find()) { // "Я из ПИ-19-1" и тд.
             newUserGroupCheck(userId, messageText, groupNameMatcher);
             return;
 
@@ -242,6 +242,15 @@ public class Bot {
             return;
         }
 
+        if (messageText.startsWith("документы ")) {
+            final var subjectId = Integer.parseInt(messageText.substring(10));
+            group.getSubjectById(subjectId)
+                    .ifPresentOrElse(
+                            subject -> vkBot.sendMessageTo(userId, ReportsMaker.getSubjectDocumentNames(subject)),
+
+                            () -> vkBot.sendMessageTo(userId, "Неправильный номер документа"));
+        }
+
         if (messageText.startsWith("изменить интервал на ")) {
             if (loggedUser.is(userId)) {
                 final var minutes = Long.parseLong(messageText.substring(21));
@@ -265,14 +274,13 @@ public class Bot {
                 final String[] strings = messageText.split(" ");
                 final var startHour = Integer.parseInt(strings[3]);
                 final var endHour = Integer.parseInt(strings[5]);
-                if (!(0 <= startHour && startHour <= 23 && 0 <= endHour && endHour <= 23)) {
-                    vkBot.sendMessageTo(userId, "Нельзя установить такое время тихого режима");
-                } else {
+                if (0 <= startHour && startHour <= 23 && 0 <= endHour && endHour <= 23) {
                     groupsRepository.updateSilentMode(groupName, startHour, endHour);
                     group.setSilentModeStart(startHour).setSilentModeEnd(endHour);
-
                     vkBot.sendMessageTo(userId, "Время тихого режима изменено");
-                }
+
+                } else
+                    vkBot.sendMessageTo(userId, "Нельзя установить такое время тихого режима");
             } else userInsufficientPermissionsMessage(userId);
             return;
         }

@@ -62,17 +62,17 @@ public class Group {
     }
 
     @BsonIgnore
-    public void setLkIds (String semesterId, String groupId, String unknownId) {
-        lkSemesterId = semesterId;
-        lkId = groupId;
-        lkContingentId = unknownId;
-    }
-
-    @BsonIgnore
     public List<Integer> getUserIds () {
         return users.stream()
                 .map(GroupUser::getId)
                 .collect(Collectors.toList());
+    }
+
+    @BsonIgnore
+    public Optional<Subject> getSubjectById(int id) {
+        return subjects.stream()
+                .filter(subject -> subject.getId() == id)
+                .findFirst();
     }
 
     @BsonIgnore
@@ -82,6 +82,13 @@ public class Group {
                 .map(GroupUser::isEverydayScheduleEnabled)
                 .findFirst().orElseThrow(() -> new IllegalArgumentException(
                         "Неизвестный id пользователя: "+userId+" в группе: "+name));
+    }
+
+    @BsonIgnore
+    public void setLkIds (String semesterId, String groupId, String unknownId) {
+        lkSemesterId = semesterId;
+        lkId = groupId;
+        lkContingentId = unknownId;
     }
 
     @BsonIgnore
