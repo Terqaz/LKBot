@@ -6,7 +6,7 @@ import com.my.exceptions.LkNotRespondingException;
 import com.my.exceptions.LoginNeedsException;
 import com.my.models.*;
 import com.my.services.CipherService;
-import com.my.services.ReportsMaker;
+import com.my.services.Reports;
 import com.my.services.lk.LkParser;
 import com.my.services.text.KeyboardLayoutConverter;
 import com.my.services.vk.KeyboardService;
@@ -35,10 +35,11 @@ public class Bot {
     @Getter
     static final Map<String, Group> groupByGroupName = new HashMap<>();
 
-    private static final Pattern groupNamePatternOnlyUpperCase =
+    private static final Pattern groupNamePattern =
             Pattern.compile("((Т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,4}-)(П-)?\\d{2}(-\\d)?");
 
-    static final int APP_ADMIN_ID = 173315241;
+    public static final int APP_ADMIN_ID1 = 173315241;
+    public static final int APP_ADMIN_ID2 = 272910732;
     public static final String APPLICATION_STOP_TEXT = "I WANT TO STOP THE APPLICATION";
 
     @Getter @Setter
@@ -66,6 +67,10 @@ public class Bot {
 
     public Bot () {}
 
+    public static void manualChangeWeekType() {
+        isActualWeekWhite = !isActualWeekWhite;
+    }
+
     public void startProcessing() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
         cipherService = CipherService.getInstance();
         actualSemester = Utils.getSemesterName();
@@ -76,7 +81,7 @@ public class Bot {
         plannedSubjectsUpdate = new PlannedSubjectsUpdate();
         plannedScheduleSending = new PlannedScheduleSending();
         vkBot.setOnline(true);
-        vkBot.sendMessageTo(APP_ADMIN_ID,
+        vkBot.sendMessageTo(APP_ADMIN_ID1,
                 "APP STARTED.\nTO STOP TYPE: "+ APPLICATION_STOP_TEXT);
 
         while (true)
@@ -90,7 +95,7 @@ public class Bot {
         vkBot.setOnline(false);
         plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
-        vkBot.sendMessageTo(APP_ADMIN_ID, "WARNING: APP STOPPED");
+        vkBot.sendMessageTo(APP_ADMIN_ID1, "WARNING: APP STOPPED");
     }
 
     private static void fillCaches() {
@@ -133,20 +138,24 @@ public class Bot {
 
             } catch (LkNotRespondingException e) {
                 vkBot.sendMessageTo(userId, "Кажется ЛК сейчас не работает, попробуй это позже");
+
             } catch (Exception e) {
-                vkBot.sendMessageTo(userId, "Я не понял тебя или ошибся сам.");
+                vkBot.sendMessageTo(userId, "Ой, я сломался Т_Т");
+                vkBot.sendMessageTo(List.of(APP_ADMIN_ID1, APP_ADMIN_ID2),
+                        "Я сломался Т_Т. Почини меня и не ругай, хозяин :(\n" + e.getStackTrace());
                 e.printStackTrace();
             }
         });
     }
 
     private static Message stopAppOnSpecialMessage(Message message) {
-        if (message.getFromId().equals(APP_ADMIN_ID) &&
+        if (message.getFromId().equals(APP_ADMIN_ID1) &&
                 message.getText().equals(APPLICATION_STOP_TEXT))
             throw new ApplicationStopNeedsException();
         else return message;
     }
 
+    // TODO разделить на сообщения участника и лидера
     private static void replyToMessage(Integer userId, String messageText) {
         // TODO если добавить описание ошибок и пожелания, то изменить условие
         if (messageText.length() > 100) {
@@ -158,8 +167,7 @@ public class Bot {
         messageText = KeyboardLayoutConverter.translateFromEnglishLayoutIfNeeds(messageText);
 //        SpecialWordsFinder.findSpecialWords(userId, messageText);
 
-        final var groupNameMatcher =
-                groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
+        final Matcher groupNameMatcher = groupNamePattern.matcher(messageText.toUpperCase());
         if (groupNameMatcher.find()) { // "Я из ПИ-19-1" и тд.
             newUserGroupCheck(userId, messageText, groupNameMatcher);
             return;
@@ -215,7 +223,7 @@ public class Bot {
             default: break;
         }
 
-        if (optionalGroup.isEmpty()) {
+        if (optionalGroup.isEmpty()) { // TODO поменять
             vkBot.sendMessageTo(userId, "Сначала нужно зарегистрироваться от имени твоей группы");
             return;
         }
@@ -246,9 +254,19 @@ public class Bot {
             final var subjectId = Integer.parseInt(messageText.substring(10));
             group.getSubjectById(subjectId)
                     .ifPresentOrElse(
-                            subject -> vkBot.sendMessageTo(userId, ReportsMaker.getSubjectDocumentNames(subject)),
-
+                            subject -> vkBot.sendMessageTo(userId, Reports.getSubjectDocuments(subject)),
                             () -> vkBot.sendMessageTo(userId, "Неправильный номер документа"));
+
+        } else if (messageText.startsWith("документ ")) {
+            final var strings = messageText.split(" ");
+            final var documentId = Integer.parseInt(strings[1]);
+            final var subjectId = Integer.parseInt(strings[3]);
+            group.getSubjectById(subjectId).ifPresentOrElse(
+                    subject -> {
+                        LkDocument document = subject.getDocumentById(documentId);
+                        vkBot.sendMessageTo(userId, Reports.getSubjectDocuments(subject));
+                    },
+                    () -> vkBot.sendMessageTo(userId, "Неправильный номер документа"));
         }
 
         if (messageText.startsWith("изменить интервал на ")) {
@@ -287,7 +305,7 @@ public class Bot {
 
         switch (messageText) {
             case "предметы":
-                vkBot.sendMessageTo(userId, ReportsMaker.getSubjectsNames(group.getSubjects()));
+                vkBot.sendMessageTo(userId, Reports.getSubjectsNames(group.getSubjects()));
                 break;
 
             case "команды":
@@ -438,7 +456,7 @@ public class Bot {
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
         vkBot.sendMessageTo(userId,
                 "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
-                        ReportsMaker.getSubjectsNames(group.getSubjects()));
+                        Reports.getSubjectsNames(group.getSubjects()));
 
         group.getUsers().add(new GroupUser(userId));
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),
@@ -495,7 +513,7 @@ public class Bot {
     }
 
     public static String getDayScheduleReport(int weekDay, Group group) {
-        return ReportsMaker.getDaySchedule(isActualWeekWhite ?
+        return Reports.getDaySchedule(isActualWeekWhite ?
                         group.getTimetable().getWhiteWeekDaySubjects().get(weekDay) :
                         group.getTimetable().getGreenWeekDaySubjects().get(weekDay),
                 isActualWeekWhite);
@@ -515,7 +533,7 @@ public class Bot {
     }
 
     private static void nextUpdateDateMessage (Collection<Integer> userIds, Date nextCheckDate) {
-        vkBot.sendMessageTo(userIds, ReportsMaker.getNextUpdateDateText(nextCheckDate));
+        vkBot.sendMessageTo(userIds, Reports.getNextUpdateDateText(nextCheckDate));
     }
 
     private static void userInsufficientPermissionsMessage (Integer userId) {
@@ -536,12 +554,12 @@ public class Bot {
         Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
 
         newSubject.setId(subjectIndex);
-        newSubject.getDocumentNames()
-                .removeAll(oldSubject.getDocumentNames());
+        newSubject.getMaterialsDocuments()
+                .removeAll(oldSubject.getMaterialsDocuments());
 
         if (newSubject.isNotEmpty()) {
             vkBot.sendLongMessageTo(userId,
-                    ReportsMaker.getSubjects(List.of(newSubject), null));
+                    Reports.getSubjects(List.of(newSubject), null));
         } else {
             vkBot.sendMessageTo(userId,
                     "Нет новой информации по предмету " + newSubject.getName());
@@ -670,7 +688,7 @@ public class Bot {
 
         newUserSubjectsListMessage(userId, newGroup);
         vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
-                ReportsMaker.getSubjects(newSubjects, newGroup.getNextCheckDate()));
+                Reports.getSubjects(newSubjects, newGroup.getNextCheckDate()));
 
         newGroup.setTimetable(lkParser.parseTimetable(newGroup.getLkSemesterId(), newGroup.getLkId()));
 
@@ -678,18 +696,18 @@ public class Bot {
         groupByGroupName.put(groupName, newGroup);
     }
 
-    public static void actualizeWeekType() throws AuthenticationException {
+    public static void actualizeWeekType() {
         Optional.ofNullable(groupByGroupName.get("ПИ-19-1"))
                 .ifPresentOrElse(group -> {
                     final LkParser lkParser = new LkParser();
                     if (lkParser.login(cipherService.decrypt(group.getLoggedUser().getAuthData())))
                         isActualWeekWhite = lkParser.parseWeekType(group.getLkSemesterId());
                     else {
-                        vkBot.sendMessageTo(APP_ADMIN_ID, "Срочно скажи мне свой новый пароль.");
+                        vkBot.sendMessageTo(APP_ADMIN_ID1, "Срочно скажи мне свой новый пароль.");
                         throw new AuthenticationException("Не удалось зайти в группу для актуализации типа недели.");
                     }
 
-                }, () -> vkBot.sendMessageTo(APP_ADMIN_ID,
+                }, () -> vkBot.sendMessageTo(APP_ADMIN_ID1,
                         "Не удалось загрузить твою группу. Войди и перезапусти бота."));
     }
 }

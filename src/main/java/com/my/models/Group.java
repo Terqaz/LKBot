@@ -69,6 +69,14 @@ public class Group {
     }
 
     @BsonIgnore
+    public List<Integer> getSchedulingEnabledUsers () {
+        return getUsers().stream()
+                .filter(GroupUser::isEverydayScheduleEnabled)
+                .map(GroupUser::getId)
+                .collect(Collectors.toList());
+    }
+
+    @BsonIgnore
     public Optional<Subject> getSubjectById(int id) {
         return subjects.stream()
                 .filter(subject -> subject.getId() == id)

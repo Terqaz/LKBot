@@ -6,12 +6,9 @@ import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.exceptions.LoginNeedsException;
-import com.my.models.Group;
-import com.my.models.LoggedUser;
-import com.my.models.Subject;
-import com.my.models.Timetable;
+import com.my.models.*;
 import com.my.services.CipherService;
-import com.my.services.ReportsMaker;
+import com.my.services.Reports;
 import com.my.services.lk.LkParser;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
@@ -74,7 +71,7 @@ public class PlannedSubjectsUpdate extends Thread {
                     group.setLastCheckDate(new Date());
                     vkBot.sendMessageTo(loggedUser.getId(),
                             "Обновление не удалось, так как ЛК долго отвечал на запросы. " +
-                                    ReportsMaker.getNextUpdateDateText(group.getNextCheckDate()));
+                                    Reports.getNextUpdateDateText(group.getNextCheckDate()));
                 }
             }
         });
@@ -100,6 +97,12 @@ public class PlannedSubjectsUpdate extends Thread {
                 calendar.get(Calendar.HOUR_OF_DAY)) || !checkDate.after(group.getNextCheckDate());
     }
 
+    // 1) Получаем все документы из материалов и только новые сообщения и документы из сообщений
+    // 2) Если в документы из материалов в каком-то новом предмете оказались пусты, то копируем
+    // из старых документов предмета
+    // 3) Копируем айдишники из старых документов предметов в новые документы, которые совпадают по имени,
+    // а остальным документам предмета присваиваем айдишники, продолжая по счетчику,
+    // сначала в документы сообщений, а потом в документы материалов
     private String sameSemesterUpdate(Group group) {
         final List<Subject> oldSubjects = group.getSubjects();
         List<Subject> newSubjects = group.getLkParser().getNewSubjects(oldSubjects, group);
@@ -107,20 +110,28 @@ public class PlannedSubjectsUpdate extends Thread {
         Map<Integer, Subject> newSubjectsById = newSubjects.stream()
                 .collect(Collectors.toMap(Subject::getId, subject -> subject));
 
-        newSubjects = oldSubjects.stream()
-            .map(oldSubject -> { // На всякий
-                Subject newSubject = newSubjectsById.get(oldSubject.getId());
-                if (!oldSubject.getDocumentNames().isEmpty() && newSubject.getDocumentNames().isEmpty())
-                        newSubject.setDocumentNames(oldSubject.getDocumentNames());
-                return newSubject;
-            }).collect(Collectors.toList());
+        newSubjects = oldSubjects.stream() // На всякий
+                .map(oldSubject -> {
+                    Subject newSubject = newSubjectsById.get(oldSubject.getId());
+
+                    final Set<LkDocument> oldMaterialsDocuments = oldSubject.getMaterialsDocuments();
+                    if (!oldMaterialsDocuments.isEmpty() && newSubject.getMaterialsDocuments().isEmpty())
+                            newSubject.setMaterialsDocuments(oldMaterialsDocuments);
+
+                    newSubject.getMessagesDocuments().addAll(oldSubject.getMessagesDocuments());
+                    Utils.copyIdsFromOldMaterialsDocuments(
+                            newSubject.getMaterialsDocuments(), oldSubject.getMaterialsDocuments());
+                    Utils.setIdsWhereNull(newSubject);
+                    return newSubject;
+
+                }).collect(Collectors.toList());
 
         final var checkDate = new Date();
         groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);
         group.setLastCheckDate(checkDate);
         group.setSubjects(newSubjects);
 
-        return ReportsMaker.getSubjects (
+        return Reports.getSubjects (
                 Utils.removeOldDocuments(oldSubjects, newSubjects),
                 group.getNextCheckDate());
     }
@@ -136,7 +147,7 @@ public class PlannedSubjectsUpdate extends Thread {
 
         final var checkDate = new Date();
         group.setLastCheckDate(checkDate);
-        final String report = ReportsMaker.getSubjects(newSubjects, group.getNextCheckDate());
+        final String report = Reports.getSubjects(newSubjects, group.getNextCheckDate());
 
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(newSemester);
         final var newLkSemesterId = lkIds.get(LkParser.SEMESTER_ID);

@@ -1,6 +1,5 @@
 package com.my.models;
 
-import com.my.models.enums.LkDocumentDestination;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
@@ -14,12 +13,10 @@ import java.io.Serializable;
 @RequiredArgsConstructor
 @Accessors(chain = true)
 public class LkDocument implements Serializable {
-    private int id;
+    private Integer id;
     @NonNull
     private String name;
     private String fileName;
     @NonNull
     private String lkId;
-    @NonNull
-    private LkDocumentDestination destination;
 }

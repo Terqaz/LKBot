@@ -47,7 +47,7 @@ class PlannedSubjectsUpdateTest {
     void sameSemesterUpdate_emptySubjectsFromLk_thenWithoutNewInfoReport()
             throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
 
-        Group group = new Group().setSubjects(TestUtils.createSubjects());
+        Group group = new Group().setSubjects(TestUtils.createSubjects1());
 
         LkParser lkParser = Mockito.spy(LkParser.class);
         group.setLkParser(lkParser);

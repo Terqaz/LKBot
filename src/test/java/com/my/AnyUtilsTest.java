@@ -1,5 +1,6 @@
 package com.my;
 
+import com.my.models.LkDocument;
 import com.my.models.Subject;
 import com.my.services.text.KeyboardLayoutConverter;
 import org.junit.jupiter.api.Disabled;
@@ -7,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -54,29 +55,52 @@ class AnyUtilsTest {
         assertIterableEquals(createSubjects2(), newSubjectData); // newSubjectData не изменилась
 
         assertEquals(2, postSubjectData.size());
-        assertEquals(Set.of("2abcdef"), postSubjectData.get(0).getDocumentNames());
-        assertEquals(Set.of("3abcdef"), postSubjectData.get(1).getDocumentNames());
+        assertEquals(TestUtils.createDocuments("2abcdef"), postSubjectData.get(0).getMaterialsDocuments());
+        assertEquals(TestUtils.createDocuments("3abcdef"), postSubjectData.get(1).getMaterialsDocuments());
+    }
+
+    @Test
+    void setDocumentsIdsWhereNull_isCorrect () {
+        final List<LkDocument> documents = TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f")
+                .stream().toList();
+
+        documents.get(2).setId(2);
+        documents.get(4).setId(1);
+        documents.get(5).setId(3);
+
+        assertEquals(7, Utils.setDocumentsIdsWhereNull(new HashSet<>(documents), 4));
+        assertIterableEquals(documents.stream()
+                .sorted(Comparator.comparing(LkDocument::getName))
+                .map(LkDocument::getId)
+                .collect(Collectors.toList()), List.of(4, 5, 2, 6, 1, 3, 7));
+    }
+
+    @Test
+    void copyIdsFromOldMaterialsDocuments_isCorrect() {
+        final Set<LkDocument> lkDocuments = Set.of(new LkDocument().setName("1a"));
+        Utils.setDocumentsIdsWhereNull(lkDocuments, 1);
+        createSubject1().setMaterialsDocuments(lkDocuments);
     }
 
     private List<Subject> createSubjects1() {
         return List.of(
-                createSubject1().setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
-                createSubject1().setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd", "1abcde")),
-                createSubject1().setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde")),
-                createSubject1().setName("d").setDocumentNames(mutableSetOf("3abc", "3abcd", "3abcde"))
+                createSubject1().setName("a").setMaterialsDocuments(TestUtils.createDocuments("0abc", "0abcd", "0abcde")),
+                createSubject1().setName("b").setMaterialsDocuments(TestUtils.createDocuments("1abc", "1abcd", "1abcde")),
+                createSubject1().setName("c").setMaterialsDocuments(TestUtils.createDocuments("2abc", "2abcd", "2abcde")),
+                createSubject1().setName("d").setMaterialsDocuments(TestUtils.createDocuments("3abc", "3abcd", "3abcde"))
         );
     }
 
     private List<Subject> createSubjects2() {
         return List.of(
                 createSubject1() // Нет изменений
-                        .setName("a").setDocumentNames(mutableSetOf("0abc", "0abcd", "0abcde")),
+                        .setName("a").setMaterialsDocuments(TestUtils.createDocuments("0abc", "0abcd", "0abcde")),
                 createSubject1()  // Удалили элемент
-                        .setName("b").setDocumentNames(mutableSetOf("1abc", "1abcd")),
+                        .setName("b").setMaterialsDocuments(TestUtils.createDocuments("1abc", "1abcd")),
                 createSubject1() // Добавили элемент
-                        .setName("c").setDocumentNames(mutableSetOf("2abc", "2abcd", "2abcde", "2abcdef")),
+                        .setName("c").setMaterialsDocuments(TestUtils.createDocuments("2abc", "2abcd", "2abcde", "2abcdef")),
                 createSubject1()  // Удалили и добавили элементы
-                        .setName("d").setDocumentNames(mutableSetOf("3abcd", "3abcde", "3abcdef"))
+                        .setName("d").setMaterialsDocuments(TestUtils.createDocuments("3abcd", "3abcde", "3abcdef"))
         );
     }
 
@@ -84,9 +108,8 @@ class AnyUtilsTest {
         return new Subject().setId(234634).setLkId("346346").setMessagesData(List.of());
     }
 
-    @SafeVarargs
-    private <T> Set<T> mutableSetOf(T... elements) {
-        return new HashSet<>(Arrays.asList(elements));
+    private LkDocument createDocument1(String name, Integer id) {
+        return new LkDocument(name, "lkid").setId(id);
     }
 
     @Test

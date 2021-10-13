@@ -4,7 +4,6 @@ import com.my.ParserUtils;
 import com.my.Utils;
 import com.my.exceptions.LoginNeedsException;
 import com.my.models.*;
-import com.my.models.enums.LkDocumentDestination;
 import com.my.services.lk.LkParser;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
@@ -114,31 +113,42 @@ class LkParserTest {
     void getSubjectsFirstTime_isCorrect () {
         final List<Subject> subjectsData = lkParser.getSubjectsFirstTime(testSemester);
 
-        assertEquals(subjectsData.stream()
-                .filter(subjectData -> subjectData.getName().equals("Правоведение"))
-                .findFirst()
-                .map(Subject::getDocumentNames)
-                .orElse(null),
-            Set.of("Рабочая программа", "ИДЗ", "Гражданское право (конспект)", "Уголовное право (конспект)", "Информационное право")
-        );
+        final Subject subject1 = subjectsData.stream()
+                .filter(subjectData -> subjectData.getName().equals("1:1751010"))
+                .findFirst().orElse(null);
+        assertNotNull(subject1);
 
-        assertTrue(subjectsData.stream()
+        assertEquals("Правоведение", subject1.getName());
+        assertEquals(Set.of("Рабочая программа", "ИДЗ", "Гражданское право (конспект)",
+                "Уголовное право (конспект)", "Информационное право"),
+                subject1.getMaterialsDocuments().stream()
+                        .map(LkDocument::getName)
+                        .collect(Collectors.toSet()));
+
+
+        final Subject subject2 = subjectsData.stream()
                 .filter(subjectData -> subjectData.getLkId().equals("1:9116307"))
-                .findFirst()
-                .map(subjectData ->
-                        subjectData.getName().equals("Основы электроники и схемотехники") &&
-                        subjectData.getDocumentNames().contains("Рабочая программа") &&
-                        subjectData.getMessagesData().get(0).getSender().equals("Черемисин ЕВ"))
-                .orElse(false));
+                .findFirst().orElse(null);
+        assertNotNull(subject2);
 
-        assertTrue(subjectsData.stream()
+        assertEquals("Основы электроники и схемотехники", subject1.getName());
+        assertEquals("Черемисин ЕВ", subject2.getMessagesData().get(0).getSender());
+
+        final Subject subject3 = subjectsData.stream()
                 .filter(subjectData -> subjectData.getLkId().equals("1:1750023"))
-                .findFirst()
-                .map(subjectData ->
-                        subjectData.getName().equals("Экономика") &&
-                                subjectData.getDocumentNames().contains("Рабочая программа") &&
-                                subjectData.getMessagesData().get(0).getSender().equals("Круглов ИВ"))
-                .orElse(false));
+                .findFirst().get();
+
+        assertNotNull(subject3);
+        assertEquals("Экономика", subject3.getName());
+        assertNull(subject3.getMessagesData().get(4).getDocument());
+        final LkDocument lkDocument1 = new LkDocument("Лекция 01.04 Предприятие, производство, издержки", "5:108785375");
+        assertEquals(lkDocument1,
+                subject3.getMessagesData().get(5).getDocument());
+
+        assertIterableEquals(Set.of(lkDocument1,
+                new LkDocument("Лекция 18.03 Равновесие потребителя", "5:108535269"),
+                new LkDocument("Тема 3. Рынок и его механизмы", "5:108490770")),
+                subject3.getMessagesDocuments());
     }
 
     @Test
@@ -179,7 +189,7 @@ class LkParserTest {
                         .findFirst()
                         .orElseThrow(NullPointerException::new));
 
-        assertEquals(oldSubject1.getDocumentNames(), newSubject1.getDocumentNames());
+        assertEquals(oldSubject1.getMaterialsDocuments(), newSubject1.getMaterialsDocuments());
         assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjectsData).isEmpty());
     }
 
@@ -198,24 +208,21 @@ class LkParserTest {
     }
 
     @Test
-    @Disabled ("Пройден")
+    // TODO  @Disabled ("Пройден")
     void loadFile_isCorrect () throws IOException {
-
-        final var lkDocuments = List.of(
-                // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:110038482
-                new LkDocument("тест1", "5:110038482", LkDocumentDestination.MATERIALS),
-
-                // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:111571856
-                new LkDocument("тест2", "5:111571856", LkDocumentDestination.MATERIALS),
-
-                // http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108785375
-                new LkDocument("тест3", "5:108785375", LkDocumentDestination.MESSAGE));
-
         String groupName = "ПИ-19-1";
+        final String subjectName = "Предмет";
 
-        final var files = lkDocuments.stream()
-                .map(lkDocument -> lkParser.loadFile(lkDocument, groupName, "Предмет"))
-                .collect(Collectors.toList());
+        final List<File> files = List.of(
+                lkParser.loadMaterialsFile( // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:110038482
+                        new LkDocument("тест1", "5:110038482"), groupName, subjectName),
+
+                lkParser.loadMaterialsFile( // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:111571856
+                        new LkDocument("тест2", "5:111571856"), groupName, subjectName),
+
+                lkParser.loadMessageFile( // http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108785375
+                        new LkDocument("тест3", "5:108785375"), groupName, subjectName)
+        );
 
         assertTrue(files.stream().allMatch(File::exists));
 
@@ -228,5 +235,11 @@ class LkParserTest {
 
         FileUtils.deleteDirectory(Path.of(groupName).toFile());
         assertFalse(Path.of(groupName).toFile().exists());
+    }
+
+    @Test
+    void weekType () {
+        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
+        assertTrue(lkParser.parseWeekType(lkIds.get(LkParser.SEMESTER_ID)));
     }
 }

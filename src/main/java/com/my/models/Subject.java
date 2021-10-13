@@ -20,12 +20,21 @@ public class Subject implements Serializable {
     @NonNull
     private String name;
     @NonNull
-    private Set<LkDocument> documentNames;
+    Set<LkDocument> materialsDocuments;
     @NonNull
-    private List<MessageData> messagesData;
+    Set<LkDocument> messagesDocuments;
+
+    // Используется только при передаче новых сообщений из ЛК
+    @NonNull
+    @BsonIgnore
+    private List<LkMessage> messagesData;
 
     @BsonIgnore
     public boolean isNotEmpty () {
-        return !(documentNames.isEmpty() && messagesData.isEmpty());
+        return !(materialsDocuments.isEmpty() && messagesDocuments.isEmpty() && messagesData.isEmpty());
+    }
+
+    public LkDocument getDocumentById(int documentId) {
+        return null;
     }
 }

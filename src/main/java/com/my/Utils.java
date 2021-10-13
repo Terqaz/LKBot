@@ -1,5 +1,6 @@
 package com.my;
 
+import com.my.models.LkDocument;
 import com.my.models.Subject;
 import org.apache.commons.lang3.SerializationUtils;
 
@@ -15,23 +16,57 @@ public final class Utils {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
     }
 
-    // oldSubjects и newSubjects должны быть отсортированы в порядке возрастания имени
     public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
                                                     List<Subject> newSubjects) {
-        Map<String, Set<String>> oldDocumentsMap = new HashMap<>();
+        Map<String, Set<LkDocument>> oldDocumentsMap = new HashMap<>();
         for (Subject data : oldSubjects)
-            oldDocumentsMap.put(data.getName(), data.getDocumentNames());
+            oldDocumentsMap.put(data.getName(), data.getMaterialsDocuments());
 
         return newSubjects.stream()
                 .map(SerializationUtils::clone)
                 .map(newSubject -> {
-                    final Set<String> newDocuments = newSubject.getDocumentNames();
-                    final var oldDocuments = oldDocumentsMap.get(newSubject.getName());
-                    newDocuments.removeAll(oldDocuments);
+                    final Set<LkDocument> newMaterialDocuments = newSubject.getMaterialsDocuments();
+                    final var oldMaterialDocuments = oldDocumentsMap.get(newSubject.getName());
+                    newMaterialDocuments.removeAll(oldMaterialDocuments);
                     return newSubject;
                 })
                 .filter(Subject::isNotEmpty)
                 .collect(Collectors.toList());
+    }
+
+    // Changes newDocuments
+    public static void copyIdsFromOldMaterialsDocuments(Set<LkDocument> newDocuments, Set<LkDocument> oldDocuments) {
+        Map<String, Integer> oldDocumentByName = oldDocuments.stream()
+                .collect(Collectors.toMap(LkDocument::getName, LkDocument::getId));
+
+        newDocuments.forEach(newDocument -> {
+            final Integer oldDocumentId = oldDocumentByName.get(newDocument.getName());
+            newDocument.setId(oldDocumentId);
+        });
+    }
+
+    // Changes newSubject
+    public static void setIdsWhereNull(Subject newSubject) {
+        Integer nextId = Math.max(getMaxId(newSubject.getMaterialsDocuments()),
+                getMaxId(newSubject.getMessagesDocuments())) + 1;
+        nextId = setDocumentsIdsWhereNull(newSubject.getMessagesDocuments(), nextId);
+        setDocumentsIdsWhereNull(newSubject.getMaterialsDocuments(), nextId);
+    }
+
+    public static Integer setDocumentsIdsWhereNull(Set<LkDocument> lkDocuments, Integer nextId) {
+        final List<LkDocument> nullIdDocuments = lkDocuments.stream()
+                .filter(lkDocument -> lkDocument.getId() == null)
+                .sorted(Comparator.comparing(LkDocument::getName))
+                .collect(Collectors.toList());
+        for (LkDocument document: nullIdDocuments) {
+            document.setId(nextId++);
+        }
+        return nextId;
+    }
+
+    private static Integer getMaxId(Collection<LkDocument> lkDocuments) {
+        return lkDocuments.stream().map(LkDocument::getId)
+                .max(Comparator.comparingInt(Integer::intValue)).orElse(1);
     }
 
     public static String getSemesterName() {
@@ -58,7 +93,6 @@ public final class Utils {
             return null;
         }
     }
-
 
     public static boolean isSilentTime (int start, int end, int nowHour) {
         if (start < end)

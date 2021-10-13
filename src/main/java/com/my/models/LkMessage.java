@@ -1,20 +1,19 @@
 package com.my.models;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 
 import java.util.Date;
 
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
-public class MessageData {
+@AllArgsConstructor
+public class LkMessage {
     @NonNull
     String comment;
     @NonNull
     String sender;
     @NonNull
     Date date;
+    LkDocument document;
 }
