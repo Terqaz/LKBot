@@ -388,7 +388,7 @@ public class Bot {
         final var optionalGroup = Optional.ofNullable(groupByGroupName.get(groupName));
 
         if (!optionalGroup.map(Group::isLoggedBefore).orElse(false)) {
-            vkBot.sendMessageTo(userId, "Я не знаю группы " + groupName);
+            vkBot.sendMessageTo(userId, "Из твоей группы еще никто не работал со мной ( " + groupName + ")" );
             newUserMessage(userId);
             return;
         }
