@@ -56,8 +56,8 @@ public class Reports {
                 .filter(subject -> !subject.getMaterialsDocuments().isEmpty())
                 .map(subject -> "➡ " + subject.getId() + " " + subject.getName() + ":\n" +
                         subject.getMaterialsDocuments().stream()
+                                .sorted(Comparator.comparing(LkDocument::getName))
                                 .map(lkDocument -> lkDocument.getId() + " " + lkDocument.getName())
-                                .sorted()
                                 .collect(Collectors.joining("\n"))
                 ).collect(Collectors.joining("\n\n"));
     }

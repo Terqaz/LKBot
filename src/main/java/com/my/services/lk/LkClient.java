@@ -217,7 +217,7 @@ public class LkClient {
     }
 
     private Response executeRequest(Connection connection) {
-        for (int triesCount = 5; triesCount > 0; triesCount--) {
+        for (int triesCount = 10; triesCount > 0; triesCount--) {
             try {
                 return connection.execute();
             } catch (ConnectException | SocketTimeoutException ignored) {

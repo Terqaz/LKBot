@@ -22,8 +22,10 @@ import javax.crypto.NoSuchPaddingException;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -55,7 +57,7 @@ public class Bot {
                     "🔷 Получить список документов предмета под номером n:\n" +
                     "Документы n\n" +
                     "🔷 Получить документ k предмета под номером n:\n" +
-                    "Документ k предмета n" +
+                    "Документ k предмета n\n" +
                     "🔶 Выйти из бота:\n" +
                     "Забудь меня";
 
@@ -260,6 +262,7 @@ public class Bot {
                     .ifPresentOrElse(
                             subject -> vkBot.sendMessageTo(userId, Reports.getSubjectDocuments(subject)),
                             () -> vkBot.sendMessageTo(userId, "Неправильный номер предмета"));
+            return;
 
         } else if (messageText.startsWith("документ ")) {
             final var strings = messageText.split(" ");
@@ -283,6 +286,7 @@ public class Bot {
                             vkBot.sendMessageTo(userId, "Неправильный номер файла");
                     },
                     () -> vkBot.sendMessageTo(userId, "Неправильный номер предмета"));
+            return;
         }
 
         if (messageText.startsWith("изменить интервал на ")) {
@@ -431,6 +435,11 @@ public class Bot {
 
         if (!optionalGroup.map(Group::isLoggedBefore).orElse(false)) {
             vkBot.sendMessageTo(userId, "Я не знаю группы " + groupName);
+            try {
+                TimeUnit.of(ChronoUnit.MILLIS).sleep(50);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             newUserMessage(userId);
             return;
         }
@@ -464,7 +473,7 @@ public class Bot {
                 "➡ Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию " +
                         "для тебя и твоих одногруппников.\n" +
                         "Можешь мне довериться ;-)\n" +
-                        "➡ Если ты мне не доверяешь, то позволь ввести пароль другому человеку из твоей группы. " +
+                        "➡ Если ты мне не доверяешь, то позволь ввести пароль другому человеку из твоей группы. " + //TODO
                         "Обещаю не писать тебе, когда в этом нет необходимости.\n\n" +
                         "➡ Все мои возможности смотри в группе:\nhttps://vk.com/dorimelk");
     }
@@ -570,6 +579,10 @@ public class Bot {
         Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
 
         newSubject.setId(subjectIndex);
+
+        newSubject.getMaterialsDocuments().stream()
+                .filter(lkDocument -> oldSubject.)
+
         newSubject.getMaterialsDocuments()
                 .removeAll(oldSubject.getMaterialsDocuments());
 

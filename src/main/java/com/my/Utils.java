@@ -50,8 +50,8 @@ public final class Utils {
     public static Subject setIdsWhereNull(Subject subject) {
         Integer nextId = Math.max(getMaxId(subject.getMaterialsDocuments()),
                 getMaxId(subject.getMessagesDocuments())) + 1;
-        nextId = setDocumentsIdsWhereNull(subject.getMessagesDocuments(), nextId);
-        setDocumentsIdsWhereNull(subject.getMaterialsDocuments(), nextId);
+        nextId = setDocumentsIdsWhereNull(subject.getMaterialsDocuments(), nextId);
+        setDocumentsIdsWhereNull(subject.getMessagesDocuments(), nextId);
         return subject;
     }
 
@@ -71,7 +71,8 @@ public final class Utils {
     private static Integer getMaxId(Collection<LkDocument> lkDocuments) {
         return lkDocuments.stream().map(LkDocument::getId)
                 .filter(Objects::nonNull)
-                .max(Comparator.comparingInt(Integer::intValue)).orElse(1);
+                .max(Comparator.comparingInt(Integer::intValue))
+                .orElse(0);
     }
 
     public static String getSemesterName() {

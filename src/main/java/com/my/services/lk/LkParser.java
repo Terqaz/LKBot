@@ -203,7 +203,8 @@ public class LkParser {
     }
 
     private LkDocument parseDocumentATag(Element a) {
-        final var documentLkId = a.attr("href").split("/")[3];
+        final String[] strings = a.attr("href").split("/");
+        final var documentLkId = strings[strings.length-1];
         final var name = a.text();
         return new LkDocument(name, documentLkId);
     }

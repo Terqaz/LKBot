@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 public class VkBotService {
@@ -84,17 +83,6 @@ public class VkBotService {
             e.printStackTrace();
         }
         return null;
-    }
-
-    public <T> void executeVoidRequestAsync(ApiRequest<T> apiRequest) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                apiRequest.execute();
-            } catch (JsonSyntaxException ignore) {
-            } catch (ApiException | ClientException e) {
-                throw new RuntimeException("An exception when async request execution ", e);
-            }
-        });
     }
 
     public Stream<Message> getNewMessages () {
@@ -167,7 +155,7 @@ public class VkBotService {
                 .randomId(random.nextInt(Integer.MAX_VALUE))
                 .dontParseLinks(true)
                 .keyboard(keyboard);
-        executeVoidRequestAsync(query);
+        executeRequest(query);
     }
 
     public void sendMessageTo (@NotNull Integer userId, String message) {
@@ -180,7 +168,7 @@ public class VkBotService {
             query.keyboard(emptyKeyboard);
             unsetKeyboard = false;
         }
-        executeVoidRequestAsync(query);
+        executeRequest(query);
     }
 
     public void sendMessageTo(@NotNull Integer userId, File file, String message) {
@@ -195,7 +183,7 @@ public class VkBotService {
             query.keyboard(emptyKeyboard);
             unsetKeyboard = false;
         }
-        executeVoidRequestAsync(query);
+        executeRequest(query);
     }
 
     public void sendMessageTo (Collection<Integer> userIds, String message) {
@@ -210,7 +198,7 @@ public class VkBotService {
             query.keyboard(emptyKeyboard);
             unsetKeyboard = false;
         }
-        executeVoidRequestAsync(query);
+        executeRequest(query);
     }
 
     // Дублировал, чтобы каждый раз не вылетала ошибка из вк API о неизвестном респонсе
