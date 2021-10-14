@@ -71,9 +71,9 @@ public class Reports {
                 .map(lkMessage ->
                         "☑ " + lkMessage.getSender() + " в " +
                                 Utils.formatDate(lkMessage.getDate()) + ":\n" +
-                                lkMessage.getComment() + "\n" +
-                                "ДОКУМЕНТ: " +
-                                lkMessage.getDocument().getId() + " " + lkMessage.getDocument().getName()
+                                lkMessage.getComment() +
+                                (lkMessage.getDocument() == null ? "" :
+                                    "\nДОКУМЕНТ: "+lkMessage.getDocument().getId()+" "+lkMessage.getDocument().getName())
                 ).collect(Collectors.joining("\n\n"));
     }
 

@@ -1,6 +1,7 @@
 package com.my.services.lk;
 
 import com.my.ParserUtils;
+import com.my.Utils;
 import com.my.models.*;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -42,6 +43,7 @@ public class LkParser {
         lkClient.keepAuth();
         final List<Subject> subjects = getHtmlSubjectsUrls(semesterName)
                 .map(htmlSubjectUrl -> getSubjectByHtmlUrl(htmlSubjectUrl, new Date(1)))
+                .map(Utils::setIdsWhereNull)
                 .sorted(Comparator.comparing(Subject::getName))
                 .collect(Collectors.toList());
         return addIds(subjects);
@@ -175,7 +177,7 @@ public class LkParser {
     }
 
     private String parseMessageComment(Element htmlMessage) {
-        return htmlMessage.getElementsByClass("col-xs-12")
+        return htmlMessage.select("div.comment__body > .row")
                 .first().text();
     }
 

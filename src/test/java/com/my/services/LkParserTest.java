@@ -12,10 +12,7 @@ import org.junit.jupiter.api.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -48,6 +45,7 @@ class LkParserTest {
     }
 
     @Test
+    @Disabled ("Пройден")
     void loginTest() {
         assertDoesNotThrow(() -> lkParser.getGroupName());
         lkParser.logout();
@@ -60,6 +58,7 @@ class LkParserTest {
     }
 
     @Test
+    @Disabled ("Пройден")
     void getSubjectsGeneralLkIds_IsCorrect () {
         final Map<String, String> ids = lkParser.getSubjectsGeneralLkIds(testSemester);
         assertEquals("5:94052862", ids.get(LkParser.SEMESTER_ID));
@@ -68,6 +67,7 @@ class LkParserTest {
     }
 
     @Test
+    @Disabled ("Пройден")
     void parseTimetable_IsCorrect () {
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
         testGroup.setLkIds(
@@ -110,11 +110,12 @@ class LkParserTest {
     }
 
     @Test
+    @Disabled ("Пройден")
     void getSubjectsFirstTime_isCorrect () {
         final List<Subject> subjectsData = lkParser.getSubjectsFirstTime(testSemester);
 
         final Subject subject1 = subjectsData.stream()
-                .filter(subjectData -> subjectData.getName().equals("1:1751010"))
+                .filter(subjectData -> subjectData.getLkId().equals("1:1751010"))
                 .findFirst().orElse(null);
         assertNotNull(subject1);
 
@@ -131,7 +132,7 @@ class LkParserTest {
                 .findFirst().orElse(null);
         assertNotNull(subject2);
 
-        assertEquals("Основы электроники и схемотехники", subject1.getName());
+        assertEquals("Правоведение", subject1.getName());
         assertEquals("Черемисин ЕВ", subject2.getMessagesData().get(0).getSender());
 
         final Subject subject3 = subjectsData.stream()
@@ -145,10 +146,16 @@ class LkParserTest {
         assertEquals(lkDocument1,
                 subject3.getMessagesData().get(5).getDocument());
 
-        assertIterableEquals(Set.of(lkDocument1,
+        assertIterableEquals(sortDocumentsByName(Set.of(lkDocument1,
                 new LkDocument("Лекция 18.03 Равновесие потребителя", "5:108535269"),
-                new LkDocument("Тема 3. Рынок и его механизмы", "5:108490770")),
-                subject3.getMessagesDocuments());
+                new LkDocument("Тема 3. Рынок и его механизмы", "5:108490770"))),
+                sortDocumentsByName(subject3.getMessagesDocuments()));
+    }
+
+    private List<LkDocument> sortDocumentsByName(Set<LkDocument> documents) {
+        return documents.stream()
+                .sorted(Comparator.comparing(LkDocument::getName))
+                .collect(Collectors.toList());
     }
 
     @Test
@@ -158,7 +165,7 @@ class LkParserTest {
         final List<Subject> firstSubjects = lkParser.getSubjectsFirstTime(testSemester);
         log.info("First subjects loaded");
 
-        assertTrue(firstSubjects.stream()
+        assertTrue(firstSubjects.stream() // Есть сообщения хотя бы где-то
                 .anyMatch(subjectData -> !subjectData.getMessagesData().isEmpty()));
 
         // Получаем новые данные
@@ -174,7 +181,7 @@ class LkParserTest {
         log.info("New subjects loaded");
 
         // Проверяем
-        assertTrue(newSubjectsData.stream()
+        assertTrue(newSubjectsData.stream() // Новых сообщений нет нигде
                 .allMatch(subjectData -> subjectData.getMessagesData().isEmpty()));
 
         final Subject oldSubject1 = assertDoesNotThrow(() ->
@@ -189,6 +196,7 @@ class LkParserTest {
                         .findFirst()
                         .orElseThrow(NullPointerException::new));
 
+        // Два раза подряд получили одно и то же
         assertEquals(oldSubject1.getMaterialsDocuments(), newSubject1.getMaterialsDocuments());
         assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjectsData).isEmpty());
     }
@@ -208,7 +216,7 @@ class LkParserTest {
     }
 
     @Test
-    // TODO  @Disabled ("Пройден")
+    @Disabled ("Пройден")
     void loadFile_isCorrect () throws IOException {
         String groupName = "ПИ-19-1";
         final String subjectName = "Предмет";
@@ -237,7 +245,9 @@ class LkParserTest {
         assertFalse(Path.of(groupName).toFile().exists());
     }
 
+    // Нужно править assertTrue или assertFalse перед запуском теста
     @Test
+    @Disabled ("Пройден")
     void weekType () {
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
         assertTrue(lkParser.parseWeekType(lkIds.get(LkParser.SEMESTER_ID)));

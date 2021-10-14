@@ -35,7 +35,8 @@ public final class Utils {
     }
 
     // Changes newDocuments
-    public static void copyIdsFromOldMaterialsDocuments(Set<LkDocument> newDocuments, Set<LkDocument> oldDocuments) {
+    public static void copyIdsFromOldMaterialsDocuments(Collection<LkDocument> newDocuments,
+                                                        Collection<LkDocument> oldDocuments) {
         Map<String, Integer> oldDocumentByName = oldDocuments.stream()
                 .collect(Collectors.toMap(LkDocument::getName, LkDocument::getId));
 
@@ -45,27 +46,31 @@ public final class Utils {
         });
     }
 
-    // Changes newSubject
-    public static void setIdsWhereNull(Subject newSubject) {
-        Integer nextId = Math.max(getMaxId(newSubject.getMaterialsDocuments()),
-                getMaxId(newSubject.getMessagesDocuments())) + 1;
-        nextId = setDocumentsIdsWhereNull(newSubject.getMessagesDocuments(), nextId);
-        setDocumentsIdsWhereNull(newSubject.getMaterialsDocuments(), nextId);
+    // Changes subject
+    public static Subject setIdsWhereNull(Subject subject) {
+        Integer nextId = Math.max(getMaxId(subject.getMaterialsDocuments()),
+                getMaxId(subject.getMessagesDocuments())) + 1;
+        nextId = setDocumentsIdsWhereNull(subject.getMessagesDocuments(), nextId);
+        setDocumentsIdsWhereNull(subject.getMaterialsDocuments(), nextId);
+        return subject;
     }
 
-    public static Integer setDocumentsIdsWhereNull(Set<LkDocument> lkDocuments, Integer nextId) {
+    // Changes lkDocuments
+    public static Integer setDocumentsIdsWhereNull(Collection<LkDocument> lkDocuments, Integer nextId) {
         final List<LkDocument> nullIdDocuments = lkDocuments.stream()
                 .filter(lkDocument -> lkDocument.getId() == null)
                 .sorted(Comparator.comparing(LkDocument::getName))
                 .collect(Collectors.toList());
         for (LkDocument document: nullIdDocuments) {
-            document.setId(nextId++);
+            document.setId(nextId);
+            ++nextId;
         }
         return nextId;
     }
 
     private static Integer getMaxId(Collection<LkDocument> lkDocuments) {
         return lkDocuments.stream().map(LkDocument::getId)
+                .filter(Objects::nonNull)
                 .max(Comparator.comparingInt(Integer::intValue)).orElse(1);
     }
 

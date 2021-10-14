@@ -55,6 +55,10 @@ public class TestUtils {
         return Stream.of(names).map(name -> new LkDocument(name, "lkId")).collect(Collectors.toSet());
     }
 
+    public static <T> List<LkDocument> createDocumentsList(String... names) {
+        return Stream.of(names).map(name -> new LkDocument(name, "lkId")).collect(Collectors.toList());
+    }
+
     public static Set<LkDocument> createDocuments(Integer nextId, String... names) {
         final Set<LkDocument> documents = Stream.of(names)
                 .map(name -> new LkDocument(name, "lkId"))

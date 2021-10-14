@@ -23,6 +23,7 @@ import java.util.zip.GZIPInputStream;
 public class LkClient {
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0";
+    public static final String RELOGIN_IS_NEEDED = "Login or relogin needs";
     private static String phpSessId = null;
 
     public LkClient() {}
@@ -85,7 +86,7 @@ public class LkClient {
 
     private Connection getOriginSessionConnection(String url) {
         if (isNotLoggedIn())
-            throw new LoginNeedsException("Relogin is needed");
+            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
 
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
@@ -123,7 +124,7 @@ public class LkClient {
 
             if (isNotAuthorized(connection.getResponseCode())) {
                 discardSession();
-                throw new LoginNeedsException("Relogin is needed");
+                throw new LoginNeedsException(RELOGIN_IS_NEEDED);
 
             } else if (connection.getResponseCode() != HttpURLConnection.HTTP_OK)
                 throw new FileLoadingException("Server returned HTTP " + connection.getResponseCode()
@@ -146,7 +147,7 @@ public class LkClient {
         //Content-disposition: inline; filename="file.pdf"
         final var contentDisposition = connection.getHeaderField("Content-disposition");
         if (contentDisposition == null)
-            throw new LoginNeedsException("Relogin is needed");
+            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
 
         var value = contentDisposition.split("=")[1];
         value = ParserUtils.changeEncodingIso_8859_1_Windows_1251(value);
@@ -205,7 +206,7 @@ public class LkClient {
         final int code = response.statusCode();
         if (isNotAuthorized(code)) {
             discardSession();
-            throw new LoginNeedsException("Relogin is needed");
+            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
         }
         return response;
     }

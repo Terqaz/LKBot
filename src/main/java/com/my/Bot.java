@@ -19,6 +19,7 @@ import lombok.NonNull;
 import lombok.Setter;
 
 import javax.crypto.NoSuchPaddingException;
+import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
@@ -47,13 +48,15 @@ public class Bot {
     private static boolean isActualWeekWhite;
 
     private static final String BASIC_COMMANDS =
-            "🔷 Вывести список предметов:\n" +
+                    "🔷 Вывести список предметов с номерами:\n" +
                     "Предметы\n" +
-                    "🔷 Узнать самую свежую информацию по предмету из ЛК:\n" +
-                    "n (n - номер в моем списке предметов)\n" +
-                    "🔶 Показать эти команды:\n" +
-                    "Команды\n" +
-                    "🔶 Прекратить пользоваться ботом или сменить зарегистрированного человека:\n" +
+                    "🔷 Узнать самую свежую информацию по номеру предмета:\n" +
+                    "n\n" +
+                    "🔷 Получить список документов предмета под номером n:\n" +
+                    "Документы n\n" +
+                    "🔷 Получить документ k предмета под номером n:\n" +
+                    "Документ k предмета n" +
+                    "🔶 Выйти из бота:\n" +
                     "Забудь меня";
 
     private static final String AUTH_COMMAND =
@@ -156,6 +159,7 @@ public class Bot {
     }
 
     // TODO разделить на сообщения участника и лидера
+    // TODO сделать список предикатов
     private static void replyToMessage(Integer userId, String messageText) {
         // TODO если добавить описание ошибок и пожелания, то изменить условие
         if (messageText.length() > 100) {
@@ -255,7 +259,7 @@ public class Bot {
             group.getSubjectById(subjectId)
                     .ifPresentOrElse(
                             subject -> vkBot.sendMessageTo(userId, Reports.getSubjectDocuments(subject)),
-                            () -> vkBot.sendMessageTo(userId, "Неправильный номер документа"));
+                            () -> vkBot.sendMessageTo(userId, "Неправильный номер предмета"));
 
         } else if (messageText.startsWith("документ ")) {
             final var strings = messageText.split(" ");
@@ -263,10 +267,22 @@ public class Bot {
             final var subjectId = Integer.parseInt(strings[3]);
             group.getSubjectById(subjectId).ifPresentOrElse(
                     subject -> {
-                        LkDocument document = subject.getDocumentById(documentId);
-                        vkBot.sendMessageTo(userId, Reports.getSubjectDocuments(subject));
+                        File file = null;
+                        Optional<LkDocument> document = subject.getMaterialsDocumentById(documentId);
+                        if (document.isPresent())
+                            file = group.getLkParser().loadMaterialsFile(document.get(), groupName, subject.getName());
+                        else {
+                            document = subject.getMessageDocumentById(documentId);
+                            if (document.isPresent())
+                                file = group.getLkParser().loadMessageFile(document.get(), groupName, subject.getName());
+                        }
+                        if (file != null)
+                            vkBot.sendMessageTo(userId, file, subject.getName()+
+                                    " документ: \""+document.get().getName()+"\"");
+                        else
+                            vkBot.sendMessageTo(userId, "Неправильный номер файла");
                     },
-                    () -> vkBot.sendMessageTo(userId, "Неправильный номер документа"));
+                    () -> vkBot.sendMessageTo(userId, "Неправильный номер предмета"));
         }
 
         if (messageText.startsWith("изменить интервал на ")) {
@@ -687,6 +703,7 @@ public class Bot {
         );
 
         newUserSubjectsListMessage(userId, newGroup);
+
         vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
                 Reports.getSubjects(newSubjects, newGroup.getNextCheckDate()));
 

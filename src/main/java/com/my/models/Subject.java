@@ -6,6 +6,7 @@ import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Data
@@ -34,7 +35,15 @@ public class Subject implements Serializable {
         return !(materialsDocuments.isEmpty() && messagesDocuments.isEmpty() && messagesData.isEmpty());
     }
 
-    public LkDocument getDocumentById(int documentId) {
-        return null;
+    public Optional<LkDocument> getMaterialsDocumentById(int id) {
+        return getDocumentById(materialsDocuments, id);
+    }
+
+    public Optional<LkDocument> getMessageDocumentById(int id) {
+        return getDocumentById(messagesDocuments, id);
+    }
+
+    private Optional<LkDocument> getDocumentById(Set<LkDocument> materialsDocuments, int id) {
+        return materialsDocuments.stream().filter(document -> document.getId().equals(id)).findFirst();
     }
 }

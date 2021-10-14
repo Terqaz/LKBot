@@ -8,10 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,7 +41,7 @@ class AnyUtilsTest {
     }
 
     @Test
-    @Disabled
+    @Disabled ("Пройден")
     void removeOldSubjectsDocuments_isCorrect () {
         List<Subject> oldSubjectData = createSubjects1();
         List<Subject> newSubjectData = createSubjects2();
@@ -60,26 +57,48 @@ class AnyUtilsTest {
     }
 
     @Test
+    @Disabled ("Пройден")
     void setDocumentsIdsWhereNull_isCorrect () {
-        final List<LkDocument> documents = TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f")
-                .stream().toList();
 
+        List<LkDocument> documents =
+                TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f");
+
+        Utils.setDocumentsIdsWhereNull(documents, 0);
+
+        documents = new ArrayList<>(
+                TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f"));
         documents.get(2).setId(2);
         documents.get(4).setId(1);
         documents.get(5).setId(3);
-
-        assertEquals(7, Utils.setDocumentsIdsWhereNull(new HashSet<>(documents), 4));
-        assertIterableEquals(documents.stream()
-                .sorted(Comparator.comparing(LkDocument::getName))
-                .map(LkDocument::getId)
-                .collect(Collectors.toList()), List.of(4, 5, 2, 6, 1, 3, 7));
+        assertEquals(8, Utils.setDocumentsIdsWhereNull(new HashSet<>(documents), 4));
+        assertIterableEquals(List.of(4, 5, 2, 6, 1, 3, 7), sortByNameAndGetIds(documents));
     }
 
     @Test
+    void setIdsWhereNull_isCorrect() {
+        createSubject1().setMaterialsDocuments(TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f"))
+    }
+
+    @Test
+    @Disabled ("Пройден")
     void copyIdsFromOldMaterialsDocuments_isCorrect() {
-        final Set<LkDocument> lkDocuments = Set.of(new LkDocument().setName("1a"));
-        Utils.setDocumentsIdsWhereNull(lkDocuments, 1);
-        createSubject1().setMaterialsDocuments(lkDocuments);
+        final List<LkDocument> oldDocuments = TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f");
+
+        oldDocuments.get(1).setId(3);
+        oldDocuments.get(3).setId(1);
+        oldDocuments.get(6).setId(2);
+
+        Utils.setDocumentsIdsWhereNull(oldDocuments, 1);
+        final Set<LkDocument> newDocuments = TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f");
+        Utils.copyIdsFromOldMaterialsDocuments(newDocuments, oldDocuments);
+        assertIterableEquals(sortByNameAndGetIds(oldDocuments), sortByNameAndGetIds(newDocuments));
+    }
+
+    private List<Integer> sortByNameAndGetIds(Collection<LkDocument> documents) {
+        return documents.stream()
+                .sorted(Comparator.comparing(LkDocument::getName))
+                .map(LkDocument::getId)
+                .collect(Collectors.toList());
     }
 
     private List<Subject> createSubjects1() {
@@ -105,7 +124,7 @@ class AnyUtilsTest {
     }
 
     private Subject createSubject1() {
-        return new Subject().setId(234634).setLkId("346346").setMessagesData(List.of());
+        return new Subject().setId(234634).setLkId("346346").setMessagesData(List.of()).setMessagesDocuments(Set.of());
     }
 
     private LkDocument createDocument1(String name, Integer id) {
