@@ -86,7 +86,7 @@ public final class Utils {
     }
 
     public static int mapWeekDayFromCalendar() {
-        return new GregorianCalendar().get(Calendar.DAY_OF_WEEK) - 2;
+        return new GregorianCalendar().get(Calendar.DAY_OF_WEEK) - 1;
     }
 
     public static int mapWeekDayFromCalendar(GregorianCalendar calendar) {

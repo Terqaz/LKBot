@@ -3,6 +3,8 @@ package com.my.threads;
 import com.my.Bot;
 import com.my.GroupsRepository;
 import com.my.Utils;
+import com.my.exceptions.AuthenticationException;
+import com.my.exceptions.LkNotRespondingException;
 import com.my.models.Group;
 import com.my.models.GroupUser;
 import com.my.services.vk.VkBotService;
@@ -32,20 +34,27 @@ public class PlannedScheduleSending extends Thread {
                 int hour = calendar.get(Calendar.HOUR_OF_DAY);
                 int weekDay = (Utils.mapWeekDayFromCalendar(calendar) + 1) % 7;
 
-                if (weekDay == 0 && hour == 0) {
-                    Bot.actualizeWeekType();
-                    Thread.sleep(3600L * 1000); // 1 час
+                if (hour == 18) {
+                    try {
+                        Bot.actualizeWeekType();
+                    } catch (AuthenticationException e) {
+                        Bot.login(Bot.getGroupByGroupName().get("ПИ-19-1"));
+                        Bot.actualizeWeekType();
+                    } catch (LkNotRespondingException e) {
+                        if (weekDay == 0) {
+                            Bot.manualChangeWeekType();
+                        }
+                    }
 
-                } else if (hour == 18) {
-                    for (Group group : groupsRepository.findAllWithoutSubjects()) {
-                        final String dayScheduleReport = Bot.getDayScheduleReport(weekDay, group);
+                    for (Group group : Bot.getGroupByGroupName().values()) {
+                        final String dayScheduleReport = Bot.getDayScheduleReport(weekDay, true, group);
                         if (!dayScheduleReport.isEmpty())
                             vkBot.sendMessageTo(
                                     group.getUsers().stream()
                                             .filter(GroupUser::isEverydayScheduleEnabled)
                                             .map(GroupUser::getId)
                                             .collect(Collectors.toList()),
-                                    "Держи расписание на завтра ;-) "+dayScheduleReport);
+                                    "Держи расписание на завтра ;-)\n"+dayScheduleReport);
                     }
                     Thread.sleep(3600L * 1000); // 1 час
 

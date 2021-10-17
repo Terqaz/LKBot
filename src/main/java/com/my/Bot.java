@@ -46,13 +46,11 @@ public class Bot {
     private static boolean isActualWeekWhite;
 
     private static final String BASIC_COMMANDS =
-            "🔷 Вывести список предметов:\n" +
+            "🔷 Вывести список предметов с номерами:\n" +
                     "Предметы\n" +
-                    "🔷 Узнать самую свежую информацию по предмету из ЛК:\n" +
-                    "n (n - номер в моем списке предметов)\n" +
-                    "🔶 Показать эти команды:\n" +
-                    "Команды\n" +
-                    "🔶 Прекратить пользоваться ботом или сменить зарегистрированного человека:\n" +
+                    "🔷 Узнать самую свежую информацию по номеру предмета:\n" +
+                    "n\n" +
+                    "🔶 Выйти из бота:\n" +
                     "Забудь меня";
 
     private static final String AUTH_COMMAND =
@@ -65,6 +63,10 @@ public class Bot {
     private static PlannedScheduleSending plannedScheduleSending;
 
     public Bot () {}
+
+    public static void manualChangeWeekType() {
+        isActualWeekWhite = !isActualWeekWhite;
+    }
 
     public void startProcessing() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
         cipherService = CipherService.getInstance();
@@ -171,8 +173,7 @@ public class Bot {
 
         if (!groupNameByUserId.containsKey(userId)) {
             vkBot.sendMessageTo(userId,
-                    "Напиши из какой ты группы (так же, как указано в ЛК). Например:\n" +
-                            "Я из ПИ-19-1");
+                    "Напиши мне из какой ты группы так же, как указано в ЛК");
             return;
         }
 
@@ -180,39 +181,16 @@ public class Bot {
         final var optionalGroup = Optional.ofNullable(groupByGroupName.get(groupName));
 
         messageText = messageText.toLowerCase();
-        switch (messageText) {
-            case "я готов на все ради своей группы!":
-                if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
-                    vkBot.unsetKeyboard();
-                    vkBot.sendMessageTo(userId,
-                            "Хорошо, смельчак. Пиши свои данные вот так " +
-                                    AUTH_COMMAND);
-                } else
-                    groupAlreadyRegisteredMessage(userId);
-                return;
-
-            case "лучше скажу другому":
-                if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
-                    vkBot.unsetKeyboard();
-                    groupNameByUserId.remove(userId);
-                    vkBot.sendMessageTo(userId,
-                            "Хорошо. Напиши мне, когда человек из твоей группы зайдет через меня");
-                } else
-                    groupAlreadyRegisteredMessage(userId);
-                return;
-
-            case "я ошибся при вводе группы":
-                if (optionalGroup.map(group -> group.containsUser(userId)).orElse(false)) {
-                    vkBot.sendMessageTo(userId, "Напиши \"Забудь меня\", чтобы перезайти в меня");
-                } else {
-                    vkBot.unsetKeyboard();
-                    groupNameByUserId.remove(userId);
-                    vkBot.sendMessageTo(userId,
-                            "Введи новое имя для группы (так же, как указано в ЛК). Например:\n" +
-                                    "Я из ПИ-19-1");
-                }
-                return;
-            default: break;
+        if (messageText.equals("измени группу")) {
+            if (optionalGroup.map(group -> group.containsUser(userId)).orElse(false)) {
+                vkBot.sendMessageTo(userId, "Напиши \"Забудь меня\", чтобы перезайти в меня");
+            } else {
+                vkBot.unsetKeyboard();
+                groupNameByUserId.remove(userId);
+                vkBot.sendMessageTo(userId,
+                        "Напиши мне из какой ты группы так же, как указано в ЛК");
+            }
+            return;
         }
 
         if (optionalGroup.isEmpty()) {
@@ -378,7 +356,8 @@ public class Bot {
 
     private static void newUserGroupCheck (Integer userId, String messageText, Matcher groupNameMatcher) {
         if (groupNameByUserId.containsKey(userId)) {
-            vkBot.sendMessageTo(userId, "Я уже знаю, что ты из " + groupNameByUserId.get(userId));
+            vkBot.sendMessageTo(userId, "Ты уже указал мне имя своей группы.\n" +
+                    "Если ты ошибся при вводе группы, то напиши мне \"измени группу\"");
             return;
         }
 
@@ -388,17 +367,16 @@ public class Bot {
         final var optionalGroup = Optional.ofNullable(groupByGroupName.get(groupName));
 
         if (!optionalGroup.map(Group::isLoggedBefore).orElse(false)) {
-            vkBot.sendMessageTo(userId, "Из твоей группы еще никто не работал со мной ( " + groupName + ")" );
-            newUserMessage(userId);
+            newUserMessage(userId, groupName);
             return;
         }
-        if (optionalGroup.map(Group::isNotLoggedNow).orElse(false)) {
-            vkBot.sendMessageTo(userId,
-                    "В этой группе был человек, вошедший от своего имени, но теперь его нет. " +
-                            "Ты хочешь стать им?\n");
-            newUserMessage(userId);
-            return;
-        }
+//        if (optionalGroup.map(Group::isNotLoggedNow).orElse(false)) {
+//            vkBot.sendMessageTo(userId,
+//                    "В этой группе был человек, вошедший от своего имени, но теперь его нет. " +
+//                            "Ты хочешь стать им?\n");
+//            newUserMessage(userId, groupName);
+//            return;
+//        }
 
         Group group = optionalGroup.get();
         vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_2, "О, я знаю эту группу!");
@@ -417,14 +395,12 @@ public class Bot {
             vkBot.sendMessageTo(userId, "Я уже присылал проверочный код лидеру твоей группы");
     }
 
-    private static void newUserMessage (Integer userId) {
-        vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_1,
-                "➡ Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию " +
-                        "для тебя и твоих одногруппников.\n" +
-                        "Можешь мне довериться ;-)\n" +
-                        "➡ Если ты мне не доверяешь, то позволь ввести пароль другому человеку из твоей группы. " +
-                        "Обещаю не писать тебе, когда в этом нет необходимости.\n\n" +
-                        "➡ Все мои возможности смотри в группе:\nhttps://vk.com/dorimelk");
+    private static void newUserMessage (Integer userId, String groupName) {
+        vkBot.sendMessageTo(userId,
+                "Из группы "+groupName+" еще никто не работал со мной\n" +
+                        "➡ Если ты хочешь первый из своей группы получать информацию и настраивать обновления " +
+                        "из ЛК, то напиши мне \"Хочу войти в ЛК\" и на следующих двух строках укажи свой логин и пароль от ЛК\n" +
+                        "➡ Иначе просто ожидай, пока другой человек из твоей группы войдет в ЛК через меня ;-)");
     }
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
@@ -479,18 +455,19 @@ public class Bot {
 
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),"Хорошо");
         if (isEnable) {
-            final String dayScheduleReport = getDayScheduleReport(Utils.mapWeekDayFromCalendar(), group);
+            final String dayScheduleReport = getDayScheduleReport(Utils.mapWeekDayFromCalendar(), false, group);
             if (!dayScheduleReport.isEmpty())
                 vkBot.sendMessageTo(userId, "Держи расписание на сегодня ;-)\n"+
                         dayScheduleReport);
         }
     }
 
-    public static String getDayScheduleReport(int weekDay, Group group) {
-        return ReportsMaker.getDaySchedule(isActualWeekWhite ?
+    public static String getDayScheduleReport(int weekDay, boolean isTomorrow, Group group) {
+        boolean isWeekWhite = (weekDay == 0 && isTomorrow) ? !isActualWeekWhite : isActualWeekWhite;
+        return ReportsMaker.getDaySchedule(isWeekWhite ?
                         group.getTimetable().getWhiteWeekDaySubjects().get(weekDay) :
                         group.getTimetable().getGreenWeekDaySubjects().get(weekDay),
-                isActualWeekWhite);
+                isWeekWhite);
     }
 
     private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isEnable) {
@@ -638,9 +615,7 @@ public class Bot {
 
     private static void newGroupLoggedMessages(Integer userId, @NonNull String groupName,
                                                String login, String password, LkParser lkParser) {
-        vkBot.sendMessageTo(userId, "Ура. Теперь я похищу все твои данные)");
         vkBot.sendMessageTo(userId,
-                "Ой, извини, случайно вырвалось)\n" +
                         "➡ Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК. " +
                         "Тебе нужно просто позвать их пообщаться со мной. " +
                         "Но позволь я сначала проверю твой ЛК...");

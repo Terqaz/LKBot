@@ -18,16 +18,9 @@ public class KeyboardService {
                 .setColor(color);
     }
 
-    public static final Keyboard KEYBOARD_1 = new Keyboard()
-            .setButtons(List.of(
-                    List.of(generateButton("Я готов на все ради своей группы!", KeyboardButtonColor.POSITIVE)),
-                    List.of(generateButton("Лучше скажу другому", KeyboardButtonColor.NEGATIVE)),
-                    List.of(generateButton("Я ошибся при вводе группы", KeyboardButtonColor.DEFAULT))
-            ));
-
     public static final Keyboard KEYBOARD_2 = new Keyboard()
             .setButtons(List.of(
-                    List.of(generateButton("Я ошибся при вводе группы", KeyboardButtonColor.DEFAULT))
+                    List.of(generateButton("Измени группу", KeyboardButtonColor.DEFAULT))
             ));
 
 
