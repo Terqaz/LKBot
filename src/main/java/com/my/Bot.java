@@ -90,7 +90,7 @@ public class Bot {
         vkBot.setOnline(false);
         plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
-        vkBot.sendMessageTo(APP_ADMIN_ID, "WARNING: APP STOPPED");
+        vkBot.sendMessageTo(APP_ADMIN_ID, Answer.WARNING_APP_STOPPED);
     }
 
     private static void fillCaches() {
@@ -132,9 +132,9 @@ public class Bot {
                 replyToMessage(userId, messageText);
 
             } catch (LkNotRespondingException e) {
-                vkBot.sendMessageTo(userId, "Кажется ЛК сейчас не работает, попробуй это позже");
+                vkBot.sendMessageTo(userId, Answer.LK_NOT_RESPONDING);
             } catch (Exception e) {
-                vkBot.sendMessageTo(userId, "Я не понял тебя или ошибся сам.");
+                vkBot.sendMessageTo(userId, Answer.NOT_UNDERSTAND_YOU_OR_MISTAKE);
                 e.printStackTrace();
             }
         });
@@ -150,13 +150,14 @@ public class Bot {
     private static void replyToMessage(Integer userId, String messageText) {
         // TODO если добавить описание ошибок и пожелания, то изменить условие
         if (messageText.length() > 100) {
-            vkBot.sendMessageTo(userId,
-                    "Твое сообщение похоже на спам.\n Напиши корректную команду");
+            vkBot.sendMessageTo(userId, Answer.YOUR_MESSAGE_IS_SPAM);
             return;
         }
 
         messageText = KeyboardLayoutConverter.translateFromEnglishLayoutIfNeeds(messageText);
 //        SpecialWordsFinder.findSpecialWords(userId, messageText);
+
+        Command command = new Command(messageText);
 
         final var groupNameMatcher =
                 groupNamePatternOnlyUpperCase.matcher(messageText.toUpperCase());
@@ -164,24 +165,24 @@ public class Bot {
             newUserGroupCheck(userId, messageText, groupNameMatcher);
             return;
 
-        } else if (messageText.startsWith("Хочу войти в ЛК")) {
+        } else if (command.is(Command.WANT_TO_LOGIN)) {
             onLoginMessages(userId, groupNameByUserId.get(userId), messageText);
             return;
         }
 
         if (!groupNameByUserId.containsKey(userId)) {
-            vkBot.sendMessageTo(userId,
-                    "Напиши из какой ты группы (так же, как указано в ЛК). Например:\n" +
-                            "Я из ПИ-19-1");
+            vkBot.sendMessageTo(userId,"Напиши мне из какой ты группы так же, как указано в ЛК");
             return;
         }
 
         final var groupName = groupNameByUserId.get(userId);
         final var optionalGroup = Optional.ofNullable(groupByGroupName.get(groupName));
 
+
+
         messageText = messageText.toLowerCase();
         switch (messageText) {
-            case "я готов на все ради своей группы!":
+            case Command.WANT_TO_LOGIN:
                 if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
                     vkBot.unsetKeyboard();
                     vkBot.sendMessageTo(userId,
@@ -191,17 +192,7 @@ public class Bot {
                     groupAlreadyRegisteredMessage(userId);
                 return;
 
-            case "лучше скажу другому":
-                if (optionalGroup.map(Group::isNotLoggedNow).orElse(true)) {
-                    vkBot.unsetKeyboard();
-                    groupNameByUserId.remove(userId);
-                    vkBot.sendMessageTo(userId,
-                            "Хорошо. Напиши мне, когда человек из твоей группы зайдет через меня");
-                } else
-                    groupAlreadyRegisteredMessage(userId);
-                return;
-
-            case "я ошибся при вводе группы":
+            case Command.CHANGE_GROUP:
                 if (optionalGroup.map(group -> group.containsUser(userId)).orElse(false)) {
                     vkBot.sendMessageTo(userId, "Напиши \"Забудь меня\", чтобы перезайти в меня");
                 } else {
@@ -241,6 +232,8 @@ public class Bot {
                     "Сначала присоединись к своей группе");
             return;
         }
+        Command.equals(messageText, Command.CHANGE_UPDATE_INTERVAL);
+        Command.CHANGE_UPDATE_INTERVAL.matcher(messageText).matches()
 
         if (messageText.startsWith("изменить интервал на ")) {
             if (loggedUser.is(userId)) {
@@ -378,7 +371,8 @@ public class Bot {
 
     private static void newUserGroupCheck (Integer userId, String messageText, Matcher groupNameMatcher) {
         if (groupNameByUserId.containsKey(userId)) {
-            vkBot.sendMessageTo(userId, "Я уже знаю, что ты из " + groupNameByUserId.get(userId));
+            vkBot.sendMessageTo(userId, "Ты уже указал мне имя своей группы.\n" +
+                    "Если ты ошибся при вводе группы, то напиши мне \"измени группу\"");
             return;
         }
 
@@ -388,7 +382,6 @@ public class Bot {
         final var optionalGroup = Optional.ofNullable(groupByGroupName.get(groupName));
 
         if (!optionalGroup.map(Group::isLoggedBefore).orElse(false)) {
-            vkBot.sendMessageTo(userId, "Из твоей группы еще никто не работал со мной ( " + groupName + ")" );
             newUserMessage(userId);
             return;
         }
@@ -419,12 +412,10 @@ public class Bot {
 
     private static void newUserMessage (Integer userId) {
         vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_1,
-                "➡ Мне нужны твои логин и пароль от личного кабинета, чтобы проверять новую информацию " +
-                        "для тебя и твоих одногруппников.\n" +
-                        "Можешь мне довериться ;-)\n" +
-                        "➡ Если ты мне не доверяешь, то позволь ввести пароль другому человеку из твоей группы. " +
-                        "Обещаю не писать тебе, когда в этом нет необходимости.\n\n" +
-                        "➡ Все мои возможности смотри в группе:\nhttps://vk.com/dorimelk");
+                        "Из твоей группы еще никто не работал со мной\n" +
+                                "➡ Если ты хочешь первый из своей группы получать информацию и настраивать обновления " +
+                                "из ЛК, то напиши мне \"Хочу войти в ЛК\"\n" +
+                                "➡ Иначе просто ожидай, пока другой человек из твоей группы войдет в ЛК через меня ;-)");
     }
 
     private static void newUserSubjectsListMessage (Integer userId, Group group) {
@@ -581,13 +572,13 @@ public class Bot {
         String login = chunks[1];
         String password = chunks[2];
 
-        vkBot.sendMessageTo(userId, "Пробую зайти в твой ЛК...");
+        vkBot.sendMessageTo(userId, Answer.TRY_TO_LOGIN);
         final LkParser lkParser = new LkParser();
         if (!lkParser.login(new AuthenticationData(login, password))) {
             newGroupLoginFailedMessages(userId);
             return;
         }
-        vkBot.sendMessageTo(userId, "Я успешно зашел в твой ЛК");
+        vkBot.sendMessageTo(userId, Answer.SUCCESSFUL_LOGIN);
         //vkBotService.deleteLastMessage(message);
 
         groupName = actualizeGroupName(userId, groupName, lkParser);
