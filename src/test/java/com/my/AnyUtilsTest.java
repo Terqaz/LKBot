@@ -7,10 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -109,5 +106,11 @@ class AnyUtilsTest {
         assertEquals( 3600L * 1000 , Utils.getSleepTimeToHourStart(0, 0));
         assertEquals( 1800L * 1000 , Utils.getSleepTimeToHourStart(30, 0));
         assertEquals( 1L * 1000 , Utils.getSleepTimeToHourStart(59, 59));
+    }
+
+    @Test
+    void getThisWeekDayIndex_isCorrect() {
+        assertEquals(6, (Calendar.SUNDAY - 2 + 7) % 7);
+        assertEquals(0, (Calendar.MONDAY - 2 + 7) % 7);
     }
 }

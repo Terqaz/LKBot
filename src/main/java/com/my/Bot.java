@@ -43,6 +43,7 @@ public class Bot {
 
     @Getter @Setter
     private static volatile String actualSemester;
+    @Getter
     private static boolean isActualWeekWhite;
 
     private static final String BASIC_COMMANDS =
@@ -455,15 +456,17 @@ public class Bot {
 
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),"Хорошо");
         if (isEnable) {
-            final String dayScheduleReport = getDayScheduleReport(Utils.mapWeekDayFromCalendar(), false, group);
+            final String dayScheduleReport = getDayScheduleReport(
+                    Utils.getThisWeekDayIndex(), isActualWeekWhite, group);
             if (!dayScheduleReport.isEmpty())
                 vkBot.sendMessageTo(userId, "Держи расписание на сегодня ;-)\n"+
                         dayScheduleReport);
         }
     }
 
-    public static String getDayScheduleReport(int weekDay, boolean isTomorrow, Group group) {
-        boolean isWeekWhite = (weekDay == 0 && isTomorrow) ? !isActualWeekWhite : isActualWeekWhite;
+    //
+
+    public static String getDayScheduleReport(int weekDay, boolean isWeekWhite, Group group) {
         return ReportsMaker.getDaySchedule(isWeekWhite ?
                         group.getTimetable().getWhiteWeekDaySubjects().get(weekDay) :
                         group.getTimetable().getGreenWeekDaySubjects().get(weekDay),

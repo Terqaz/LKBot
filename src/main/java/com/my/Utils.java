@@ -85,11 +85,14 @@ public final class Utils {
         return ((59 - nowMinute) * 60L + (60 - nowSecond)) * 1000L;
     }
 
-    public static int mapWeekDayFromCalendar() {
-        return new GregorianCalendar().get(Calendar.DAY_OF_WEEK) - 1;
+    // Нулевой индекс на понедельнике (Monday), а Calendar.MONDAY = 2 ->
+    // отнимаем 2 - попали на индекс нужного дня
+    public static int getThisWeekDayIndex() {
+        return (new GregorianCalendar().get(Calendar.DAY_OF_WEEK) - 2 + 7) % 7;
     }
 
-    public static int mapWeekDayFromCalendar(GregorianCalendar calendar) {
-        return calendar.get(Calendar.DAY_OF_WEEK) - 2;
+    // Как в предыдущем методе, но прибавляем 1 - попали на индекс следующего дня
+    public static int getNextWeekDayIndex(GregorianCalendar calendar) {
+        return calendar.get(Calendar.DAY_OF_WEEK) - 1;
     }
 }

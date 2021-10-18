@@ -10,9 +10,10 @@ import com.my.models.GroupUser;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
 
-import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.stream.Collectors;
+
+import static java.util.Calendar.*;
 
 public class PlannedScheduleSending extends Thread {
 
@@ -29,10 +30,10 @@ public class PlannedScheduleSending extends Thread {
         while (true) {
             try {
                 GregorianCalendar calendar = new GregorianCalendar();
-                int second = calendar.get(Calendar.SECOND);
-                int minute = calendar.get(Calendar.MINUTE);
-                int hour = calendar.get(Calendar.HOUR_OF_DAY);
-                int weekDay = (Utils.mapWeekDayFromCalendar(calendar) + 1) % 7;
+                int second = calendar.get(SECOND);
+                int minute = calendar.get(MINUTE);
+                int hour = calendar.get(HOUR_OF_DAY);
+                int nextWeekDay = Utils.getNextWeekDayIndex(calendar);
 
                 if (hour == 18) {
                     try {
@@ -41,13 +42,17 @@ public class PlannedScheduleSending extends Thread {
                         Bot.login(Bot.getGroupByGroupName().get("ПИ-19-1"));
                         Bot.actualizeWeekType();
                     } catch (LkNotRespondingException e) {
-                        if (weekDay == 0) {
+                        if (calendar.get(DAY_OF_WEEK) == MONDAY)
                             Bot.manualChangeWeekType();
-                        }
                     }
 
                     for (Group group : Bot.getGroupByGroupName().values()) {
-                        final String dayScheduleReport = Bot.getDayScheduleReport(weekDay, true, group);
+                        boolean isNextDayWeekWhite = Bot.isActualWeekWhite();
+                        if (nextWeekDay == 0) // Если следующий день
+                            isNextDayWeekWhite = !isNextDayWeekWhite;
+
+                        final String dayScheduleReport =
+                                Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
                         if (!dayScheduleReport.isEmpty())
                             vkBot.sendMessageTo(
                                     group.getUsers().stream()
