@@ -43,9 +43,6 @@ public class KeyboardService {
     private static final KeyboardButton withEmptyReportsButton =
             generateButton(Command.WITH_EMPTY_REPORTS, KeyboardButtonColor.POSITIVE);
 
-    private static final KeyboardButton timetableUpdateButton =
-            generateButton(Command.UPDATE_SCHEDULE, KeyboardButtonColor.DEFAULT);
-
     private static final KeyboardButton scheduleEnableButton =
             generateButton(Command.SEND_EVERYDAY_SCHEDULE, KeyboardButtonColor.POSITIVE);
 
@@ -69,7 +66,7 @@ public class KeyboardService {
     private static Keyboard getLoggedUserCommands(LoggedUser loggedUser, boolean isSchedulingEnabled) {
         return new Keyboard().setButtons(List.of(
                 List.of(subjectsButton, commandsButton),
-                List.of(timetableUpdateButton, isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
+                List.of(isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
                 List.of(forgetMeButton,
                         loggedUser.isAlwaysNotify() ? withoutEmptyReportsButton : withEmptyReportsButton)));
     }

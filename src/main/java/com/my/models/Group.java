@@ -41,13 +41,13 @@ public class Group {
     private LkParser lkParser;
 
     @BsonIgnore
-    public boolean isNotLoggedNow () {
-        return loggedUser.getAuthData() == null;
+    public boolean isLoggedNow() {
+        return loggedUser.getAuthData() != null;
     }
 
     @BsonIgnore
-    public boolean isLoggedBefore () {
-        return !(subjects.isEmpty() && users.isEmpty());
+    public boolean isNotLoggedBefore() {
+        return subjects.isEmpty() && users.isEmpty();
     }
 
     @BsonIgnore

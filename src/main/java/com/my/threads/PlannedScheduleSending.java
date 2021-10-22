@@ -5,11 +5,14 @@ import com.my.GroupsRepository;
 import com.my.Utils;
 import com.my.models.Group;
 import com.my.models.GroupUser;
+import com.my.models.Timetable;
+import com.my.services.Answer;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
 
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class PlannedScheduleSending extends Thread {
@@ -37,15 +40,19 @@ public class PlannedScheduleSending extends Thread {
                     Thread.sleep(3600L * 1000); // 1 час
 
                 } else if (hour == 18) {
-                    for (Group group : groupsRepository.findAllWithoutSubjects()) {
-                        final String dayScheduleReport = Bot.getDayScheduleReport(weekDay, group);
-                        if (!dayScheduleReport.isEmpty())
-                            vkBot.sendMessageTo(
-                                    group.getUsers().stream()
-                                            .filter(GroupUser::isEverydayScheduleEnabled)
-                                            .map(GroupUser::getId)
-                                            .collect(Collectors.toList()),
-                                    "Держи расписание на завтра ;-) "+dayScheduleReport);
+                    for (Group group : Bot.getGroupByGroupName().values()) {
+                        CompletableFuture.runAsync(() -> {
+                            updateSchedule(group);
+
+                            final String dayScheduleReport = Bot.getDayScheduleReport(weekDay, group);
+                            if (!dayScheduleReport.isEmpty())
+                                vkBot.sendMessageTo(
+                                        group.getUsers().stream()
+                                                .filter(GroupUser::isEverydayScheduleEnabled)
+                                                .map(GroupUser::getId)
+                                                .collect(Collectors.toList()),
+                                        Answer.getTomorrowSchedule(dayScheduleReport));
+                        });
                     }
                     Thread.sleep(3600L * 1000); // 1 час
 
@@ -57,5 +64,17 @@ public class PlannedScheduleSending extends Thread {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void updateSchedule(Group group) {
+        try {
+            Bot.login(group);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return;
+        }
+        final Timetable timetable = group.getLkParser().parseTimetable(group.getLkSemesterId(), group.getLkId());
+        groupsRepository.updateField(group.getName(),"timetable", timetable);
+        group.setTimetable(timetable);
     }
 }

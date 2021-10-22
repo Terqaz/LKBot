@@ -10,7 +10,7 @@ import java.util.Date;
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
-public class MessageData {
+public class Message {
     @NonNull
     String comment;
     @NonNull

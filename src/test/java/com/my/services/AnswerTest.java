@@ -14,7 +14,7 @@ import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class ReportsMakerTest {
+class AnswerTest {
 
     @Test
     @Disabled
@@ -38,7 +38,7 @@ class ReportsMakerTest {
         Date date2 = new SimpleDateFormat("dd.MM.yyyy HH:mm").parse("11.09.2021 18:46");
 
         List<Subject> list = TestUtils.createSubjects();
-        assertEquals(report, ReportsMaker.getSubjects(list, date2));
+        assertEquals(report, Answer.getSubjects(list, date2));
 
         String report2 = "\uD83D\uDD34 Новые документы:\n" +
                 "➡ 1 Матеша:\nЛекция 1\n\n" +
@@ -55,7 +55,7 @@ class ReportsMakerTest {
                 new Subject("3", "Пустой предмет", new TreeSet<>(List.of()), List.of())
                         .setId(3)
         );
-        assertEquals(report2, ReportsMaker.getSubjects(list2, date2));
+        assertEquals(report2, Answer.getSubjects(list2, date2));
     }
 
 }

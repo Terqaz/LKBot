@@ -23,7 +23,7 @@ class AnyUtilsTest {
     void translateFromEnglishKeyboardLayout_isCorrect () {
         final List<String> expected =
                 List.of("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
-                .stream().map(KeyboardLayoutConverter::translateFromEnglishLayoutIfNeeds)
+                .stream().map(KeyboardLayoutConverter::convertFromEngIfNeeds)
                 .collect(Collectors.toList());
 
         final List<String> actual =
@@ -81,7 +81,7 @@ class AnyUtilsTest {
     }
 
     private Subject createSubject1() {
-        return new Subject().setId(234634).setLkId("346346").setMessagesData(List.of());
+        return new Subject().setId(234634).setLkId("346346").setMessages(List.of());
     }
 
     @SafeVarargs

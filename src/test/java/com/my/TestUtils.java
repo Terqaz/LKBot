@@ -1,6 +1,6 @@
 package com.my;
 
-import com.my.models.MessageData;
+import com.my.models.Message;
 import com.my.models.Subject;
 
 import java.text.ParseException;
@@ -27,14 +27,14 @@ public class TestUtils {
                 new Subject("1", "Матеша",
                         Set.of("лекция 1", "лекция 2"),
                         List.of(
-                                new MessageData("Выкладывайте лабы)))", "Игорев ИИ", date1),
-                                new MessageData("Выложил лр3", "Сергеев СС", date1)))
+                                new Message("Выкладывайте лабы)))", "Игорев ИИ", date1),
+                                new Message("Выложил лр3", "Сергеев СС", date1)))
                         .setId(1),
                 new Subject("2", "Прога",
                         Set.of("варианты", "рабочая программа"),
                         List.of(
-                                new MessageData("Где лабы?", "Олегов ОО", date1),
-                                new MessageData("Прошел тест", "Владимиров ВВ", date1)))
+                                new Message("Где лабы?", "Олегов ОО", date1),
+                                new Message("Прошел тест", "Владимиров ВВ", date1)))
                         .setId(2),
                 new Subject("3", "Пустой предмет", new TreeSet<>(List.of()), List.of())
                         .setId(3)

@@ -10,8 +10,8 @@ import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.Subject;
 import com.my.models.Timetable;
+import com.my.services.Answer;
 import com.my.services.CipherService;
-import com.my.services.ReportsMaker;
 import com.my.services.lk.LkParser;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
@@ -72,9 +72,7 @@ public class PlannedSubjectsUpdate extends Thread {
             } catch (LkNotRespondingException e) {
                 if (loggedUser.isAlwaysNotify()) {
                     group.setLastCheckDate(new Date());
-                    vkBot.sendMessageTo(loggedUser.getId(),
-                            "Обновление не удалось, так как ЛК долго отвечал на запросы. " +
-                                    ReportsMaker.getNextUpdateDateText(group.getNextCheckDate()));
+                    vkBot.sendMessageTo(loggedUser.getId(), Answer.getUpdateNotSuccessful(group.getNextCheckDate()));
                 }
             }
         });
@@ -120,7 +118,7 @@ public class PlannedSubjectsUpdate extends Thread {
         group.setLastCheckDate(checkDate);
         group.setSubjects(newSubjects);
 
-        return ReportsMaker.getSubjects (
+        return Answer.getSubjects (
                 Utils.removeOldDocuments(oldSubjects, newSubjects),
                 group.getNextCheckDate());
     }
@@ -136,7 +134,7 @@ public class PlannedSubjectsUpdate extends Thread {
 
         final var checkDate = new Date();
         group.setLastCheckDate(checkDate);
-        final String report = ReportsMaker.getSubjects(newSubjects, group.getNextCheckDate());
+        final String report = Answer.getSubjects(newSubjects, group.getNextCheckDate());
 
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(newSemester);
         final var newLkSemesterId = lkIds.get(LkParser.SEMESTER_ID);

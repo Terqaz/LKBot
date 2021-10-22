@@ -24,10 +24,10 @@ public class Subject implements Serializable {
     @NonNull
     private Set<String> documentNames;
     @NonNull
-    private List<MessageData> messagesData;
+    private List<Message> messages;
 
     @BsonIgnore
     public boolean isNotEmpty () {
-        return !(documentNames.isEmpty() && messagesData.isEmpty());
+        return !(documentNames.isEmpty() && messages.isEmpty());
     }
 }
