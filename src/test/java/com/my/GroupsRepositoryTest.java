@@ -56,7 +56,7 @@ class GroupsRepositoryTest {
         // Проверка
         group = repository.findByGroupName(testGroupName).get();
         assertEquals(Set.of(new GroupUser(1234)), new HashSet<>(group.getUsers()));
-        assertEquals(new LoggedUser(0, null, true, false), group.getLoggedUser());
+        assertNull(group.getLoggedUser());
     }
 
     @Test

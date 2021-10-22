@@ -2,10 +2,7 @@ package com.my.services;
 
 import com.mongodb.lang.Nullable;
 import com.my.Utils;
-import com.my.models.Command;
-import com.my.models.Message;
-import com.my.models.Subject;
-import com.my.models.TimetableSubject;
+import com.my.models.*;
 
 import java.util.Date;
 import java.util.List;
@@ -13,11 +10,21 @@ import java.util.stream.Collectors;
 
 public class Answer {
 
-    public static final String TYPE_FORGET_ME = "Напиши "+quotes(Command.FORGET_ME)+", чтобы перезайти в меня";
-    public static final String COMMAND_FOR_ONLY_LEADER = "Это может сделать только лидер твоей группы";
+    public static final String LEADER_FORGET_ME_NOTICE =
+            "➡ Эта опция позволит тебе прекратить пользоваться мной." +
+            "После твоего ухода кому-то из твоей группы нужно будет сказать мне " +
+            "свой логин и пароль от ЛК, иначе никто из твоей группы не сможет пользоваться мной.\n" +
+            "➡ Если ты уверен, что правильно все делаешь, то напиши: " + quotes(Command.FINALLY_FORGET_ME);
+
+    public static final String USER_FORGET_ME_NOTICE =
+            "➡ Эта опция позволит тебе прекратить пользоваться мной." +
+            "➡ Если ты уверен, что правильно все делаешь, то напиши: " + quotes(Command.FINALLY_FORGET_ME);
+    public static final String AFTER_LEADER_FORGETTING =
+            "Хорошо. Рекомендую тебе поменять пароль в ЛК (http://lk.stu.lipetsk.ru).\n" +
+            "Я тебя забыл. \uD83D\uDC4B\uD83C\uDFFB";
+    public static final String AFTER_USER_FORGETTING = "Хорошо. Я тебя забыл. \uD83D\uDC4B\uD83C\uDFFB";
 
     private Answer() {}
-
 
     public static final String WARNING_APP_STOPPED = "WARNING: APP STOPPED";
     public static final String LK_NOT_RESPONDING = "ЛК сейчас не работает, попробуй это позже";
@@ -35,11 +42,16 @@ public class Answer {
             "из ЛК, то напиши мне "+quotes(Command.WANT_TO_LOGIN)+"\n" +
             "➡ Иначе просто ожидай, пока другой человек из твоей группы войдет в ЛК через меня ;-)";
 
-    public static final String YOUR_GROUP_WITHOUT_LEADER =
-            "Из твоей группы уже работали со мной, но ее лидер решил выйти\n" +
-            "➡ Если ты хочешь продолжить получать информацию для своей группы и настраивать обновления " +
-            "из ЛК, то напиши мне "+quotes(Command.WANT_TO_LOGIN)+"\n" +
+    public static final String BECOME_NEW_LEADER_INSTRUCTION = "➡ Если ты хочешь продолжить получать информацию для своей группы и настраивать обновления " +
+            "из ЛК, то напиши мне " + quotes(Command.WANT_TO_LOGIN) + "\n" +
             "➡ Иначе просто ожидай, пока другой человек из твоей группы войдет в ЛК через меня ;-)";
+
+    public static final String LEADER_EXITED = "Лидер твоей группы вышел\n" +
+            BECOME_NEW_LEADER_INSTRUCTION;
+
+    public static final String FOR_NEW_USER_LEADER_EXITED =
+            "Из твоей группы уже работали со мной, но ее лидер решил выйти\n" +
+                    BECOME_NEW_LEADER_INSTRUCTION;
 
     public static final String GROUP_NOT_LOGGED_AND_YOU_CAN_LOGIN =
             "Из твоей группы еще никто не работал со мной. " +
@@ -60,15 +72,33 @@ public class Answer {
             "Тебе нужно просто позвать их пообщаться со мной.";
 
     public static final String I_KNOW_THIS_GROUP = "О, я знаю эту группу!";
-    public static final String SEND_ME_CODE = "Скажи мне проверочный код, присланный лидеру твоей группы";
     public static final String I_ALREADY_SENT_CODE = "Я уже присылал проверочный код лидеру твоей группы";
     public static final String TYPE_CODE_INITIALLY = "Сначала введи правильный код доступа";
     public static final String WRONG_CODE = "Ты ввел неправильный код доступа";
 
+    private static final String BASIC_COMMANDS =
+            "🔷 Вывести список предметов:\n" +
+                    Command.GET_SUBJECTS+"\n" +
+                    "🔷 Узнать самую свежую информацию по предмету из ЛК:\n" +
+                    "n (n - номер в моем списке предметов)\n" +
+                    "🔶 Показать эти команды:\n" +
+                    Command.COMMANDS+"\n" +
+                    "🔶 Прекратить пользоваться ботом или сменить зарегистрированного человека:\n" +
+                    Command.FORGET_ME;
+
+    public static final String OK = "Хорошо";
+    public static final String COMMAND_FOR_ONLY_LEADER = "Это может сделать только лидер твоей группы";
+    public static final String CANNOT_LOGIN =
+            "➡ Мне не удалось проверить данные твоей группы. " +
+                    "Лидер твоей группы не написал мне свой новый пароль. " +
+                    "Я уже сказал ему об этом.";
+
+    public static final String WRONG_SUBJECT_NUMBER = "Неправильный номер предмета";
     public static final String INTERVAL_CHANGED = "Интервал изменен";
     public static final String WRONG_INTERVAL = "Нельзя установить такой интервал обновления";
     public static final String SILENT_TIME_CHANGED = "Время тихого режима изменено";
     public static final String WRONG_SILENT_TIME = "Нельзя установить такое время тихого режима";
+    public static final String TYPE_FORGET_ME = "Напиши " + quotes(Command.FORGET_ME) + ", чтобы перезайти в меня";
 
     private static String quotes(String s) {
         return "\""+s+"\"";
@@ -85,6 +115,45 @@ public class Answer {
 
     public static String getUserAdded(String userName) {
         return "Пользователь "+userName+" добавлен в группу";
+    }
+
+    public static String getNowICanSendSubjectsInfo(List<Subject> subjects) {
+        return "Теперь я могу вывести тебе последнюю информацию из ЛК по данным предметам:\n" +
+                getSubjectsNames(subjects);
+    }
+
+    public static String getNowYouCanUseCommands(Integer userId, Group group) {
+        return "Также теперь ты можешь использовать эти команды:\n" +
+                getUserCommands(userId, group);
+    }
+
+    public static String getUserCommands (Integer userId, Group group) {
+        final LoggedUser loggedUser = group.getLoggedUser();
+
+        if (loggedUser.is(userId))
+            return BASIC_COMMANDS +
+                    "\n🔶 Изменить интервал автоматического обновления (сейчас раз в " +
+                    group.getUpdateInterval() / 60000 + " минут):\n" + // Целочисленное деление
+                    "Новый интервал обновления: n (n - количество минут [5, 20160])\n"
+                    +
+                    "🔶 Изменить время тихого режима (сейчас с " +
+                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
+                    "Новый тихий режим: с n до k (вместо n и k числа [0, 23])\n"
+                    +
+                    (loggedUser.isAlwaysNotify() ?
+                            "🔶 Не присылать пустые результаты обновления:\n"+Command.WITHOUT_EMPTY_REPORTS :
+                            "🔶 Присылать даже пустые результаты обновления:\n"+Command.WITH_EMPTY_REPORTS);
+
+        else {
+            return BASIC_COMMANDS + "\n" +
+                    (group.getUserSchedulingEnabled(userId) ?
+                            "🔶 Не присылать ежедневное расписание на завтра:\n"+Command.WITHOUT_EVERYDAY_SCHEDULE :
+                            "🔶 Присылать ежедневное расписание на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE);
+        }
+    }
+
+    public static String getNoNewSubjectInfo(String subjectName) {
+        return "Нет новой информации по предмету:\n " + subjectName;
     }
 
     public static String getTodaySchedule(String dayScheduleReport) {
@@ -170,5 +239,13 @@ public class Answer {
                                         subject.getAcademicName())
                                 .collect(Collectors.joining("\n\n"));
 
+    }
+
+    public static String getNewLeaderIs(String leaderName) {
+        return "Теперь в твоей группе новый лидер: " + leaderName;
+    }
+
+    public static String getSendMeCode(String leaderName) {
+        return "Скажи мне проверочный код, присланный лидеру твоей группы. Его зовут: " + leaderName;
     }
 }

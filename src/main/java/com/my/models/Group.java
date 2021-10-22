@@ -42,7 +42,7 @@ public class Group {
 
     @BsonIgnore
     public boolean isLoggedNow() {
-        return loggedUser.getAuthData() != null;
+        return loggedUser != null;
     }
 
     @BsonIgnore
@@ -87,7 +87,7 @@ public class Group {
     @BsonIgnore
     public void removeLoggedUser(Integer id) {
         removeUserFromGroup(id);
-        loggedUser.setId(0).setAuthData(null);
+        loggedUser = null;
     }
 
     @BsonIgnore

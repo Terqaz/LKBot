@@ -44,10 +44,10 @@ public class KeyboardService {
             generateButton(Command.WITH_EMPTY_REPORTS, KeyboardButtonColor.POSITIVE);
 
     private static final KeyboardButton scheduleEnableButton =
-            generateButton(Command.SEND_EVERYDAY_SCHEDULE, KeyboardButtonColor.POSITIVE);
+            generateButton(Command.WITH_EVERYDAY_SCHEDULE, KeyboardButtonColor.POSITIVE);
 
     private static final KeyboardButton scheduleDisableButton =
-            generateButton(Command.NOT_SEND_EVERYDAY_SCHEDULE, KeyboardButtonColor.NEGATIVE);
+            generateButton(Command.WITHOUT_EVERYDAY_SCHEDULE, KeyboardButtonColor.NEGATIVE);
 
     private static final KeyboardButton forgetMeButton =
             generateButton(Command.FORGET_ME, KeyboardButtonColor.DEFAULT);
