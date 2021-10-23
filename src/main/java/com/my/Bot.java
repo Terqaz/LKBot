@@ -3,12 +3,10 @@ package com.my;
 import com.my.exceptions.ApplicationStopNeedsException;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
-import com.my.exceptions.LoginNeedsException;
 import com.my.models.*;
 import com.my.services.Answer;
 import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
-import com.my.services.text.KeyboardLayoutConverter;
 import com.my.services.vk.KeyboardService;
 import com.my.services.vk.VkBotService;
 import com.my.threads.PlannedScheduleSending;
@@ -41,13 +39,6 @@ public class Bot {
     @Getter @Setter
     private static volatile String actualSemester;
     private static boolean isActualWeekWhite;
-
-
-    private static final String AUTH_COMMAND =
-            "(рекомендую сразу удалить это сообщение):\n" +
-                    "Хочу войти в ЛК\n" +
-                    "Мой_логин\n" +
-                    "Мой_пароль";
 
     private static PlannedSubjectsUpdate plannedSubjectsUpdate;
     private static PlannedScheduleSending plannedScheduleSending;
@@ -100,6 +91,13 @@ public class Bot {
         });
     }
 
+    private static Message stopAppOnSpecialMessage(Message message) {
+        if (message.getFromId().equals(APP_ADMIN_ID) &&
+                message.getText().equals(APPLICATION_STOP_TEXT))
+            throw new ApplicationStopNeedsException();
+        else return message;
+    }
+
     private static void processMessage(Message message) {
         try {
             Thread.sleep(10); // Чтобы не ддосили ЛК
@@ -115,136 +113,124 @@ public class Bot {
             } catch (AuthenticationException e) {
                 loginFailedMessages(userId, groupByGroupName.get(groupNameByUserId.get(userId)));
 
-            } catch (LoginNeedsException e) {
-                login(groupByGroupName.get(groupNameByUserId.get(userId)));
-                replyToMessage(userId, messageText);
+//            } catch (LoginNeedsException e) { // Не должен вызываться по идее
+//                e.printStackTrace();
+//                login(groupByGroupName.get(groupNameByUserId.get(userId)));
+//                replyToMessage(userId, messageText);
 
             } catch (LkNotRespondingException e) {
                 vkBot.sendMessageTo(userId, Answer.LK_NOT_RESPONDING);
+
             } catch (Exception e) {
-                vkBot.sendMessageTo(userId, Answer.NOT_UNDERSTAND_YOU_OR_MISTAKE);
+                vkBot.sendMessageTo(userId, Answer.I_BROKEN);
+                vkBot.sendMessageTo(List.of(APP_ADMIN_ID), Answer.getForAdminsIBroken(userId, e));
                 e.printStackTrace();
             }
         });
     }
 
-    private static Message stopAppOnSpecialMessage(Message message) {
-        if (message.getFromId().equals(APP_ADMIN_ID) &&
-                message.getText().equals(APPLICATION_STOP_TEXT))
-            throw new ApplicationStopNeedsException();
-        else return message;
-    }
-
     private static void replyToMessage(Integer userId, String messageText) {
-        if (tryReplyTo(userId, messageText)) return;
-        messageText = ParserUtils.capitalize(messageText);
-        if (tryReplyTo(userId, messageText)) return;
-        messageText = KeyboardLayoutConverter.convertFromEngIfNeeds(messageText);
-        tryReplyTo(userId, messageText);
-    }
-
-    private static boolean tryReplyTo(Integer userId, String messageText) {
         // TODO если добавить описание ошибок и пожелания, то изменить условие
         if (messageText.length() > 100) {
             vkBot.sendMessageTo(userId, Answer.YOUR_MESSAGE_IS_SPAM);
-            return true;
+            return;
         }
 //        SpecialWordsFinder.findSpecialWords(userId, messageText);
 
         Command command = new Command(messageText);
 
-        if (replyForNewUser(userId, command)) return true;
+        if (replyForNewUser(userId, command)) return;
 
         String groupName = groupNameByUserId.get(userId);
         final Group group = groupByGroupName.get(groupName);
-        messageText = messageText.toLowerCase(Locale.ROOT);
-        command = new Command(messageText);
 
-        if (replyForGroupWroteUser(userId, command, group)) return true;
-
-        if (!group.containsUser(userId) && command.is(Command.VERIFICATION_CODE)) {
-            addUserByVerificationCode(group, userId, Utils.tryParseInteger(messageText));
-            return true;
-        }
+        if (replyForGroupWroteUser(userId, command, group)) return;
 
         final LoggedUser loggedUser = group.getLoggedUser();
 
-        if (loggedUser == null) {
-            vkBot.sendMessageTo(userId, Answer.LEADER_EXITED);
-            return true;
+        if (command.is(Command.FORGET_ME)) {
+            if (loggedUser != null && loggedUser.is(userId))
+                vkBot.sendMessageTo(userId, Answer.LEADER_FORGET_ME_NOTICE);
+            else
+                vkBot.sendMessageTo(userId, Answer.USER_FORGET_ME_NOTICE);
+
+        } else if (command.is(Command.FINALLY_FORGET_ME))
+            finallyForgetUser(userId, groupName, group, loggedUser);
+
+        else if (loggedUser == null) {
+            vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_3, Answer.LEADER_EXITED);
+            groupsRepository.addToIntegerArray(groupName, "loginWaitingUsers", userId);
+            group.getLoginWaitingUsers().add(userId);
         }
 
-        if (command.is(Command.CHANGE_UPDATE_INTERVAL)) {
-            if (loggedUser.is(userId)) {
-                final var minutes = command.parseNumbers().get(0);
-                if (5 <= minutes && minutes <= 20160) {
-                    final long newUpdateInterval = minutes * 60 * 1000;
+        else if (!group.containsUser(userId) && command.is(Command.VERIFICATION_CODE)) {
+            addUserByVerificationCode(group, userId, Utils.tryParseInteger(messageText));
 
-                    groupsRepository.updateField(groupName,"updateInterval", newUpdateInterval);
-                    group.setUpdateInterval(newUpdateInterval);
-
-                    group.setUpdateInterval(newUpdateInterval);
-                    vkBot.sendMessageTo(userId, Answer.INTERVAL_CHANGED + "\n" +
-                            Answer.getNextUpdateDateText(group.getNextCheckDate()));
-
-                } else vkBot.sendMessageTo(userId, Answer.WRONG_INTERVAL);
-
-            } else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
-
-        } else if (command.is(Command.CHANGE_SILENT_TIME)) {
-            if (loggedUser.is(userId)) {
-                final List<Integer> integers = command.parseNumbers();
-                final var startHour = integers.get(0);
-                final var endHour = integers.get(1);
-                if (0 <= startHour && startHour <= 23 && 0 <= endHour && endHour <= 23) {
-                    groupsRepository.updateSilentMode(groupName, startHour, endHour);
-                    group.setSilentModeStart(startHour).setSilentModeEnd(endHour);
-                    vkBot.sendMessageTo(userId, Answer.SILENT_TIME_CHANGED);
-
-                } else vkBot.sendMessageTo(userId, Answer.WRONG_SILENT_TIME);
-
-            } else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
-
-        } else if (command.is(Command.GET_SUBJECT)) {
-            login(group);
+        } else if (command.is(Command.GET_SUBJECT))
             getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
 
-        } else if (command.is(Command.GET_SUBJECTS))
+        else if (command.is(Command.GET_SUBJECTS))
             vkBot.sendMessageTo(userId, Answer.getSubjectsNames(group.getSubjects()));
 
-        else if (command.is(Command.COMMANDS)) {
+        else if (command.is(Command.COMMANDS))
             vkBot.sendMessageTo(userId,
-                    KeyboardService.getCommands(userId, group),
-                    Answer.getUserCommands(userId, group));
+                KeyboardService.getCommands(userId, group),
+                Answer.getUserCommands(userId, group));
 
-        } else if (command.is(Command.WITH_EVERYDAY_SCHEDULE))
+        else if (command.is(Command.WITH_EVERYDAY_SCHEDULE))
             changeUserSchedulingEnable(userId, group, true);
 
         else if (command.is(Command.WITHOUT_EVERYDAY_SCHEDULE))
             changeUserSchedulingEnable(userId, group, false);
 
-        else if (command.is(Command.WITHOUT_EMPTY_REPORTS))
-            changeLoggedUserNotifying(userId, group, false);
-
-        else if (command.is(Command.WITH_EMPTY_REPORTS))
-            changeLoggedUserNotifying(userId, group, true);
-
-        else if (command.is(Command.FORGET_ME)) {
+        else if (command.is(Command.CHANGE_UPDATE_INTERVAL)) {
             if (loggedUser.is(userId))
-                vkBot.sendMessageTo(userId, Answer.LEADER_FORGET_ME_NOTICE);
-            else
-                vkBot.sendMessageTo(userId, Answer.USER_FORGET_ME_NOTICE);
+                changeUpdateInterval(userId, command, group);
+            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
 
-        } else if (command.is(Command.FINALLY_FORGET_ME)) {
-            finallyForgetUser(userId, groupName, group, loggedUser);
+        } else if (command.is(Command.CHANGE_SILENT_TIME)) {
+            if (loggedUser.is(userId))
+                changeSilentTime(userId, command, group);
+            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
 
-        } else {
-            vkBot.sendMessageTo(userId, "Я не понял тебя");
-            return false;
-        }
-        return true;
+        } else if (command.is(Command.WITHOUT_EMPTY_REPORTS)) {
+            if (loggedUser.is(userId))
+                changeLoggedUserNotifying(userId, group, false);
+            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
+
+        } else if (command.is(Command.WITH_EMPTY_REPORTS)) {
+            if (loggedUser.is(userId))
+                changeLoggedUserNotifying(userId, group, true);
+            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
+
+        } else vkBot.sendMessageTo(userId, "Я не понял твою команду");
     }
 
+    private static void changeSilentTime(Integer userId, Command command, Group group) {
+        final List<Integer> integers = command.parseNumbers();
+        final var startHour = integers.get(0);
+        final var endHour = integers.get(1);
+        if (0 <= startHour && startHour <= 23 && 0 <= endHour && endHour <= 23) {
+            groupsRepository.updateSilentMode(group.getName(), startHour, endHour);
+            group.setSilentModeStart(startHour).setSilentModeEnd(endHour);
+            vkBot.sendMessageTo(userId, Answer.SILENT_TIME_CHANGED);
+
+        } else vkBot.sendMessageTo(userId, Answer.WRONG_SILENT_TIME);
+    }
+
+    private static void changeUpdateInterval(Integer userId, Command command, Group group) {
+        final var minutes = command.parseNumbers().get(0);
+        if (5 <= minutes && minutes <= 20160) {
+            final long newUpdateInterval = minutes * 60 * 1000;
+
+            groupsRepository.updateField(group.getName(),"updateInterval", newUpdateInterval);
+            group.setUpdateInterval(newUpdateInterval);
+
+            vkBot.sendMessageTo(userId, Answer.INTERVAL_CHANGED + "\n" +
+                    Answer.getNextUpdateDateText(group.getNextCheckDate()));
+
+        } else vkBot.sendMessageTo(userId, Answer.WRONG_INTERVAL);
+    }
 
 
     private static boolean replyForNewUser(Integer userId, Command command) {
@@ -261,8 +247,8 @@ public class Bot {
     }
 
     private static boolean replyForGroupWroteUser(Integer userId, Command command, Group group) {
-        if (command.is(Command.WANT_TO_LOGIN)) {
-            if (group == null || !group.isLoggedNow()) {
+        if (command.is(Command.WANT_TO_LOGIN_PATTERN)) {
+            if (group == null || !group.hasLeader()) {
                 vkBot.unsetKeyboard();
                 vkBot.sendMessageTo(userId, Answer.INPUT_CREDENTIALS);
             } else
@@ -290,9 +276,20 @@ public class Bot {
         } else return false;
     }
 
-    public static boolean login(Group group) {
-        return group.getLkParser()
-                .login(cipherService.decrypt(group.getLoggedUser().getAuthData()));
+    private static boolean tryLogin(Integer userId, LkParser lkParser, String login, String password) {
+        vkBot.sendMessageTo(userId, Answer.TRY_TO_LOGIN);
+        try {
+            lkParser.login(new AuthenticationData(login, password));
+        } catch (AuthenticationException e) {
+            vkBot.sendMessageTo(userId, Answer.LOGIN_FAILED);
+            return false;
+        }
+        vkBot.sendMessageTo(userId, Answer.SUCCESSFUL_LOGIN);
+        return true;
+    }
+
+    public static void login(Group group) {
+        group.getLkParser().login(cipherService.decrypt(group.getLoggedUser().getAuthData()));
     }
 
     private static void addUserByVerificationCode (Group group, Integer userId, Integer code) {
@@ -316,24 +313,21 @@ public class Bot {
         if (groupNameByUserId.containsKey(userId)) {
             vkBot.sendMessageTo(userId, Answer.YOU_ALREADY_WRITE_YOUR_GROUP);
             return;
-        } else
-            groupNameByUserId.put(userId, groupName);
 
-        final var optionalGroup = Optional.ofNullable(groupByGroupName.get(groupName));
-        if (optionalGroup.isEmpty()) {
+        } else groupNameByUserId.put(userId, groupName);
+
+        final Group group = groupByGroupName.get(groupName);
+
+        if (group == null)
             vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_1, Answer.YOUR_GROUP_IS_NEW);
-            return;
-        }
 
-        Group group = optionalGroup.get();
-
-        if (!group.isLoggedNow()) {
+        else if (!group.hasLeader())
             vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_1, Answer.FOR_NEW_USER_LEADER_EXITED);
-            return;
-        }
 
-        vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_2, Answer.I_KNOW_THIS_GROUP);
-        startUserVerification(userId, group);
+        else {
+            vkBot.sendMessageTo(userId, KeyboardService.KEYBOARD_2, Answer.I_KNOW_THIS_GROUP);
+            startUserVerification(userId, group);
+        }
     }
 
     private static void startUserVerification(Integer userId, Group group) {
@@ -364,8 +358,12 @@ public class Bot {
         if (!group.containsUser(userId)) {
             vkBot.sendMessageTo(userId, Answer.YOU_LATE_LOGIN);
             startUserVerification(userId, group);
-        } else
-            vkBot.sendMessageTo(userId, Answer.CANNOT_CHANGE_LEADER);
+        } else {
+            if (group.getLoggedUser().is(userId))
+                vkBot.sendMessageTo(userId, Answer.YOU_ALREADY_LOGGED);
+
+            else vkBot.sendMessageTo(userId, Answer.CANNOT_CHANGE_LEADER);
+        }
     }
 
     private static void changeUserSchedulingEnable(Integer userId, Group group, boolean isEnable) {
@@ -391,12 +389,9 @@ public class Bot {
     }
 
     private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isEnable) {
-        if (group.getLoggedUser().is(userId)) {
-            groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isEnable);
-            group.getLoggedUser().setAlwaysNotify(isEnable);
-            vkBot.sendMessageTo(userId, KeyboardService.getLoggedUserCommands(group), Answer.OK);
-        } else
-            vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
+        groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isEnable);
+        group.getLoggedUser().setAlwaysNotify(isEnable);
+        vkBot.sendMessageTo(userId, KeyboardService.getLoggedUserCommands(group), Answer.OK);
     }
 
     private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
@@ -408,7 +403,7 @@ public class Bot {
             return;
         }
         final var oldSubject = optionalSubject.get();
-
+        login(group);
         Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
 
         newSubject.setId(subjectIndex);
@@ -428,23 +423,19 @@ public class Bot {
         LoggedUser loggedUser = group.getLoggedUser();
 
         final boolean isNotLoggedUser = !loggedUser.is(userId);
+        rememberUpdateAuthDataMessage(groupName, loggedUser, isNotLoggedUser);
         if (isNotLoggedUser) {
-            vkBot.sendMessageTo(userId,
-                    Answer.CANNOT_LOGIN);
+            vkBot.sendMessageTo(userId, Answer.CANNOT_LOGIN);
             groupsRepository.addToIntegerArray(groupName, "loginWaitingUsers", userId);
             group.getLoginWaitingUsers().add(userId);
         }
-        rememberUpdateAuthDataMessage(groupName, loggedUser, isNotLoggedUser);
     }
 
-    public static void rememberUpdateAuthDataMessage(@NonNull String groupName,
-                                                     @NonNull LoggedUser loggedUser,
-                                                     boolean anywayRemember) {
-        if (anywayRemember || !loggedUser.isUpdateAuthDataNotified()) {
-            vkBot.sendMessageTo(loggedUser.getId(),
-                    "➡ Похоже ты забыл сказать мне новый пароль после его обновления в ЛК." +
-                            "Скажи мне новые данные для входа так " +
-                            AUTH_COMMAND);
+    public static void rememberUpdateAuthDataMessage(String groupName, @NonNull LoggedUser loggedUser,
+                                                     boolean isNotLoggedUser) {
+
+        if (!isNotLoggedUser || !loggedUser.isUpdateAuthDataNotified()) {
+            vkBot.sendMessageTo(loggedUser.getId(), Answer.UPDATE_CREDENTIALS);
 
             groupsRepository.updateField(groupName, "loggedUser.updateAuthDataNotified", true);
             loggedUser.setUpdateAuthDataNotified(true);
@@ -453,7 +444,7 @@ public class Bot {
 
     private static void onLoginMessages (Integer userId, @NonNull String groupName, String messageText) {
 
-        final String[] chunks = messageText.split(" ");
+        final String[] chunks = messageText.split("\n");
         String login = chunks[0];
         String password = chunks[1];
 
@@ -463,24 +454,42 @@ public class Bot {
             return;
         }
 
-        // Если зарегана сейчас и другой пользователь хочет войти
-        if (group.isLoggedNow() && !group.getLoggedUser().is(userId)) {
-            groupAlreadyRegisteredMessage(userId, group);
+        final LoggedUser loggedUser;
+
+        if (group.hasLeader()) {
+            if (group.getLoggedUser().is(userId)) {
+                if (!tryLogin(userId, group.getLkParser(), login, password))
+                    return;
+
+                loggedUser = group.getLoggedUser();
+                loggedUser.setAuthData(cipherService.encrypt(login, password));
+                loggedUser.setUpdateAuthDataNotified(false);
+
+                groupsRepository.updateLoggedUser(group.getName(), loggedUser);
+                vkBot.sendMessageTo(loggedUser.getId(), Answer.CREDENTIALS_UPDATED);
+
+                notifyLoginWaitingUsers(userId, group, Answer.LEADER_UPDATE_PASSWORD);
+
+            } else groupAlreadyRegisteredMessage(userId, group);
             return;
         }
 
-        final LoggedUser loggedUser = new LoggedUser()
-                .setId(userId)
-                .setAuthData(cipherService.encrypt(login, password))
-                .setUpdateAuthDataNotified(false);
+        if (!tryLogin(userId, group.getLkParser(), login, password))
+            return;
 
+        loggedUser = new LoggedUser(userId, cipherService.encrypt(login, password));
         groupsRepository.updateLoggedUser(group.getName(), loggedUser);
         group.setLoggedUser(loggedUser);
         group.getUsers().add(new GroupUser(userId));
+        vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),
+                Answer.I_CAN_SEND_INFO);
 
+        notifyLoginWaitingUsers(userId, group, Answer.getNewLeaderIs(vkBot.getUserName(userId)));
+    }
+
+    private static void notifyLoginWaitingUsers(Integer userId, Group group, String message) {
         groupsRepository.moveLoginWaitingUsersToUsers(group.getName());
-        vkBot.sendMessageTo(group.getLoginWaitingUsers(),
-                Answer.getNewLeaderIs(vkBot.getUserName(userId)));
+        vkBot.sendMessageTo(group.getLoginWaitingUsers(), message);
         group.setLoginWaitingUsers(new HashSet<>());
     }
 
@@ -493,22 +502,17 @@ public class Bot {
         if (lkGroupName.equals(groupName))
             return groupName;
 
-        vkBot.sendMessageTo(userId,
-                "\uD83D\uDD34 Я поменял имя введенной тобой группы "+ groupName +" на: "+lkGroupName+
-                        ", чтобы избежать неприятных ситуаций. \uD83D\uDD34");
+        vkBot.sendMessageTo(userId, Answer.getGroupNameChanged(groupName, lkGroupName));
         groupNameByUserId.replace(userId, lkGroupName);
         return lkGroupName;
     }
 
     private static void loginNewGroup(Integer userId, @NonNull String groupName, String login, String password) {
 
-        vkBot.sendMessageTo(userId, Answer.TRY_TO_LOGIN);
         final LkParser lkParser = new LkParser();
-        if (!lkParser.login(new AuthenticationData(login, password))) {
-            vkBot.sendMessageTo(userId, Answer.LOGIN_FAILED);
+        if (!tryLogin(userId, lkParser, login, password))
             return;
-        }
-        vkBot.sendMessageTo(userId, Answer.SUCCESSFUL_LOGIN);
+
         //vkBotService.deleteLastMessage(message);
 
         groupName = actualizeGroupName(userId, groupName, lkParser);
@@ -542,7 +546,7 @@ public class Bot {
 
     private static void finallyForgetUser(Integer userId, String groupName, Group group, LoggedUser loggedUser) {
         vkBot.unsetKeyboard();
-        if (loggedUser.is(userId)) {
+        if (loggedUser != null && loggedUser.is(userId)) {
             vkBot.sendMessageTo(userId, Answer.AFTER_LEADER_FORGETTING);
 
             groupsRepository.removeLoggedUser(groupName, loggedUser.getId());
@@ -555,15 +559,19 @@ public class Bot {
         group.removeUserFromGroup(userId);
     }
 
-    public static void actualizeWeekType() throws AuthenticationException {
+    public static void actualizeWeekType() {
         Optional.ofNullable(groupByGroupName.get("ПИ-19-1"))
                 .ifPresentOrElse(group -> {
                     final LkParser lkParser = new LkParser();
-                    if (lkParser.login(cipherService.decrypt(group.getLoggedUser().getAuthData())))
+                    if (!group.hasLeader()) {
+                        vkBot.sendMessageTo(APP_ADMIN_ID, Answer.FOR_ADMIN_NEED_REGISTRATION);
+                        return;
+                    }
+                    try {
+                        lkParser.login(cipherService.decrypt(group.getLoggedUser().getAuthData()));
                         isActualWeekWhite = lkParser.parseWeekType(group.getLkSemesterId());
-                    else {
-                        vkBot.sendMessageTo(APP_ADMIN_ID, "Срочно скажи мне свой новый пароль.");
-                        throw new AuthenticationException("Не удалось зайти в группу для актуализации типа недели.");
+                    } catch (AuthenticationException ignored) {
+                        vkBot.sendMessageTo(APP_ADMIN_ID, Answer.FOR_ADMIN_NEED_REGISTRATION);
                     }
 
                 }, () -> vkBot.sendMessageTo(APP_ADMIN_ID,

@@ -41,7 +41,7 @@ public class Group {
     private LkParser lkParser;
 
     @BsonIgnore
-    public boolean isLoggedNow() {
+    public boolean hasLeader() {
         return loggedUser != null;
     }
 

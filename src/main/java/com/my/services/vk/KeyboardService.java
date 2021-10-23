@@ -24,12 +24,17 @@ public class KeyboardService {
                     List.of(generateButton(Command.WANT_TO_LOGIN, KeyboardButtonColor.POSITIVE)),
                     List.of(generateButton(Command.CHANGE_GROUP, KeyboardButtonColor.DEFAULT))
             ));
-    ;
+
     public static final Keyboard KEYBOARD_2 = new Keyboard()
             .setButtons(List.of(
                     List.of(generateButton(Command.CHANGE_GROUP, KeyboardButtonColor.DEFAULT))
             ));
 
+    public static final Keyboard KEYBOARD_3 = new Keyboard()
+            .setButtons(List.of(
+                    List.of(generateButton(Command.WANT_TO_LOGIN, KeyboardButtonColor.POSITIVE)),
+                    List.of(generateButton(Command.FORGET_ME, KeyboardButtonColor.DEFAULT))
+            ));
 
     private static final KeyboardButton subjectsButton =
             generateButton(Command.GET_SUBJECTS, KeyboardButtonColor.PRIMARY);
@@ -66,9 +71,9 @@ public class KeyboardService {
     private static Keyboard getLoggedUserCommands(LoggedUser loggedUser, boolean isSchedulingEnabled) {
         return new Keyboard().setButtons(List.of(
                 List.of(subjectsButton, commandsButton),
-                List.of(isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
-                List.of(forgetMeButton,
-                        loggedUser.isAlwaysNotify() ? withoutEmptyReportsButton : withEmptyReportsButton)));
+                List.of(loggedUser.isAlwaysNotify() ? withoutEmptyReportsButton : withEmptyReportsButton,
+                        isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
+                List.of(forgetMeButton)));
     }
 
     private static Keyboard getUserCommands(boolean isSchedulingEnabled) {

@@ -24,8 +24,8 @@ public class LkParser {
     private static final Pattern groupNamePattern =
             Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
 
-    public boolean login (AuthenticationData data) {
-        return lkClient.login(data);
+    public void login (AuthenticationData data) {
+        lkClient.login(data);
     }
 
     public void logout () {
@@ -33,7 +33,7 @@ public class LkParser {
     }
 
     public boolean isNotLoggedIn () {
-        return lkClient.isNotLoggedIn();
+        return lkClient.isSessionDiscarded();
     }
 
     // Загружает все документы и все сообщения

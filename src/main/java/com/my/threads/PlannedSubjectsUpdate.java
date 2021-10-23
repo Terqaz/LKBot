@@ -5,7 +5,6 @@ import com.my.GroupsRepository;
 import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
-import com.my.exceptions.LoginNeedsException;
 import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.Subject;
@@ -40,7 +39,7 @@ public class PlannedSubjectsUpdate extends Thread {
         while (true) {
             try {
                 updateSubjects(Utils.getSemesterName());
-                Thread.sleep(60L * 1000); // 1 минута
+                Thread.sleep(10L * 1000); // 1 минута
 
             } catch (InterruptedException e) {
                 break;
@@ -51,31 +50,31 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private void updateSubjects(String newSemester) {
-        Bot.getGroupByGroupName().values().forEach(group -> {
+        for (Group group : Bot.getGroupByGroupName().values()) {
             LoggedUser loggedUser = group.getLoggedUser();
             final GregorianCalendar calendar = new GregorianCalendar();
             if (isNotUpdateTime(group, calendar, calendar.getTime()))
-                return;
-            try {
-                CompletableFuture.runAsync(() ->
-                        updateGroupSubjects(newSemester, group, loggedUser));
+                continue;
 
-            } catch (AuthenticationException e) {
-                vkBot.sendMessageTo(loggedUser.getId(), "Не удалось обновить данные из ЛК");
-                Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
+            CompletableFuture.runAsync(() -> {
+                try {
+                    updateGroupSubjects(newSemester, group, loggedUser);
+                } catch (AuthenticationException e) {
+                    Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
 
-            } catch (LoginNeedsException e) {
-                Bot.login(group);
-                CompletableFuture.runAsync(() ->
-                        updateGroupSubjects(newSemester, group, loggedUser));
+//                } catch (LoginNeedsException e) { // Не должен вызываться по идее
+//                    Bot.login(group);
+//                    CompletableFuture.runAsync(() ->
+//                            updateGroupSubjects(newSemester, group, loggedUser));
 
-            } catch (LkNotRespondingException e) {
-                if (loggedUser.isAlwaysNotify()) {
-                    group.setLastCheckDate(new Date());
-                    vkBot.sendMessageTo(loggedUser.getId(), Answer.getUpdateNotSuccessful(group.getNextCheckDate()));
+                } catch (LkNotRespondingException e) {
+                    if (loggedUser.isAlwaysNotify()) {
+                        group.setLastCheckDate(new Date());
+                        vkBot.sendMessageTo(loggedUser.getId(), Answer.getUpdateNotSuccessful(group.getNextCheckDate()));
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     private void updateGroupSubjects(String newSemester, Group group, LoggedUser loggedUser) {
