@@ -3,6 +3,8 @@ package com.my.threads;
 import com.my.Bot;
 import com.my.GroupsRepository;
 import com.my.Utils;
+import com.my.exceptions.AuthenticationException;
+import com.my.exceptions.LkNotRespondingException;
 import com.my.models.Group;
 import com.my.models.GroupUser;
 import com.my.models.Timetable;
@@ -10,10 +12,11 @@ import com.my.services.Answer;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
 
-import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import static java.util.Calendar.*;
 
 public class PlannedScheduleSending extends Thread {
 

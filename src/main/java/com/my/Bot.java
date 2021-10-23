@@ -36,6 +36,7 @@ public class Bot {
 
     @Getter @Setter
     private static volatile String actualSemester;
+    @Getter
     private static boolean isActualWeekWhite;
 
     private static PlannedSubjectsUpdate plannedSubjectsUpdate;
@@ -68,6 +69,10 @@ public class Bot {
         plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
         vkBot.sendMessageTo(APP_ADMIN_ID, Answer.WARNING_APP_STOPPED);
+    }
+
+    public static void manualChangeWeekType() {
+        isActualWeekWhite = !isActualWeekWhite;
     }
 
     private static void fillCaches() {
@@ -381,7 +386,10 @@ public class Bot {
     }
 
     public static String getDayScheduleReport(int weekDay, boolean isWeekWhite, Group group) {
-        return Answer.getDaySchedule(isWeekWhite ?
+        if (weekDay >= 6)
+            return "";
+
+        else return Answer.getDaySchedule(isWeekWhite ?
                         group.getTimetable().getWhiteWeekDaySubjects().get(weekDay) :
                         group.getTimetable().getGreenWeekDaySubjects().get(weekDay),
                 isWeekWhite);
@@ -467,7 +475,7 @@ public class Bot {
                 groupsRepository.updateLoggedUser(group.getName(), loggedUser);
                 vkBot.sendMessageTo(loggedUser.getId(), Answer.CREDENTIALS_UPDATED);
 
-                notifyLoginWaitingUsers(userId, group, Answer.LEADER_UPDATE_PASSWORD);
+                notifyLoginWaitingUsers(group, Answer.LEADER_UPDATE_PASSWORD);
 
             } else groupAlreadyRegisteredMessage(userId, group);
             return;
@@ -483,12 +491,13 @@ public class Bot {
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group),
                 Answer.I_CAN_SEND_INFO);
 
-        notifyLoginWaitingUsers(userId, group, Answer.getNewLeaderIs(vkBot.getUserName(userId)));
+        notifyLoginWaitingUsers(group, Answer.getNewLeaderIs(vkBot.getUserName(userId)));
     }
 
-    private static void notifyLoginWaitingUsers(Integer userId, Group group, String message) {
+    private static void notifyLoginWaitingUsers(Group group, String message) {
         groupsRepository.moveLoginWaitingUsersToUsers(group.getName());
-        vkBot.sendMessageTo(group.getLoginWaitingUsers(), message);
+        group.getLoginWaitingUsers().forEach(userId ->
+                vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group), message));
         group.setLoginWaitingUsers(new HashSet<>());
     }
 

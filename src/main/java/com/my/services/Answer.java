@@ -21,14 +21,14 @@ public class Answer {
     public static final String YOUR_MESSAGE_IS_SPAM = "Твое сообщение похоже на спам.\n Напиши корректную команду";
 
     public static final String WRITE_WHICH_GROUP = "Напиши мне из какой ты группы так же, как указано в ЛК";
-    public static final String CHANGE_GROUP_HINT = "➡ Ты уверен, что ввел группу также, как указано в твоем ЛК? Если ты ошибся при вводе группы, то напиши мне\n" +
+    public static final String CHANGE_GROUP_HINT = "\n➡ Не уверен, что ввел группу также, как указано в твоем ЛК? Тогда напиши мне: " +
             quotes(Command.CHANGE_GROUP) + "\n";
 
     public static final String YOU_ALREADY_WRITE_YOUR_GROUP =
             "Ты уже указал мне имя своей группы. " + CHANGE_GROUP_HINT;
 
     public static final String YOUR_GROUP_IS_NEW =
-            "Из твоей группы еще никто не работал со мной.\n" +
+            "Из твоей группы еще никто не работал со мной. " +
             CHANGE_GROUP_HINT +
             "➡ Если ты хочешь первый из своей группы получать информацию и настраивать обновления " +
             "из ЛК, то напиши мне "+quotes(Command.WANT_TO_LOGIN)+"\n" +
@@ -43,7 +43,8 @@ public class Answer {
             BECOME_NEW_LEADER_INSTRUCTION;
 
     public static final String FOR_NEW_USER_LEADER_EXITED =
-            "Из твоей группы уже работали со мной, но ее лидер решил выйти. "+CHANGE_GROUP_HINT+
+            "Из твоей группы уже работали со мной, но ее лидер решил выйти. "+
+                    CHANGE_GROUP_HINT +
                     BECOME_NEW_LEADER_INSTRUCTION;
 
     public static final String GROUP_NOT_LOGGED_AND_YOU_CAN_LOGIN =
@@ -81,13 +82,13 @@ public class Answer {
             "Теперь ты можешь продолжать использовать меня ;-)";
 
     private static final String BASIC_COMMANDS =
-            "🔷 Вывести список предметов:\n" +
+            "🔷 Вывести список предметов с номерами:\n" +
             Command.GET_SUBJECTS+"\n" +
-            "🔷 Узнать самую свежую информацию по предмету из ЛК:\n" +
-            "n (n - номер в моем списке предметов)\n" +
+            "🔷 Узнать самую свежую информацию по номеру предмета:\n" +
+            "n\n" +
             "🔶 Показать эти команды:\n" +
             Command.COMMANDS+"\n" +
-            "🔶 Прекратить пользоваться ботом:\n" +
+            "🔶 Выйти из бота:\n" +
             Command.FORGET_ME;
 
     public static final String OK = "Хорошо";
@@ -160,19 +161,24 @@ public class Answer {
                     "Новый интервал обновления: n (n - количество минут [5, 20160])\n"
                     +
                     "🔶 Изменить время тихого режима (сейчас с " +
-                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
+                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n"
+                    +
                     "Новый тихий режим: с n до k (вместо n и k числа [0, 23])\n"
+                    +
+                    getSchedingCommandDescription(group.getUserSchedulingEnabled(userId)) + "\n"
                     +
                     (loggedUser.isAlwaysNotify() ?
                             "🔶 Не присылать пустые результаты обновления:\n"+Command.WITHOUT_EMPTY_REPORTS :
                             "🔶 Присылать даже пустые результаты обновления:\n"+Command.WITH_EMPTY_REPORTS);
-
-        else {
+        else
             return BASIC_COMMANDS + "\n" +
-                    (group.getUserSchedulingEnabled(userId) ?
-                            "🔶 Не присылать ежедневное расписание на завтра:\n"+Command.WITHOUT_EVERYDAY_SCHEDULE :
-                            "🔶 Присылать ежедневное расписание на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE);
-        }
+                    getSchedingCommandDescription(group.getUserSchedulingEnabled(userId));
+    }
+
+    private static String getSchedingCommandDescription(boolean enabled) {
+        return enabled ?
+                "🔶 Не присылать ежедневное расписание на завтра:\n"+ Command.WITHOUT_EVERYDAY_SCHEDULE :
+                "🔶 Присылать ежедневное расписание на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE;
     }
 
     public static String getNoNewSubjectInfo(String subjectName) {
