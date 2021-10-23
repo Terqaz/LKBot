@@ -117,7 +117,7 @@ class LkParserTest {
                 .map(subjectData ->
                         subjectData.getName().equals("Основы электроники и схемотехники") &&
                         subjectData.getDocumentNames().contains("Рабочая программа") &&
-                        subjectData.getMessagesData().get(0).getSender().equals("Черемисин ЕВ"))
+                        subjectData.getMessages().get(0).getSender().equals("Черемисин ЕВ"))
                 .orElse(false));
 
         assertTrue(subjectsData.stream()
@@ -126,7 +126,7 @@ class LkParserTest {
                 .map(subjectData ->
                         subjectData.getName().equals("Экономика") &&
                                 subjectData.getDocumentNames().contains("Рабочая программа") &&
-                                subjectData.getMessagesData().get(0).getSender().equals("Круглов ИВ"))
+                                subjectData.getMessages().get(0).getSender().equals("Круглов ИВ"))
                 .orElse(false));
     }
 
@@ -138,7 +138,7 @@ class LkParserTest {
         log.info("First subjects loaded");
 
         assertTrue(firstSubjects.stream()
-                .anyMatch(subjectData -> !subjectData.getMessagesData().isEmpty()));
+                .anyMatch(subjectData -> !subjectData.getMessages().isEmpty()));
 
         // Получаем новые данные
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
@@ -154,7 +154,7 @@ class LkParserTest {
 
         // Проверяем
         assertTrue(newSubjectsData.stream()
-                .allMatch(subjectData -> subjectData.getMessagesData().isEmpty()));
+                .allMatch(subjectData -> subjectData.getMessages().isEmpty()));
 
         final Subject oldSubject1 = assertDoesNotThrow(() ->
                 firstSubjects.stream()

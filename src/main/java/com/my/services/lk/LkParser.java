@@ -24,8 +24,8 @@ public class LkParser {
     private static final Pattern groupNamePattern =
             Pattern.compile("^((т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,5}-)(п-)?\\d{2}(-\\d)?$");
 
-    public boolean login (AuthenticationData data) {
-        return lkClient.login(data);
+    public void login (AuthenticationData data) {
+        lkClient.login(data);
     }
 
     public void logout () {
@@ -33,7 +33,7 @@ public class LkParser {
     }
 
     public boolean isNotLoggedIn () {
-        return lkClient.isNotLoggedIn();
+        return lkClient.isSessionDiscarded();
     }
 
     // Загружает все документы и все сообщения
@@ -131,12 +131,12 @@ public class LkParser {
         return lkClient.loggedGet(LkUrlBuilder.buildByLocalUrl(subjectLocalUrl));
     }
 
-    private List<MessageData> loadMessagesAfterDate (String semesterId, String subjectId,
-                                                     String groupId, Date lastCheckDate) {
-        final List<MessageData> messageDataList = new ArrayList<>();
+    private List<Message> loadMessagesAfterDate (String semesterId, String subjectId,
+                                                 String groupId, Date lastCheckDate) {
+        final List<Message> messageList = new ArrayList<>();
 
         Document pageWithMessages;
-        List<MessageData> messagesDataChunk;
+        List<Message> messagesDataChunk;
         Date lastMessageDate = null;
         do {
             pageWithMessages = lkClient.loggedPost(
@@ -145,15 +145,15 @@ public class LkParser {
             messagesDataChunk = parseMessagesDataChunk(pageWithMessages, lastCheckDate);
             if (messagesDataChunk.isEmpty())
                 break;
-            messageDataList.addAll(messagesDataChunk);
+            messageList.addAll(messagesDataChunk);
 
             lastMessageDate = getLastMessageDate(messagesDataChunk);
 
         } while (pageWithMessages.select(".stop-scroll").first() == null);
-        return messageDataList;
+        return messageList;
     }
 
-    private List<MessageData> parseMessagesDataChunk(Document pageWithMessages, Date lastCheckDate) {
+    private List<Message> parseMessagesDataChunk(Document pageWithMessages, Date lastCheckDate) {
         final Iterator<String> comments = pageWithMessages
                 .select("div.comment__body > .row")
                 .eachText().iterator();
@@ -175,13 +175,13 @@ public class LkParser {
                 }).collect(Collectors.toList())
                 .iterator();
 
-        List<MessageData> messageDataList = new ArrayList<>();
+        List<Message> messageList = new ArrayList<>();
         while (comments.hasNext()) {
             final Date date = dates.next();
             if (!date.after(lastCheckDate))
                 break;
             try {
-                messageDataList.add(new MessageData(
+                messageList.add(new Message(
                         comments.next(),
                         ParserUtils.makeShortSenderName(senders.next()),
                         date));
@@ -189,10 +189,10 @@ public class LkParser {
                 break;
             }
         }
-        return messageDataList;
+        return messageList;
     }
 
-    private Date getLastMessageDate (List<MessageData> messagesDataChunk) {
+    private Date getLastMessageDate (List<Message> messagesDataChunk) {
         if (!messagesDataChunk.isEmpty()) {
             return messagesDataChunk.get(messagesDataChunk.size() - 1).getDate();
         } else {

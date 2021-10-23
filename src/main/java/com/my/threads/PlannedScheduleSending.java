@@ -3,17 +3,17 @@ package com.my.threads;
 import com.my.Bot;
 import com.my.GroupsRepository;
 import com.my.Utils;
-import com.my.exceptions.AuthenticationException;
-import com.my.exceptions.LkNotRespondingException;
 import com.my.models.Group;
 import com.my.models.GroupUser;
+import com.my.models.Timetable;
+import com.my.services.Answer;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
 
+import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import static java.util.Calendar.*;
 
 public class PlannedScheduleSending extends Thread {
 
@@ -47,19 +47,24 @@ public class PlannedScheduleSending extends Thread {
                     }
 
                     for (Group group : Bot.getGroupByGroupName().values()) {
-                        boolean isNextDayWeekWhite = Bot.isActualWeekWhite();
-                        if (nextWeekDay == 0) // Если следующий день
-                            isNextDayWeekWhite = !isNextDayWeekWhite;
+                        CompletableFuture.runAsync(() -> {
+                            updateSchedule(group);
 
-                        final String dayScheduleReport =
-                                Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
-                        if (!dayScheduleReport.isEmpty())
-                            vkBot.sendMessageTo(
-                                    group.getUsers().stream()
-                                            .filter(GroupUser::isEverydayScheduleEnabled)
-                                            .map(GroupUser::getId)
-                                            .collect(Collectors.toList()),
-                                    "Держи расписание на завтра ;-)\n"+dayScheduleReport);
+                            boolean isNextDayWeekWhite = Bot.isActualWeekWhite();
+                            if (nextWeekDay == 0) // Если следующий день
+                                isNextDayWeekWhite = !isNextDayWeekWhite;
+
+                            final String dayScheduleReport =
+                                    Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
+
+                            if (!dayScheduleReport.isEmpty())
+                                vkBot.sendMessageTo(
+                                        group.getUsers().stream()
+                                                .filter(GroupUser::isEverydayScheduleEnabled)
+                                                .map(GroupUser::getId)
+                                                .collect(Collectors.toList()),
+                                        Answer.getTomorrowSchedule(dayScheduleReport));
+                        });
                     }
                     Thread.sleep(3600L * 1000); // 1 час
 
@@ -71,5 +76,17 @@ public class PlannedScheduleSending extends Thread {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void updateSchedule(Group group) {
+        try {
+            Bot.login(group);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return;
+        }
+        final Timetable timetable = group.getLkParser().parseTimetable(group.getLkSemesterId(), group.getLkId());
+        groupsRepository.updateField(group.getName(),"timetable", timetable);
+        group.setTimetable(timetable);
     }
 }

@@ -135,7 +135,7 @@ public class GroupsRepository {
 
     public void removeLoggedUser(String groupName, Integer loggedUserId) {
         final List<Bson> combineOperations = new ArrayList<>();
-        combineOperations.add(set(LOGGED_USER, new LoggedUser().setId(0).setAuthData(null)));
+        combineOperations.add(set(LOGGED_USER, null));
         combineOperations.addAll(removeUserFromGroupOperations(loggedUserId));
 
         updateBy(groupName, combine(combineOperations));

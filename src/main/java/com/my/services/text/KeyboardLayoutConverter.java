@@ -16,7 +16,7 @@ public class KeyboardLayoutConverter {
         }
     }
 
-    public static String translateFromEnglishLayoutIfNeeds(String s1) {
+    public static String convertFromEngIfNeeds(String s1) {
         if (!isEnCharsString(s1))
             return s1;
 

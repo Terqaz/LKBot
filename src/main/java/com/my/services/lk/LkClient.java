@@ -1,5 +1,6 @@
 package com.my.services.lk;
 
+import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.exceptions.LoginNeedsException;
 import com.my.models.AuthenticationData;
@@ -20,20 +21,21 @@ public class LkClient {
 
     public LkClient() {}
 
-    public synchronized boolean login (AuthenticationData data) {
-        if (isNotLoggedIn()) {
+    // Гарантирует логин, даже если токен сессии прросрочен
+    public synchronized void login (AuthenticationData data) {
+        if (!keepAuth())
+            discardSession();
+
+        if (isSessionDiscarded()) {
             try {
-                return auth(data.getLogin(), data.getPassword());
-            } catch (LkNotRespondingException e) {
-                throw e;
-            } catch (Exception e) {
+                auth(data.getLogin(), data.getPassword());
+            } catch (IOException e) {
                 e.printStackTrace();
-                return false;
             }
-        } else return true;
+        }
     }
 
-    private boolean auth (String login, String password) throws IOException {
+    private void auth (String login, String password) throws IOException {
         final var firstResponse = openLoginPage();
 
         String phpSessId = firstResponse.header("Set-Cookie")
@@ -52,12 +54,19 @@ public class LkClient {
         final String jsonResponse = document.body().text();
         if (!jsonResponse.startsWith("{\"SUCCESS\":\"1\"")) {
             discardSession();
-            return false;
-        } else return true;
+            throw new AuthenticationException("Wrong credentials");
+        }
     }
 
-    public void keepAuth () {
-        loggedPost(LkUrlBuilder.buildKeepAuthUrl());
+    // Return that session not expired
+    public boolean keepAuth () {
+        final Response response;
+        try {
+            response = loggedPostResponse(LkUrlBuilder.buildKeepAuthUrl());
+        } catch (LoginNeedsException e) {
+            return false;
+        }
+        return !response.body().equals("/");
     }
 
     public void logout () {
@@ -77,8 +86,8 @@ public class LkClient {
     }
 
     private Connection getOriginSessionConnection(String url) {
-        if (isNotLoggedIn())
-            throw new LoginNeedsException("Relogin is needed");
+        if (isSessionDiscarded())
+            throw new LoginNeedsException("Login is needed");
 
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
@@ -112,12 +121,16 @@ public class LkClient {
 
     public Document loggedPost(String url) {
         try {
-            return executeSessionRequest(getOriginSessionConnection(url)
-                    .method(Connection.Method.POST)).parse();
+            return loggedPostResponse(url).parse();
         } catch (IOException e) {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public Response loggedPostResponse(String url) {
+        return executeSessionRequest(getOriginSessionConnection(url)
+                .method(Connection.Method.POST));
     }
 
     public Document get(String url) {
@@ -137,8 +150,6 @@ public class LkClient {
         try {
             return executeRequest(getOriginSessionConnection(url)
                     .method(Connection.Method.POST)).parse();
-        } catch (LkNotRespondingException e) {
-            throw e;
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -153,7 +164,7 @@ public class LkClient {
         if (code == HttpStatus.SC_MOVED_TEMPORARILY || code == HttpStatus.SC_UNAUTHORIZED ||
                 code == HttpStatus.SC_FORBIDDEN) {
             discardSession();
-            throw new LoginNeedsException("Relogin is needed");
+            throw new LoginNeedsException("Login is needed");
         }
         return response;
     }
@@ -172,7 +183,7 @@ public class LkClient {
         throw new LkNotRespondingException();
     }
 
-    public boolean isNotLoggedIn() {
+    public boolean isSessionDiscarded() {
         return phpSessId == null;
     }
 
