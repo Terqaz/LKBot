@@ -24,7 +24,7 @@ public final class Command {
     public static final String FORGET_ME = "Забудь меня";
     public static final String FINALLY_FORGET_ME = "Да, точно забудь меня";
 
-    private static final Pattern GROUP_NAME_PATTERN = wrap1("((Т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,4}-)(П-)?\\d{2}(-\\d)?");
+    private static final Pattern GROUP_NAME_PATTERN = wrap1("^((Т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,4}-)(П-)?\\d{2}(-\\d)?$");
     public static final Pattern WANT_TO_LOGIN_PATTERN = wrap1("^Хочу войти в ЛК$");
     public static final Pattern CREDENTIALS = wrap2("^\\S+\\n+\\S+$");
     public static final Pattern GET_SUBJECT = wrap2("^\\d{1,2}$");
