@@ -3,7 +3,6 @@ package com.my;
 import com.google.gson.Gson;
 import com.my.models.LkDocument;
 import com.my.models.Subject;
-import org.apache.commons.lang3.SerializationUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -21,20 +20,33 @@ public final class Utils {
 
     public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
                                                     List<Subject> newSubjects) {
-        Map<String, Set<LkDocument>> oldDocumentsMap = new HashMap<>();
-        for (Subject data : oldSubjects)
-            oldDocumentsMap.put(data.getName(), data.getMaterialsDocuments());
 
-        return newSubjects.stream()
-                .map(SerializationUtils::clone)
-                .map(newSubject -> {
-                    final Set<LkDocument> newMaterialDocuments = newSubject.getMaterialsDocuments();
-                    final var oldMaterialDocuments = oldDocumentsMap.get(newSubject.getName());
-                    newMaterialDocuments.removeAll(oldMaterialDocuments);
-                    return newSubject;
-                })
-                .filter(Subject::isNotEmpty)
-                .collect(Collectors.toList());
+        final Iterator<Subject> oldSubjectsIterator = oldSubjects.stream()
+                .sorted(Comparator.comparing(Subject::getId)).iterator();
+        
+        final List<Subject> newSubjectsCopy = newSubjects.stream()
+                .map(Utils::gsonDeepCopy)
+                .sorted(Comparator.comparing(Subject::getId)).collect(Collectors.toList());
+        
+        final Iterator<Subject> newSubjectsCopyIterator = newSubjectsCopy.iterator();
+
+        while (newSubjectsCopyIterator.hasNext()) {
+            final Subject oldSubject = oldSubjectsIterator.next();
+            final Subject newSubject = newSubjectsCopyIterator.next();
+
+            final Map<String, LkDocument> newDocumentsMap = newSubject.getMaterialsDocuments().stream()
+                    .collect(Collectors.toMap(LkDocument::getName, doc -> doc));
+
+            oldSubject.getMaterialsDocuments().forEach(oldDocument -> {
+                newDocumentsMap.remove(oldDocument.getName());
+            });
+            newSubject.setMaterialsDocuments(new HashSet<>(newDocumentsMap.values()));
+        }
+        return newSubjectsCopy;
+    }
+
+    private static Subject gsonDeepCopy(Subject subject) {
+        return gson.fromJson(gson.toJson(subject), Subject.class);
     }
 
     // Changes newDocuments

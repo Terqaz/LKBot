@@ -1,14 +1,12 @@
 package com.my.models;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 import lombok.experimental.Accessors;
 
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
+@AllArgsConstructor
 @Accessors(chain = true)
 public class LkDocument {
     private Integer id;
@@ -17,4 +15,8 @@ public class LkDocument {
     private String fileName;
     @NonNull
     private String lkId;
+
+    public LkDocument(LkDocument that) {
+        this(that.id, that.name, that.fileName, that.lkId);
+    }
 }

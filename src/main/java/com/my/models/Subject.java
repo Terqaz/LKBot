@@ -13,7 +13,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @AllArgsConstructor
 @Accessors (chain = true)
-public class Subject implements Serializable {
+public class Subject {
     private int id;
     @NonNull
     private String lkId;
