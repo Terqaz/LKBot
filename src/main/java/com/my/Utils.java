@@ -1,7 +1,8 @@
 package com.my;
 
+import com.google.gson.Gson;
+import com.my.models.LkDocument;
 import com.my.models.Subject;
-import org.apache.commons.lang3.SerializationUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -9,29 +10,84 @@ import java.util.stream.Collectors;
 
 public final class Utils {
 
+    private static final Gson gson = new Gson();
+
     private Utils () {}
 
     public static String formatDate (Date date) {
         return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
     }
 
-    // oldSubjects и newSubjects должны быть отсортированы в порядке возрастания имени
     public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
                                                     List<Subject> newSubjects) {
-        Map<String, Set<String>> oldDocumentsMap = new HashMap<>();
-        for (Subject data : oldSubjects)
-            oldDocumentsMap.put(data.getName(), data.getDocumentNames());
 
-        return newSubjects.stream()
-                .map(SerializationUtils::clone)
-                .map(newSubject -> {
-                    final Set<String> newDocuments = newSubject.getDocumentNames();
-                    final var oldDocuments = oldDocumentsMap.get(newSubject.getName());
-                    newDocuments.removeAll(oldDocuments);
-                    return newSubject;
-                })
-                .filter(Subject::isNotEmpty)
+        final Iterator<Subject> oldSubjectsIterator = oldSubjects.stream()
+                .sorted(Comparator.comparing(Subject::getId)).iterator();
+        
+        final List<Subject> newSubjectsCopy = newSubjects.stream()
+                .map(Utils::gsonDeepCopy)
+                .sorted(Comparator.comparing(Subject::getId)).collect(Collectors.toList());
+        
+        final Iterator<Subject> newSubjectsCopyIterator = newSubjectsCopy.iterator();
+
+        while (newSubjectsCopyIterator.hasNext()) {
+            final Subject oldSubject = oldSubjectsIterator.next();
+            final Subject newSubject = newSubjectsCopyIterator.next();
+
+            final Map<String, LkDocument> newDocumentsMap = newSubject.getMaterialsDocuments().stream()
+                    .collect(Collectors.toMap(LkDocument::getName, doc -> doc));
+
+            oldSubject.getMaterialsDocuments().forEach(oldDocument -> {
+                newDocumentsMap.remove(oldDocument.getName());
+            });
+            newSubject.setMaterialsDocuments(new HashSet<>(newDocumentsMap.values()));
+        }
+        return newSubjectsCopy;
+    }
+
+    private static Subject gsonDeepCopy(Subject subject) {
+        return gson.fromJson(gson.toJson(subject), Subject.class);
+    }
+
+    // Changes newDocuments
+    public static void copyIdsFrom(Collection<LkDocument> newDocuments,
+                                   Collection<LkDocument> oldDocuments) {
+        Map<String, Integer> oldDocumentByName = oldDocuments.stream()
+                .collect(Collectors.toMap(LkDocument::getName, LkDocument::getId));
+
+        newDocuments.forEach(newDocument -> {
+            final Integer oldDocumentId = oldDocumentByName.get(newDocument.getName());
+            newDocument.setId(oldDocumentId);
+        });
+    }
+
+    // Changes subject
+    public static Subject setIdsWhereNull(Subject subject) {
+        Integer nextId = Math.max(getMaxId(subject.getMaterialsDocuments()),
+                getMaxId(subject.getMessagesDocuments())) + 1;
+        nextId = setDocumentsIdsWhereNull(subject.getMaterialsDocuments(), nextId);
+        setDocumentsIdsWhereNull(subject.getMessagesDocuments(), nextId);
+        return subject;
+    }
+
+    // Changes lkDocuments
+    public static Integer setDocumentsIdsWhereNull(Collection<LkDocument> lkDocuments, Integer nextId) {
+        final List<LkDocument> nullIdDocuments = lkDocuments.stream()
+                .filter(lkDocument -> lkDocument.getId() == null)
+                .sorted(Comparator.comparing(LkDocument::getName))
                 .collect(Collectors.toList());
+        for (LkDocument document: nullIdDocuments) {
+            document.setId(nextId);
+            ++nextId;
+        }
+        return nextId;
+    }
+
+    private static Integer getMaxId(Collection<LkDocument> lkDocuments) {
+        return lkDocuments.stream().map(LkDocument::getId)
+                .filter(Objects::nonNull)
+                .max(Comparator.comparingInt(Integer::intValue))
+                .orElse(0);
     }
 
     public static String getSemesterName() {
@@ -58,7 +114,6 @@ public final class Utils {
             return null;
         }
     }
-
 
     public static boolean isSilentTime (int start, int end, int nowHour) {
         if (start < end)

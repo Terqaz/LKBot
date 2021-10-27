@@ -5,8 +5,10 @@ import com.my.Utils;
 import com.my.models.*;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Answer {
@@ -99,6 +101,7 @@ public class Answer {
             "Я уже сказал ему об этом.";
 
     public static final String WRONG_SUBJECT_NUMBER = "Неправильный номер предмета";
+    public static final String WRONG_DOCUMENT_NUMBER = "Неправильный номер файла";
     public static final String INTERVAL_CHANGED = "Интервал изменен";
     public static final String WRONG_INTERVAL = "Нельзя установить такой интервал обновления";
     public static final String SILENT_TIME_CHANGED = "Время тихого режима изменено";
@@ -149,6 +152,10 @@ public class Answer {
     public static String getNowYouCanUseCommands(Integer userId, Group group) {
         return "Также теперь ты можешь использовать эти команды:\n" +
                 getUserCommands(userId, group);
+    }
+
+    public static String getDocument(String subjectName, String documentName) {
+        return subjectName + " документ:\n\"" + documentName + "\"";
     }
 
     public static String getUserCommands (Integer userId, Group group) {
@@ -213,25 +220,18 @@ public class Answer {
 
         final var sb = new StringBuilder();
 
-        String partBuilder = subjects.stream()
-                .filter(subject -> !subject.getDocumentNames().isEmpty())
+        String reportPart = getNewMaterialsDocuments(subjects);
+        if (reportPart.length() > 0)
+            sb.append("\uD83D\uDD34 Новые документы из материалов:\n" + reportPart);
+
+        reportPart = subjects.stream()
+                .filter(data -> !data.getMessagesData().isEmpty())
                 .map(data -> "➡ " + data.getId() + " " + data.getName() + ":\n" +
-                        data.getDocumentNames().stream()
-                                .sorted()
-                                .collect(Collectors.joining("\n"))
+                        getSubjectMessages(data.getMessagesData())
                 ).collect(Collectors.joining("\n\n"));
 
-        if (partBuilder.length() > 0)
-            sb.append("\uD83D\uDD34 Новые документы:\n" + partBuilder);
-
-        partBuilder = subjects.stream()
-                .filter(data -> !data.getMessages().isEmpty())
-                .map(data -> "➡ " + data.getId() + " " + data.getName() + ":\n" +
-                        getSubjectMessages(data.getMessages())
-                ).collect(Collectors.joining("\n\n"));
-
-        if (partBuilder.length() > 0)
-            sb.append("\n\n\uD83D\uDD34 Новые сообщения:\n").append(partBuilder);
+        if (reportPart.length() > 0)
+            sb.append("\n\n\uD83D\uDD34 Новые сообщения:\n").append(reportPart);
 
         if (nextCheckDate != null)
             sb.append("\n\n").append(getNextUpdateDateText(nextCheckDate));
@@ -239,17 +239,50 @@ public class Answer {
         return sb.toString();
     }
 
+    private static String getNewMaterialsDocuments(List<Subject> subjects) {
+        return subjects.stream()
+                .filter(subject -> !subject.getMaterialsDocuments().isEmpty())
+                .map(subject -> "➡ " + subject.getId() + " " + subject.getName() + ":\n" +
+                        subject.getMaterialsDocuments().stream()
+                                .sorted(Comparator.comparing(LkDocument::getName))
+                                .map(lkDocument -> lkDocument.getId() + " " + lkDocument.getName())
+                                .collect(Collectors.joining("\n"))
+                ).collect(Collectors.joining("\n\n"));
+    }
+
     public static String emptySubjectsReport(@Nullable Date nextCheckDate) {
         return "Нет новой информации по предметам\n" + getNextUpdateDateText(nextCheckDate);
     }
 
-    private static String getSubjectMessages(List<Message> messages) {
+    private static String getSubjectMessages(List<LkMessage> messages) {
         return messages.stream()
-                .map(messageData ->
-                        "☑ " + messageData.getSender() + " в " +
-                                Utils.formatDate(messageData.getDate()) + ":\n" +
-                                messageData.getComment()
+                .map(lkMessage ->
+                        "☑ " + lkMessage.getSender() + " в " +
+                                Utils.formatDate(lkMessage.getDate()) + ":\n" +
+                                lkMessage.getComment() +
+                                (lkMessage.getDocument() == null ? "" :
+                                        "\nДОКУМЕНТ: "+lkMessage.getDocument().getId()+" "+lkMessage.getDocument().getName())
                 ).collect(Collectors.joining("\n\n"));
+    }
+
+    public static String getSubjectDocuments(Subject subject) {
+        String report = "Документы предмета " + subject.getName() + "\n";
+        String reportPart = getSubjectDocumentsPart(subject.getMaterialsDocuments());
+        if (!reportPart.isEmpty())
+            report += "Документы из материалов:\n" + reportPart;
+
+        reportPart = getSubjectDocumentsPart(subject.getMessagesDocuments());
+        if (!reportPart.isEmpty())
+            report += "\nДокументы из сообщений:\n" + reportPart;
+
+        return report;
+    }
+
+    private static String getSubjectDocumentsPart(Set<LkDocument> documents) {
+        return documents.stream()
+                .sorted(Comparator.comparing(LkDocument::getId))
+                .map(document -> document.getId() + " " + document.getName())
+                .collect(Collectors.joining("\n"));
     }
 
     public static String getNextUpdateDateText (Date nextCheckDate) {

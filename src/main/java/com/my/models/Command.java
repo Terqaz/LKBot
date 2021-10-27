@@ -1,6 +1,6 @@
 package com.my.models;
 
-import com.my.ParserUtils;
+import com.my.TextUtils;
 import com.my.services.text.KeyboardLayoutConverter;
 import lombok.Getter;
 
@@ -28,6 +28,8 @@ public final class Command {
     public static final Pattern WANT_TO_LOGIN_PATTERN = wrap1("^Хочу войти в ЛК$");
     public static final Pattern CREDENTIALS = wrap2("^\\S+\\n+\\S+$");
     public static final Pattern GET_SUBJECT = wrap2("^\\d{1,2}$");
+    public static final Pattern GET_SUBJECT_DOCUMENTS = wrap1("^Документы \\d{1,2}$");
+    public static final Pattern GET_SUBJECT_DOCUMENT = wrap1("^Документ \\d{1,3} предмета \\d{1,2}$");
     public static final Pattern CHANGE_UPDATE_INTERVAL = wrap1("^Новый интервал обновления: \\d+$");
     public static final Pattern CHANGE_SILENT_TIME = wrap1("^Новый тихий режим: с \\d+ по \\d+$");
     public static final Pattern VERIFICATION_CODE = wrap2("^\\d{6}$");
@@ -48,7 +50,7 @@ public final class Command {
     public Command(String value) {
         this.value = value;
         this.convertedValue = KeyboardLayoutConverter.convertFromEngIfNeeds(value);
-        this.capitalizedConvertedValue = ParserUtils.capitalize(convertedValue);
+        this.capitalizedConvertedValue = TextUtils.capitalize(convertedValue);
     }
 
     public boolean is (String description) {

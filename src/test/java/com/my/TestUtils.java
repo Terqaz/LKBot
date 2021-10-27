@@ -1,14 +1,20 @@
 package com.my;
 
-import com.my.models.Message;
+import com.my.models.LkDocument;
+import com.my.models.LkMessage;
 import com.my.models.Subject;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 
 public class TestUtils {
 
@@ -22,21 +28,54 @@ public class TestUtils {
         }
     }
 
-    public static List<Subject> createSubjects() {
+    public static List<Subject> createSubjects1() {
+        final LkDocument document = new LkDocument("ЛР3", "lkid").setId(1);
         return List.of(
                 new Subject("1", "Матеша",
-                        Set.of("лекция 1", "лекция 2"),
+                        createDocuments(2,"лекция 1", "лекция 2"),
+                        Set.of(document),
                         List.of(
-                                new Message("Выкладывайте лабы)))", "Игорев ИИ", date1),
-                                new Message("Выложил лр3", "Сергеев СС", date1)))
+                                new LkMessage("Выкладывайте лабы)))", "Игорев ИИ", date1),
+                                new LkMessage("Выложил лр3", "Сергеев СС", date1, document)))
                         .setId(1),
                 new Subject("2", "Прога",
-                        Set.of("варианты", "рабочая программа"),
+                        createDocuments(1, "варианты", "рабочая программа"),
+                        emptySet(),
                         List.of(
-                                new Message("Где лабы?", "Олегов ОО", date1),
-                                new Message("Прошел тест", "Владимиров ВВ", date1)))
+                                new LkMessage("Где лабы?", "Олегов ОО", date1),
+                                new LkMessage("Прошел тест", "Владимиров ВВ", date1)))
                         .setId(2),
-                new Subject("3", "Пустой предмет", new TreeSet<>(List.of()), List.of())
+                new Subject("3", "Пустой предмет", emptySet(), emptySet(),
+                        Collections.emptyList())
+                        .setId(3)
+        );
+    }
+
+    public static Set<LkDocument> createDocuments(String... names) {
+        return Stream.of(names).map(name -> new LkDocument(name, "lkId")).collect(Collectors.toSet());
+    }
+
+    public static <T> List<LkDocument> createDocumentsList(String... names) {
+        return Stream.of(names).map(name -> new LkDocument(name, "lkId")).collect(Collectors.toList());
+    }
+
+    public static Set<LkDocument> createDocuments(Integer nextId, String... names) {
+        final Set<LkDocument> documents = Stream.of(names)
+                .map(name -> new LkDocument(name, "lkId"))
+                .collect(Collectors.toSet());
+        Utils.setDocumentsIdsWhereNull(documents, nextId);
+        return documents;
+    }
+
+    public static List<Subject> createSubjects2() {
+        return List.of(
+                new Subject("1", "Матеша",
+                        createDocuments(1,"Лекция 1"), emptySet(), List.of())
+                        .setId(1),
+                new Subject("2", "Прога",
+                        createDocuments(1, "Задачи к практикам", "Рабочая программа"), emptySet(), List.of())
+                        .setId(2),
+                new Subject("3", "Пустой предмет", emptySet(), emptySet(), emptyList())
                         .setId(3)
         );
     }

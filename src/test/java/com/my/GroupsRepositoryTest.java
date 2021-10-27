@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 import static com.mongodb.client.model.Filters.eq;
 import static org.junit.jupiter.api.Assertions.*;
 
-// MONGO_STRING = "mongodb://localhost:27017/lk-bot?retryWrites=true&w=majority"
+// MONGO_STRING=mongodb://localhost:27017/lk-bot?retryWrites=true&w=majority
 class GroupsRepositoryTest {
 
     static final GroupsRepository repository = GroupsRepository.getInstance();

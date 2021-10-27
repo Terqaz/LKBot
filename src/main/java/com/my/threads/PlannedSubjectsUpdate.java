@@ -5,10 +5,7 @@ import com.my.GroupsRepository;
 import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
-import com.my.models.Group;
-import com.my.models.LoggedUser;
-import com.my.models.Subject;
-import com.my.models.Timetable;
+import com.my.models.*;
 import com.my.services.Answer;
 import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
@@ -104,13 +101,21 @@ public class PlannedSubjectsUpdate extends Thread {
         Map<Integer, Subject> newSubjectsById = newSubjects.stream()
                 .collect(Collectors.toMap(Subject::getId, subject -> subject));
 
-        newSubjects = oldSubjects.stream()
-            .map(oldSubject -> { // На всякий
-                Subject newSubject = newSubjectsById.get(oldSubject.getId());
-                if (!oldSubject.getDocumentNames().isEmpty() && newSubject.getDocumentNames().isEmpty())
-                        newSubject.setDocumentNames(oldSubject.getDocumentNames());
-                return newSubject;
-            }).collect(Collectors.toList());
+        newSubjects = oldSubjects.stream() // На всякий
+                .map(oldSubject -> {
+                    Subject newSubject = newSubjectsById.get(oldSubject.getId());
+
+                    final Set<LkDocument> oldMaterialsDocuments = oldSubject.getMaterialsDocuments();
+                    if (!oldMaterialsDocuments.isEmpty() && newSubject.getMaterialsDocuments().isEmpty())
+                            newSubject.setMaterialsDocuments(oldMaterialsDocuments);
+
+                    newSubject.getMessagesDocuments().addAll(oldSubject.getMessagesDocuments());
+                    Utils.copyIdsFrom(
+                            newSubject.getMaterialsDocuments(), oldSubject.getMaterialsDocuments());
+                    Utils.setIdsWhereNull(newSubject);
+                    return newSubject;
+
+                }).collect(Collectors.toList());
 
         final var checkDate = new Date();
         groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);

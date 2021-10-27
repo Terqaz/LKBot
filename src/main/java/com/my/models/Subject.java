@@ -4,30 +4,45 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
-import java.io.Serializable;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
-
 
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
 @AllArgsConstructor
 @Accessors (chain = true)
-@EqualsAndHashCode
-public class Subject implements Serializable {
+public class Subject {
     private int id;
     @NonNull
     private String lkId;
     @NonNull
     private String name;
     @NonNull
-    private Set<String> documentNames;
+    Set<LkDocument> materialsDocuments;
     @NonNull
-    private List<Message> messages;
+    Set<LkDocument> messagesDocuments;
+
+    // Используется только при передаче новых сообщений из ЛК
+    @NonNull
+    @BsonIgnore
+    private List<LkMessage> messagesData;
 
     @BsonIgnore
     public boolean isNotEmpty () {
-        return !(documentNames.isEmpty() && messages.isEmpty());
+        return !(materialsDocuments.isEmpty() && messagesDocuments.isEmpty() && messagesData.isEmpty());
+    }
+
+    public Optional<LkDocument> getMaterialsDocumentById(int id) {
+        return getDocumentById(materialsDocuments, id);
+    }
+
+    public Optional<LkDocument> getMessageDocumentById(int id) {
+        return getDocumentById(messagesDocuments, id);
+    }
+
+    private Optional<LkDocument> getDocumentById(Set<LkDocument> materialsDocuments, int id) {
+        return materialsDocuments.stream().filter(document -> document.getId().equals(id)).findFirst();
     }
 }

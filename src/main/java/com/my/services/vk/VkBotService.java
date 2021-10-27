@@ -10,18 +10,21 @@ import com.vk.api.sdk.client.actors.GroupActor;
 import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
+import com.vk.api.sdk.objects.docs.GetMessagesUploadServerType;
+import com.vk.api.sdk.objects.docs.responses.SaveResponse;
 import com.vk.api.sdk.objects.messages.Keyboard;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
 import com.vk.api.sdk.objects.users.GetNameCase;
 import com.vk.api.sdk.objects.users.responses.GetResponse;
-import com.vk.api.sdk.queries.users.UsersGetQuery;
 import lombok.Getter;
 import lombok.Setter;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
+import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -168,6 +171,21 @@ public class VkBotService {
         executeRequest(query);
     }
 
+    public void sendMessageTo(@NotNull Integer userId, File file, String message) {
+        final var doc = saveDocument(userId, file).getDoc();
+        final var query = vk.messages().send(groupActor)
+                .message(message)
+                .userId(userId)
+                .attachment("doc"+doc.getOwnerId()+"_"+doc.getId())
+                .randomId(random.nextInt(Integer.MAX_VALUE))
+                .dontParseLinks(true);
+        if (unsetKeyboard) {
+            query.keyboard(emptyKeyboard);
+            unsetKeyboard = false;
+        }
+        executeRequest(query);
+    }
+
     public void sendMessageTo (Collection<Integer> userIds, String message) {
         if (userIds.isEmpty()) return;
 
@@ -224,10 +242,11 @@ public class VkBotService {
     }
 
     public String getUserName(Integer userId) {
-        final UsersGetQuery query = vk.users().get(groupActor)
-                .userIds(userId.toString())
-                .nameCase(GetNameCase.NOMINATIVE);
-        final GetResponse response = executeRequest(query).get(0);
+        final GetResponse response = executeRequest(
+                vk.users().get(groupActor)
+                        .userIds(userId.toString())
+                        .nameCase(GetNameCase.NOMINATIVE))
+                .get(0);
         return response.getFirstName() + " " + response.getLastName();
     }
 
@@ -238,5 +257,25 @@ public class VkBotService {
     public void setOnline (boolean isOnline) {
         if (isOnline) vk.groups().enableOnline(groupActor, groupId);
         else          vk.groups().disableOnline(groupActor, groupId);
+    }
+
+    private SaveResponse saveDocument(Integer userId, File file) {
+        final var docUploadResponse = executeRequest(
+                vk.upload()
+                        .doc(getDocumentUploadUri(userId).toString(), file));
+
+        final var docSaveResponse = executeRequest(
+                vk.docs()
+                    .save(groupActor, docUploadResponse.getFile()));
+
+        return docSaveResponse;
+    }
+
+    private URI getDocumentUploadUri (Integer userId) {
+        final var response = executeRequest(
+                vk.docs().getMessagesUploadServer(groupActor)
+                        .type(GetMessagesUploadServerType.DOC)
+                        .peerId(userId));
+        return response.getUploadUrl();
     }
 }

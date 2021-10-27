@@ -17,6 +17,7 @@ import lombok.NonNull;
 import lombok.Setter;
 
 import javax.crypto.NoSuchPaddingException;
+import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
@@ -31,7 +32,8 @@ public class Bot {
     @Getter
     static final Map<String, Group> groupByGroupName = new HashMap<>();
 
-    static final int APP_ADMIN_ID = 173315241;
+    public static final int APP_ADMIN_ID1 = 173315241;
+    public static final int APP_ADMIN_ID2 = 272910732;
     public static final String APPLICATION_STOP_TEXT = "I WANT TO STOP THE APPLICATION";
 
     @Getter @Setter
@@ -54,7 +56,7 @@ public class Bot {
         plannedSubjectsUpdate = new PlannedSubjectsUpdate();
         plannedScheduleSending = new PlannedScheduleSending();
         vkBot.setOnline(true);
-        vkBot.sendMessageTo(APP_ADMIN_ID,
+        vkBot.sendMessageTo(APP_ADMIN_ID1,
                 "APP STARTED.\nTO STOP TYPE: "+ APPLICATION_STOP_TEXT);
 
         while (true)
@@ -68,7 +70,7 @@ public class Bot {
         vkBot.setOnline(false);
         plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
-        vkBot.sendMessageTo(APP_ADMIN_ID, Answer.WARNING_APP_STOPPED);
+        vkBot.sendMessageTo(APP_ADMIN_ID1, "WARNING: APP STOPPED");
     }
 
     public static void manualChangeWeekType() {
@@ -95,7 +97,7 @@ public class Bot {
     }
 
     private static Message stopAppOnSpecialMessage(Message message) {
-        if (message.getFromId().equals(APP_ADMIN_ID) &&
+        if (message.getFromId().equals(APP_ADMIN_ID1) &&
                 message.getText().equals(APPLICATION_STOP_TEXT))
             throw new ApplicationStopNeedsException();
         else return message;
@@ -126,7 +128,7 @@ public class Bot {
 
             } catch (Exception e) {
                 vkBot.sendMessageTo(userId, Answer.I_BROKEN);
-                vkBot.sendMessageTo(List.of(APP_ADMIN_ID), Answer.getForAdminsIBroken(userId, e));
+                vkBot.sendMessageTo(List.of(APP_ADMIN_ID1), Answer.getForAdminsIBroken(userId, e));
                 e.printStackTrace();
             }
         });
@@ -166,10 +168,16 @@ public class Bot {
             group.getLoginWaitingUsers().add(userId);
         }
 
-        else if (!group.containsUser(userId) && command.is(Command.VERIFICATION_CODE)) {
+        else if (!group.containsUser(userId) && command.is(Command.VERIFICATION_CODE))
             addUserByVerificationCode(group, userId, Utils.tryParseInteger(messageText));
 
-        } else if (command.is(Command.GET_SUBJECT))
+        else if (command.is(Command.GET_SUBJECT_DOCUMENTS))
+            getSubjectDocuments(userId, command, group);
+
+        else if (command.is(Command.GET_SUBJECT_DOCUMENT))
+            getSubjectDocument(userId, command, group, groupName);
+
+        else if (command.is(Command.GET_SUBJECT))
             getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
 
         else if (command.is(Command.GET_SUBJECTS))
@@ -207,6 +215,39 @@ public class Bot {
             else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
 
         } else vkBot.sendMessageTo(userId, "Я не понял твою команду");
+    }
+
+    private static void getSubjectDocuments(Integer userId, Command command, Group group) {
+        final var subjectId = command.parseNumbers().get(0);
+        group.getSubjectById(subjectId)
+                .ifPresentOrElse(
+                        subject -> vkBot.sendMessageTo(userId, Answer.getSubjectDocuments(subject)),
+                        () -> vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER));
+    }
+
+    private static void getSubjectDocument(Integer userId, Command command, Group group, String groupName) {
+        final List<Integer> integers = command.parseNumbers();
+        final var documentId = integers.get(0);
+        final var subjectId = integers.get(1);
+
+        group.getSubjectById(subjectId).ifPresentOrElse(
+                subject -> {
+                    File file = null;
+                    Optional<LkDocument> document = subject.getMaterialsDocumentById(documentId);
+                    if (document.isPresent())
+                        file = group.getLkParser().loadMaterialsFile(document.get(), groupName, subject.getName());
+                    else {
+                        document = subject.getMessageDocumentById(documentId);
+                        if (document.isPresent())
+                            file = group.getLkParser().loadMessageFile(document.get(), groupName, subject.getName());
+                    }
+                    if (file != null)
+                        vkBot.sendMessageTo(userId, file,
+                                Answer.getDocument(subject.getName(), document.get().getName()));
+
+                    else vkBot.sendMessageTo(userId, Answer.WRONG_DOCUMENT_NUMBER);
+                },
+                () -> vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER));
     }
 
     private static void changeSilentTime(Integer userId, Command command, Group group) {
@@ -412,10 +453,8 @@ public class Bot {
         final var oldSubject = optionalSubject.get();
         login(group);
         Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
-
         newSubject.setId(subjectIndex);
-        newSubject.getDocumentNames()
-                .removeAll(oldSubject.getDocumentNames());
+        newSubject = Utils.removeOldDocuments(List.of(oldSubject), List.of(newSubject)).get(0);
 
         if (newSubject.isNotEmpty()) {
             vkBot.sendLongMessageTo(userId,
@@ -541,6 +580,7 @@ public class Bot {
         );
 
         newUserSubjectsListMessage(userId, newGroup);
+
         vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
                 Answer.getSubjects(newSubjects, newGroup.getNextCheckDate()));
 
@@ -572,17 +612,17 @@ public class Bot {
                 .ifPresentOrElse(group -> {
                     final LkParser lkParser = new LkParser();
                     if (!group.hasLeader()) {
-                        vkBot.sendMessageTo(APP_ADMIN_ID, Answer.FOR_ADMIN_NEED_REGISTRATION);
+                        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_NEED_REGISTRATION);
                         return;
                     }
                     try {
                         lkParser.login(cipherService.decrypt(group.getLoggedUser().getAuthData()));
                         isActualWeekWhite = lkParser.parseWeekType(group.getLkSemesterId());
                     } catch (AuthenticationException ignored) {
-                        vkBot.sendMessageTo(APP_ADMIN_ID, Answer.FOR_ADMIN_NEED_REGISTRATION);
+                        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_NEED_REGISTRATION);
                     }
 
-                }, () -> vkBot.sendMessageTo(APP_ADMIN_ID,
+                }, () -> vkBot.sendMessageTo(APP_ADMIN_ID1,
                         "Не удалось загрузить твою группу. Войди и перезапусти бота."));
     }
 }

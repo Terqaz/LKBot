@@ -1,8 +1,11 @@
 package com.my.services.lk;
 
+import com.my.models.LkDocument;
 import org.apache.http.client.utils.URIBuilder;
 
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -14,7 +17,7 @@ public class LkUrlBuilder {
 
     public static final String LSTU_HOST_NAME = "lk.stu.lipetsk.ru";
 
-    private static URIBuilder getLstuOriginUriBuilder () {
+    public static URIBuilder getLstuOriginUriBuilder () {
         return new URIBuilder()
                 .setScheme("http")
                 .setHost(LSTU_HOST_NAME);
@@ -26,6 +29,15 @@ public class LkUrlBuilder {
         } catch (URISyntaxException ignored) {
             return null;
         }
+    }
+
+    private static URL buildUrl(URIBuilder uriBuilder) {
+        try {
+            return uriBuilder.build().toURL();
+        } catch (URISyntaxException | MalformedURLException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     public static String buildAuthUrl (String login, String password, String sessId) {
@@ -52,10 +64,19 @@ public class LkUrlBuilder {
                 .setPath("education/0/"));
     }
 
-    public static String buildSubjectLocalUrl (String semesterId, String disciplineId,
+    public static String buildSubjectStringUrl(String semesterId, String disciplineId,
                                                String groupId, String contingentId) {
-        return build(new URIBuilder()
-                .setPathSegments("education", "0", semesterId, disciplineId, groupId, contingentId, ""));
+        return build(createSubjectUri(semesterId, disciplineId, groupId, contingentId));
+    }
+
+    public static URL buildSubjectUrl(String semesterId, String disciplineId,
+                                      String groupId, String contingentId) {
+        return buildUrl(createSubjectUri(semesterId, disciplineId, groupId, contingentId));
+    }
+
+    private static URIBuilder createSubjectUri(String semesterId, String disciplineId, String groupId, String contingentId) {
+        return getLstuOriginUriBuilder()
+                .setPathSegments("education", "0", semesterId, disciplineId, groupId, contingentId, "");
     }
 
     public static String buildNextMessagesUrl (String semesterId, String disciplineId, String groupId, Date date) {
@@ -89,5 +110,13 @@ public class LkUrlBuilder {
         return build(getLstuOriginUriBuilder()
             .addParameter("auth", "1")
         );
+    }
+
+    public static URL buildMaterialsDocumentUrl(LkDocument document) {
+        return buildUrl(getLstuOriginUriBuilder().setPathSegments("file", "me_teachingmaterials", document.getLkId()));
+    }
+
+    public static URL buildMessageDocumentUrl(LkDocument document) {
+        return buildUrl(getLstuOriginUriBuilder().setPathSegments("file", "me_msg_lk", document.getLkId()));
     }
 }

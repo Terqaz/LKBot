@@ -1,23 +1,34 @@
 package com.my.services.lk;
 
+import com.ibm.icu.text.Transliterator;
+import com.my.TextUtils;
 import com.my.exceptions.AuthenticationException;
+import com.my.exceptions.FileLoadingException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.exceptions.LoginNeedsException;
 import com.my.models.AuthenticationData;
+import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpStatus;
 import org.jsoup.Connection;
 import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
+import java.net.URL;
+import java.util.zip.GZIPInputStream;
 
 public class LkClient {
 
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0";
+    public static final String RELOGIN_IS_NEEDED = "Login or relogin needs";
     private String phpSessId = null;
+
+    private static final Transliterator toLatinTransliterator = Transliterator.getInstance("Russian-Latin/BGN");
 
     public LkClient() {}
 
@@ -87,7 +98,7 @@ public class LkClient {
 
     private Connection getOriginSessionConnection(String url) {
         if (isSessionDiscarded())
-            throw new LoginNeedsException("Login is needed");
+            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
 
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
@@ -107,6 +118,53 @@ public class LkClient {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public File loadFileTo(String fileDir, URL inputUrl) {
+        try {
+            HttpURLConnection connection = (HttpURLConnection) inputUrl.openConnection();
+            connection.addRequestProperty("User-Agent", USER_AGENT);
+            connection.addRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+            connection.addRequestProperty("Accept-Language", "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3");
+            connection.addRequestProperty("Accept-Encoding", "gzip, deflate");
+            connection.addRequestProperty("Connection", "Keep-alive");
+            connection.addRequestProperty("DNT", "1");
+            connection.addRequestProperty("Upgrade-Insecure-Requests", "1");
+            connection.addRequestProperty("Cookie", "PHPSESSID=" + phpSessId);
+
+            connection.connect();
+
+            if (isNotAuthorized(connection.getResponseCode())) {
+                discardSession();
+                throw new LoginNeedsException(RELOGIN_IS_NEEDED);
+
+            } else if (connection.getResponseCode() != HttpURLConnection.HTTP_OK)
+                throw new FileLoadingException("Server returned HTTP " + connection.getResponseCode()
+                        + " " + connection.getResponseMessage());
+
+            File newFile = new File(fileDir + "\\" + getFileNameFromConnection(connection));
+            FileUtils.copyInputStreamToFile(new GZIPInputStream(connection.getInputStream()), newFile);
+            connection.disconnect();
+            return newFile;
+
+        } catch (ConnectException | SocketTimeoutException e) {
+            throw new LkNotRespondingException();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        throw new FileLoadingException("Unknown exception while file loading");
+    }
+
+    private String getFileNameFromConnection(HttpURLConnection connection) {
+        //Content-disposition: inline; filename="file.pdf"
+        final var contentDisposition = connection.getHeaderField("Content-disposition");
+        if (contentDisposition == null)
+            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
+
+        var value = contentDisposition.split("=")[1];
+        value = value.substring(1, value.length()-1);
+        value = TextUtils.changeEncodingIso_8859_1_Windows_1251(value);
+        return toLatinTransliterator.transliterate(value); // Убрали кавычки
     }
 
     public Document loggedGet(String url) {
@@ -161,16 +219,20 @@ public class LkClient {
         Response response = executeRequest(connection);
 
         final int code = response.statusCode();
-        if (code == HttpStatus.SC_MOVED_TEMPORARILY || code == HttpStatus.SC_UNAUTHORIZED ||
-                code == HttpStatus.SC_FORBIDDEN) {
+        if (isNotAuthorized(code)) {
             discardSession();
-            throw new LoginNeedsException("Login is needed");
+            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
         }
         return response;
     }
 
+    private boolean isNotAuthorized(int code) {
+        return code == HttpStatus.SC_MOVED_TEMPORARILY || code == HttpStatus.SC_UNAUTHORIZED ||
+                code == HttpStatus.SC_FORBIDDEN;
+    }
+
     private Response executeRequest(Connection connection) {
-        for (int triesCount = 5; triesCount > 0; triesCount--) {
+        for (int triesCount = 10; triesCount > 0; triesCount--) {
             try {
                 return connection.execute();
             } catch (ConnectException | SocketTimeoutException ignored) {
