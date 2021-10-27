@@ -130,12 +130,12 @@ class GroupsRepositoryTest {
     @Test
     void groupScheduleCorrectSaves () {
         final var timetable = new Timetable()
-                .addWhiteWeekSubject(0, new TimetableSubject("a1", "b1", "c1", "d1"))
-                .addWhiteWeekSubject(0, new TimetableSubject("a2", "b2", "c2", "d3"))
-                .addWhiteWeekSubject(3, new TimetableSubject("a3", "b3", "c3", "d3"))
-                .addGreenWeekDaySubject(1, new TimetableSubject("a4", "b4", "c4", "d4"))
-                .addGreenWeekDaySubject(1, new TimetableSubject("a5", "b5", "c5", "d5"))
-                .addGreenWeekDaySubject(5, new TimetableSubject("a6", "b6", "c6", "d6"));
+                .addWhiteSubject(0, new TimetableSubject("a1", "b1", "c1", "d1"))
+                .addWhiteSubject(0, new TimetableSubject("a2", "b2", "c2", "d3"))
+                .addWhiteSubject(3, new TimetableSubject("a3", "b3", "c3", "d3"))
+                .addGreenSubject(1, new TimetableSubject("a4", "b4", "c4", "d4"))
+                .addGreenSubject(1, new TimetableSubject("a5", "b5", "c5", "d5"))
+                .addGreenSubject(5, new TimetableSubject("a6", "b6", "c6", "d6"));
 
         testGroup.setTimetable(timetable);
         repository.insert(testGroup);
@@ -147,8 +147,8 @@ class GroupsRepositoryTest {
     @Test
     void findAllWithoutTimetable_isCorrect () {
         final var timetable = new Timetable()
-                .addWhiteWeekSubject(0, new TimetableSubject("a1", "b1", "c1", "d1"))
-                .addGreenWeekDaySubject(5, new TimetableSubject("a6", "b6", "c6", "d6"));
+                .addWhiteSubject(0, new TimetableSubject("a1", "b1", "c1", "d1"))
+                .addGreenSubject(5, new TimetableSubject("a6", "b6", "c6", "d6"));
 
         testGroup.setTimetable(timetable);
         repository.insert(testGroup);

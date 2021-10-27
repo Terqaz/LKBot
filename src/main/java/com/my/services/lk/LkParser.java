@@ -250,11 +250,11 @@ public class LkParser {
                         interval = interval.substring(0, 5) + "-" + interval.substring(8, 13);
 
                         if (!cells.get(2).text().isBlank())
-                            timetable.addWhiteWeekSubject(
+                            timetable.addWhiteSubject(
                                     thisWeekDay, buildTimetableSubject(cells.get(2), cells.get(3), interval));
 
                         if (!cells.get(4).text().isBlank())
-                            timetable.addGreenWeekDaySubject(
+                            timetable.addGreenSubject(
                                     thisWeekDay, buildTimetableSubject(cells.get(4), cells.get(5), interval));
                     }
                     return timetable;

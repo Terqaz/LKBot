@@ -49,29 +49,19 @@ public class PlannedScheduleSending extends Thread {
                             Bot.manualChangeWeekType();
                     }
 
+                    final boolean isNextDayWeekWhite =
+                            nextWeekDay == 0 ? !Bot.isActualWeekWhite() : Bot.isActualWeekWhite();
+
                     for (Group group : Bot.getGroupByGroupName().values()) {
-                        CompletableFuture.runAsync(() -> {
-                            updateSchedule(group);
-
-                            boolean isNextDayWeekWhite = Bot.isActualWeekWhite();
-                            if (nextWeekDay == 0) // Если следующий день
-                                isNextDayWeekWhite = !isNextDayWeekWhite;
-
-                            final String dayScheduleReport =
-                                    Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
-
-                            if (!dayScheduleReport.isEmpty())
-                                vkBot.sendMessageTo(
-                                        group.getUsers().stream()
-                                                .filter(GroupUser::isEverydayScheduleEnabled)
-                                                .map(GroupUser::getId)
-                                                .collect(Collectors.toList()),
-                                        Answer.getTomorrowSchedule(dayScheduleReport));
-                        });
+                        CompletableFuture.runAsync(() -> sendSchedule(group, nextWeekDay, isNextDayWeekWhite));
                     }
                     Thread.sleep(3600L * 1000); // 1 час
 
-                } else Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
+                } else if (hour == 19) {
+
+                } else {
+                    Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
+                }
 
             } catch (InterruptedException e) {
                 break;
@@ -81,15 +71,33 @@ public class PlannedScheduleSending extends Thread {
         }
     }
 
-    private void updateSchedule(Group group) {
+    private void sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
         try {
             Bot.login(group);
+            final Timetable timetable = group.getLkParser()
+                    .parseTimetable(group.getLkSemesterId(), group.getLkId());
+
+            if (isNewTimetableCorrect(timetable, group.getTimetable())) {
+                groupsRepository.updateField(group.getName(),"timetable", timetable);
+                group.setTimetable(timetable);
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            return;
         }
-        final Timetable timetable = group.getLkParser().parseTimetable(group.getLkSemesterId(), group.getLkId());
-        groupsRepository.updateField(group.getName(),"timetable", timetable);
-        group.setTimetable(timetable);
+
+        final String dayScheduleReport = Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
+
+        if (!dayScheduleReport.isEmpty())
+            vkBot.sendMessageTo(
+                    group.getUsers().stream()
+                            .filter(GroupUser::isEverydayScheduleEnabled)
+                            .map(GroupUser::getId)
+                            .collect(Collectors.toList()),
+                    Answer.getTomorrowSchedule(dayScheduleReport));
+    }
+
+    private boolean isNewTimetableCorrect (Timetable newTt, Timetable oldTt) {
+        return newTt.getWhiteSubjects().size() >= oldTt.getWhiteSubjects().size() &&
+               newTt.getGreenSubjects().size() >= oldTt.getGreenSubjects().size();
     }
 }

@@ -431,8 +431,8 @@ public class Bot {
             return "";
 
         else return Answer.getDaySchedule(isWeekWhite ?
-                        group.getTimetable().getWhiteWeekDaySubjects().get(weekDay) :
-                        group.getTimetable().getGreenWeekDaySubjects().get(weekDay),
+                        group.getTimetable().getWhiteSubjects().get(weekDay) :
+                        group.getTimetable().getGreenSubjects().get(weekDay),
                 isWeekWhite);
     }
 

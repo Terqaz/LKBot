@@ -81,24 +81,24 @@ class LkParserTest {
         final Timetable timetable = lkParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
         log.info("timetable loaded");
 
-        assertEquals(16, listsSizeCount(timetable.getWhiteWeekDaySubjects()));
-        assertEquals(17, listsSizeCount(timetable.getGreenWeekDaySubjects()));
+        assertEquals(16, listsSizeCount(timetable.getWhiteSubjects()));
+        assertEquals(17, listsSizeCount(timetable.getGreenSubjects()));
 
         assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getName().equals("")));
         assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getInterval().equals("")));
         assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getPlace().equals("")));
 
-        assertEquals(timetable.getWhiteWeekDaySubjects().get(0).get(0),
+        assertEquals(timetable.getWhiteSubjects().get(0).get(0),
                 new TimetableSubject("Операционные системы", "Журавлева Марина Гарриевна",
                 "11:20-12:50", "363, лабораторная"));
 
-        assertEquals(timetable.getWhiteWeekDaySubjects().get(1).get(1), new TimetableSubject(
+        assertEquals(timetable.getWhiteSubjects().get(1).get(1), new TimetableSubject(
                 "Общая физическая подготовка", "",
                 "11:20-12:50", "спортзал, практика"));
     }
 
     private boolean anyTimetableSubjectMatch(Timetable timetable, Predicate<TimetableSubject> cond) {
-        return timetable.getWhiteWeekDaySubjects().stream()
+        return timetable.getWhiteSubjects().stream()
                 .anyMatch(timetableSubjects ->
                         timetableSubjects.stream()
                                 .anyMatch(cond));

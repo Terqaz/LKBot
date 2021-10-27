@@ -12,26 +12,26 @@ import java.util.List;
 @Setter
 @EqualsAndHashCode
 public class Timetable {
-    List<List<TimetableSubject>> whiteWeekDaySubjects = new ArrayList<>();
-    List<List<TimetableSubject>> greenWeekDaySubjects = new ArrayList<>();
+    List<List<TimetableSubject>> whiteSubjects = new ArrayList<>();
+    List<List<TimetableSubject>> greenSubjects = new ArrayList<>();
 
     public Timetable() {
         for (int i = 0; i < 6; i++)
-            whiteWeekDaySubjects.add(new ArrayList<>());
+            whiteSubjects.add(new ArrayList<>());
 
         for (int i = 0; i < 6; i++)
-            greenWeekDaySubjects.add(new ArrayList<>());
+            greenSubjects.add(new ArrayList<>());
     }
 
     @BsonIgnore
-    public Timetable addWhiteWeekSubject (Integer weekDay, TimetableSubject subject) {
-        whiteWeekDaySubjects.get(weekDay).add(subject);
+    public Timetable addWhiteSubject(Integer weekDay, TimetableSubject subject) {
+        whiteSubjects.get(weekDay).add(subject);
         return this;
     }
 
     @BsonIgnore
-    public Timetable addGreenWeekDaySubject (Integer weekDay, TimetableSubject subject) {
-        greenWeekDaySubjects.get(weekDay).add(subject);
+    public Timetable addGreenSubject(Integer weekDay, TimetableSubject subject) {
+        greenSubjects.get(weekDay).add(subject);
         return this;
     }
 }
