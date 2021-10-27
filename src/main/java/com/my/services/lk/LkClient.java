@@ -1,5 +1,6 @@
 package com.my.services.lk;
 
+import com.ibm.icu.text.Transliterator;
 import com.my.ParserUtils;
 import com.my.exceptions.FileLoadingException;
 import com.my.exceptions.LkNotRespondingException;
@@ -24,7 +25,9 @@ public class LkClient {
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0";
     public static final String RELOGIN_IS_NEEDED = "Login or relogin needs";
-    private static String phpSessId = null;
+    private String phpSessId = null;
+
+    private static final Transliterator toLatinTransliterator = Transliterator.getInstance("Russian-Latin/BGN");
 
     public LkClient() {}
 
@@ -150,8 +153,9 @@ public class LkClient {
             throw new LoginNeedsException(RELOGIN_IS_NEEDED);
 
         var value = contentDisposition.split("=")[1];
+        value = value.substring(1, value.length()-1);
         value = ParserUtils.changeEncodingIso_8859_1_Windows_1251(value);
-        return value.substring(1, value.length()-1); // Убрали кавычки
+        return toLatinTransliterator.transliterate(value); // Убрали кавычки
     }
 
     public Document loggedGet(String url) {

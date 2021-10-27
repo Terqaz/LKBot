@@ -6,13 +6,11 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.io.Serializable;
-
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
 @Accessors(chain = true)
-public class LkDocument implements Serializable {
+public class LkDocument {
     private Integer id;
     @NonNull
     private String name;

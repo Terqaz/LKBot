@@ -1,5 +1,6 @@
 package com.my;
 
+import com.google.gson.Gson;
 import com.my.models.LkDocument;
 import com.my.models.Subject;
 import org.apache.commons.lang3.SerializationUtils;
@@ -9,6 +10,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public final class Utils {
+
+    private static final Gson gson = new Gson();
 
     private Utils () {}
 
@@ -35,8 +38,8 @@ public final class Utils {
     }
 
     // Changes newDocuments
-    public static void copyIdsFromOldMaterialsDocuments(Collection<LkDocument> newDocuments,
-                                                        Collection<LkDocument> oldDocuments) {
+    public static void copyIdsFrom(Collection<LkDocument> newDocuments,
+                                   Collection<LkDocument> oldDocuments) {
         Map<String, Integer> oldDocumentByName = oldDocuments.stream()
                 .collect(Collectors.toMap(LkDocument::getName, LkDocument::getId));
 

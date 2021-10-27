@@ -577,14 +577,8 @@ public class Bot {
         final var oldSubject = optionalSubject.get();
 
         Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
-
         newSubject.setId(subjectIndex);
-
-        newSubject.getMaterialsDocuments().stream()
-                .filter(lkDocument -> oldSubject.)
-
-        newSubject.getMaterialsDocuments()
-                .removeAll(oldSubject.getMaterialsDocuments());
+        newSubject = Utils.removeOldDocuments(List.of(oldSubject), List.of(newSubject)).get(0);
 
         if (newSubject.isNotEmpty()) {
             vkBot.sendLongMessageTo(userId,

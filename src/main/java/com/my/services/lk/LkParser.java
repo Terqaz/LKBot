@@ -242,7 +242,7 @@ public class LkParser {
                     for (Element row : rows) {
                         Elements cells = row.select("td");
 
-                        final String newWeekDay = cells.get(0).text();
+                        final String newWeekDay = cells.get(0).text().strip();
                         if (!newWeekDay.isBlank())
                             thisWeekDay = mapDayOfWeek(newWeekDay);
 
@@ -264,7 +264,7 @@ public class LkParser {
     private TimetableSubject buildTimetableSubject (Element firstCell, Element secondCell, String interval) {
         String subjectName = ParserUtils.capitalize(firstCell.textNodes().get(0).text().strip());
 
-        String academicName = firstCell.select("a").text();
+        String academicName = firstCell.select("a").text().strip();
 
         final List<TextNode> placeCellTextNodes = secondCell.textNodes();
         String place = placeCellTextNodes.get(0).text().strip() + ", " +

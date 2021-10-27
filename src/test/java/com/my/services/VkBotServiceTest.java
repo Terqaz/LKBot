@@ -1,10 +1,10 @@
 package com.my.services;
 
 import com.my.services.vk.VkBotService;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,6 +16,7 @@ class VkBotServiceTest {
     static final int APP_ADMIN_ID = 173315241;
 
     @Test
+    @Disabled ("Пройден")
     void getUserNameIsCorrect () {
         assertEquals("Павел Дуров", vkBot.getUserName(1));
     }
@@ -23,7 +24,7 @@ class VkBotServiceTest {
     @Test
     void fileUpload () throws URISyntaxException {
         vkBot.sendMessageTo(APP_ADMIN_ID,
-                new File(new URI("https://i.stack.imgur.com/C93kI.png")),
+                new File("D:\\Mega\\Learning\\HW\\BD\\ê°€.docx"),
                 "Тестовый файл");
     }
 }

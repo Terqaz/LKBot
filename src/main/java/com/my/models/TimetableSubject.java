@@ -1,16 +1,17 @@
 package com.my.models;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
 import lombok.experimental.Accessors;
 
 import javax.validation.constraints.NotBlank;
 
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors (chain = true)
-@EqualsAndHashCode
 public class TimetableSubject {
 
     @NonNull @NotBlank

@@ -119,7 +119,7 @@ public class PlannedSubjectsUpdate extends Thread {
                             newSubject.setMaterialsDocuments(oldMaterialsDocuments);
 
                     newSubject.getMessagesDocuments().addAll(oldSubject.getMessagesDocuments());
-                    Utils.copyIdsFromOldMaterialsDocuments(
+                    Utils.copyIdsFrom(
                             newSubject.getMaterialsDocuments(), oldSubject.getMaterialsDocuments());
                     Utils.setIdsWhereNull(newSubject);
                     return newSubject;

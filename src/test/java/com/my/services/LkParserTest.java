@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +25,7 @@ class LkParserTest {
     static LkParser lkParser = new LkParser();
 
     static String testSemester = "2021-В";
+    static String testSemester2 = "2021-О";
     static Group testGroup;
 
     @BeforeAll
@@ -69,40 +71,37 @@ class LkParserTest {
     @Test
     @Disabled ("Пройден")
     void parseTimetable_IsCorrect () {
-        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
+        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester2);
         testGroup.setLkIds(
                 lkIds.get(LkParser.SEMESTER_ID),
                 lkIds.get(LkParser.GROUP_ID),
                 lkIds.get(LkParser.CONTINGENT_ID)
         );
         // Семестр, в котором не поменяют расписание
-        final Timetable timetable =
-                lkParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
+        final Timetable timetable = lkParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
+        log.info("timetable loaded");
 
-        assertEquals(15, listsSizeCount(timetable.getWhiteWeekDaySubjects()));
-        assertEquals(18, listsSizeCount(timetable.getGreenWeekDaySubjects()));
+        assertEquals(16, listsSizeCount(timetable.getWhiteWeekDaySubjects()));
+        assertEquals(17, listsSizeCount(timetable.getGreenWeekDaySubjects()));
 
-        assertFalse(timetable.getWhiteWeekDaySubjects().stream()
-                .anyMatch(timetableSubjects ->
-                        timetableSubjects.stream()
-                                .anyMatch(subject -> subject.getName().equals(""))));
+        assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getName().equals("")));
+        assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getInterval().equals("")));
+        assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getPlace().equals("")));
 
         assertEquals(timetable.getWhiteWeekDaySubjects().get(0).get(0),
-                new TimetableSubject("Численные методы", "Гаев Леонид Витальевич",
-                "08:00-09:30", "255, лекция"));
+                new TimetableSubject("Операционные системы", "Журавлева Марина Гарриевна",
+                "11:20-12:50", "363, лабораторная"));
 
-        assertEquals(timetable.getWhiteWeekDaySubjects().get(1).get(0), new TimetableSubject(
+        assertEquals(timetable.getWhiteWeekDaySubjects().get(1).get(1), new TimetableSubject(
                 "Общая физическая подготовка", "",
-                "08:00-09:30", "спортзал, практика"));
+                "11:20-12:50", "спортзал, практика"));
+    }
 
-        assertEquals(timetable.getWhiteWeekDaySubjects().get(5).get(0), new TimetableSubject(
-                "Современные платформы разработки программного обеспечения",
-                "Овчинников Владимир Владимирович",
-                "09:40-11:10", "9-405, лекция"));
-
-        assertEquals(timetable.getGreenWeekDaySubjects().get(1).get(1), new TimetableSubject(
-                "Статистические методы в прикладных задачах", "Рыжкова Дарья Васильевна",
-                "09:40-11:10", "458, лекция"));
+    private boolean anyTimetableSubjectMatch(Timetable timetable, Predicate<TimetableSubject> cond) {
+        return timetable.getWhiteWeekDaySubjects().stream()
+                .anyMatch(timetableSubjects ->
+                        timetableSubjects.stream()
+                                .anyMatch(cond));
     }
 
     private <T> int listsSizeCount(List<List<T>> lists) {
@@ -112,9 +111,10 @@ class LkParserTest {
     @Test
     @Disabled ("Пройден")
     void getSubjectsFirstTime_isCorrect () {
-        final List<Subject> subjectsData = lkParser.getSubjectsFirstTime(testSemester);
+        final List<Subject> subjects = lkParser.getSubjectsFirstTime(testSemester);
+        log.info("subjects loaded");
 
-        final Subject subject1 = subjectsData.stream()
+        final Subject subject1 = subjects.stream()
                 .filter(subjectData -> subjectData.getLkId().equals("1:1751010"))
                 .findFirst().orElse(null);
         assertNotNull(subject1);
@@ -127,7 +127,7 @@ class LkParserTest {
                         .collect(Collectors.toSet()));
 
 
-        final Subject subject2 = subjectsData.stream()
+        final Subject subject2 = subjects.stream()
                 .filter(subjectData -> subjectData.getLkId().equals("1:9116307"))
                 .findFirst().orElse(null);
         assertNotNull(subject2);
@@ -135,20 +135,20 @@ class LkParserTest {
         assertEquals("Правоведение", subject1.getName());
         assertEquals("Черемисин ЕВ", subject2.getMessagesData().get(0).getSender());
 
-        final Subject subject3 = subjectsData.stream()
+        final Subject subject3 = subjects.stream()
                 .filter(subjectData -> subjectData.getLkId().equals("1:1750023"))
                 .findFirst().get();
 
         assertNotNull(subject3);
         assertEquals("Экономика", subject3.getName());
         assertNull(subject3.getMessagesData().get(4).getDocument());
-        final LkDocument lkDocument1 = new LkDocument("Лекция 01.04 Предприятие, производство, издержки", "5:108785375");
+        final LkDocument lkDocument1 = new LkDocument(6, "Лекция 01.04 Предприятие, производство, издержки", null, "5:108785375");
         assertEquals(lkDocument1,
                 subject3.getMessagesData().get(5).getDocument());
 
         assertIterableEquals(sortDocumentsByName(Set.of(lkDocument1,
-                new LkDocument("Лекция 18.03 Равновесие потребителя", "5:108535269"),
-                new LkDocument("Тема 3. Рынок и его механизмы", "5:108490770"))),
+                new LkDocument(7, "Лекция 18.03 Равновесие потребителя", null, "5:108535269"),
+                new LkDocument(8,"Тема 3. Рынок и его механизмы", null, "5:108490770"))),
                 sortDocumentsByName(subject3.getMessagesDocuments()));
     }
 
@@ -177,11 +177,12 @@ class LkParserTest {
         );
         testGroup.setLastCheckDate(new Date());
 
-        final List<Subject> newSubjectsData = lkParser.getNewSubjects(firstSubjects, testGroup);
+        final List<Subject> newSubjects = lkParser.getNewSubjects(firstSubjects, testGroup);
         log.info("New subjects loaded");
+        newSubjects.forEach(Utils::setIdsWhereNull);
 
         // Проверяем
-        assertTrue(newSubjectsData.stream() // Новых сообщений нет нигде
+        assertTrue(newSubjects.stream() // Новых сообщений нет нигде
                 .allMatch(subjectData -> subjectData.getMessagesData().isEmpty()));
 
         final Subject oldSubject1 = assertDoesNotThrow(() ->
@@ -191,14 +192,18 @@ class LkParserTest {
                         .orElseThrow(NullPointerException::new));
 
         final Subject newSubject1 = assertDoesNotThrow(() ->
-                newSubjectsData.stream()
+                newSubjects.stream()
                         .filter(subjectData -> subjectData.getName().equals("Правоведение"))
                         .findFirst()
                         .orElseThrow(NullPointerException::new));
 
         // Два раза подряд получили одно и то же
-        assertEquals(oldSubject1.getMaterialsDocuments(), newSubject1.getMaterialsDocuments());
-        assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjectsData).isEmpty());
+        assertIterableEquals( //TODO
+                oldSubject1.getMaterialsDocuments().stream().sorted(Comparator.comparing(LkDocument::getName))
+                        .collect(Collectors.toList()),
+                newSubject1.getMaterialsDocuments().stream().sorted(Comparator.comparing(LkDocument::getName))
+                        .collect(Collectors.toList()));
+        assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjects).isEmpty());
     }
 
     @Test
@@ -231,6 +236,7 @@ class LkParserTest {
                 lkParser.loadMessageFile( // http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108785375
                         new LkDocument("тест3", "5:108785375"), groupName, subjectName)
         );
+        log.info("files loaded");
 
         assertTrue(files.stream().allMatch(File::exists));
 

@@ -17,21 +17,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class AnyUtilsTest {
 
     @Test
-    @Disabled
+    @Disabled ("Пройден")
     void translateFromEnglishKeyboardLayout_isCorrect () {
         final List<String> expected =
-                List.of("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "кjvF Yls 2")
+                List.of("rjvfyls", "rjvFYls", "кjvFYls", "кjvF Yls", "rjvF Yls", "rjvF Yls 2", "tjvF Ylш 2")
                 .stream().map(KeyboardLayoutConverter::translateFromEnglishLayoutIfNeeds)
                 .collect(Collectors.toList());
 
         final List<String> actual =
-                List.of("команды", "комАНды", "кjvFYls", "кjvF Yls", "комА Нды", "комА Нды 2", "кjvF Yls 2");
+                List.of("команды", "комАНды", "кjvFYls", "кjvF Yls", "комА Нды", "комА Нды 2", "tjvF Ylш 2");
 
         assertIterableEquals(expected, actual);
     }
 
     @Test
-    @Disabled
+    @Disabled ("Пройден")
     void ParserUtils_capitalize_IsCorrect () {
         assertEquals("Тест", ParserUtils.capitalize("Тест"));
         assertEquals("Тест", ParserUtils.capitalize("ТЕСТ"));
@@ -51,14 +51,17 @@ class AnyUtilsTest {
         assertIterableEquals(createSubjects1(), oldSubjectData); // oldSubjectData не изменилась
         assertIterableEquals(createSubjects2(), newSubjectData); // newSubjectData не изменилась
 
-        assertEquals(2, postSubjectData.size());
-        assertEquals(TestUtils.createDocuments("2abcdef"), postSubjectData.get(0).getMaterialsDocuments());
-        assertEquals(TestUtils.createDocuments("3abcdef"), postSubjectData.get(1).getMaterialsDocuments());
+        assertTrue(postSubjectData.get(0).getMaterialsDocuments().isEmpty());
+        assertTrue(postSubjectData.get(1).getMaterialsDocuments().isEmpty());
+        assertEquals(TestUtils.createDocuments("2abcdef"), postSubjectData.get(2).getMaterialsDocuments());
+        assertEquals(TestUtils.createDocuments("3abcdef"), postSubjectData.get(3).getMaterialsDocuments());
     }
 
     @Test
     @Disabled ("Пройден")
     void setDocumentsIdsWhereNull_isCorrect () {
+
+        assertDoesNotThrow(() -> Utils.setDocumentsIdsWhereNull(Collections.emptyList(), 1));
 
         List<LkDocument> documents =
                 TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f");
@@ -78,6 +81,8 @@ class AnyUtilsTest {
     @Test
     @Disabled ("Пройден")
     void setIdsWhereNull_isCorrect() {
+        assertDoesNotThrow(() -> Utils.setIdsWhereNull(new Subject("1", "2", Set.of(), Set.of(), List.of())));
+
         final var subject = createSubject1()
                 .setMaterialsDocuments(TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f"))
                 .setMessagesDocuments(TestUtils.createDocuments("m0k", "m1a", "m2b", "m3c", "m4d", "m5e", "m6f"));
@@ -108,6 +113,8 @@ class AnyUtilsTest {
     @Test
     @Disabled ("Пройден")
     void copyIdsFromOldMaterialsDocuments_isCorrect() {
+        assertDoesNotThrow(() -> Utils.copyIdsFrom(List.of(), List.of()));
+
         final List<LkDocument> oldDocuments = TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f");
 
         oldDocuments.get(1).setId(3);
@@ -116,7 +123,7 @@ class AnyUtilsTest {
 
         Utils.setDocumentsIdsWhereNull(oldDocuments, 1);
         final Set<LkDocument> newDocuments = TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f");
-        Utils.copyIdsFromOldMaterialsDocuments(newDocuments, oldDocuments);
+        Utils.copyIdsFrom(newDocuments, oldDocuments);
         assertIterableEquals(sortByNameAndGetIds(oldDocuments), sortByNameAndGetIds(newDocuments));
     }
 
@@ -158,7 +165,7 @@ class AnyUtilsTest {
     }
 
     @Test
-    @Disabled
+    @Disabled ("Пройден")
     void isSilentTime_isCorrect () {
         assertTrue(Utils.isSilentTime(2, 6, 2));
         assertTrue(Utils.isSilentTime(2, 6, 6));
@@ -173,6 +180,7 @@ class AnyUtilsTest {
     }
 
     @Test
+    @Disabled ("Пройден")
     void getSleepTimeToHourStart_isCorrect () {
         assertEquals( 3600L * 1000 , Utils.getSleepTimeToHourStart(0, 0));
         assertEquals( 1800L * 1000 , Utils.getSleepTimeToHourStart(30, 0));
