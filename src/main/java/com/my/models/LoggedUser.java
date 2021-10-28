@@ -16,7 +16,6 @@ public class LoggedUser {
     private Integer id;
     @NonNull
     private AuthenticationData authData;
-    private volatile boolean alwaysNotify = true;
     private boolean updateAuthDataNotified = false;
 
     @BsonIgnore

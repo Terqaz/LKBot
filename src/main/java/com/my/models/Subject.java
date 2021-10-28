@@ -5,7 +5,6 @@ import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 @Data
@@ -34,15 +33,17 @@ public class Subject {
         return !(materialsDocuments.isEmpty() && messagesDocuments.isEmpty() && messagesData.isEmpty());
     }
 
-    public Optional<LkDocument> getMaterialsDocumentById(int id) {
+    public LkDocument getMaterialsDocumentById(int id) {
         return getDocumentById(materialsDocuments, id);
     }
 
-    public Optional<LkDocument> getMessageDocumentById(int id) {
+    public LkDocument getMessageDocumentById(int id) {
         return getDocumentById(messagesDocuments, id);
     }
 
-    private Optional<LkDocument> getDocumentById(Set<LkDocument> materialsDocuments, int id) {
-        return materialsDocuments.stream().filter(document -> document.getId().equals(id)).findFirst();
+    private LkDocument getDocumentById(Set<LkDocument> materialsDocuments, int id) {
+        return materialsDocuments.stream()
+                .filter(document -> document.getId().equals(id))
+                .findFirst().get();
     }
 }

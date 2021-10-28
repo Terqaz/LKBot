@@ -1,13 +1,17 @@
 package com.my;
 
+import com.ibm.icu.text.Transliterator;
+
 import javax.validation.constraints.NotEmpty;
 import java.nio.charset.Charset;
+import java.util.Locale;
+import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 public final class TextUtils {
 
-
+    private static final Transliterator toLatinTransliterator = Transliterator.getInstance("Russian-Latin/BGN");
 
     private TextUtils() {}
 
@@ -24,5 +28,14 @@ public final class TextUtils {
         return new String(s.getBytes(ISO_8859_1), Charset.forName("Windows-1251"));
     }
 
+    public static String transliterate(String s) {
+        return toLatinTransliterator.transliterate(s);
+    }
 
+    public static boolean isUnacceptableFileExtension(String strFilePath) {
+        strFilePath = strFilePath.toLowerCase(Locale.ROOT);
+        return Stream.of(".mp3", ".exe", ".dll", ".zip", ".rar", ".tar", ".7z",
+                ".wim", ".bz2", ".gz", ".xz", ".com", ".flac", ".alac")
+            .anyMatch(strFilePath::endsWith);
+    }
 }

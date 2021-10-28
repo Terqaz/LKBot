@@ -18,6 +18,7 @@ import javax.validation.constraints.NotNull;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.mongodb.client.model.Filters.empty;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Projections.*;
 import static com.mongodb.client.model.Updates.*;
@@ -25,6 +26,20 @@ import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
 public class GroupsRepository {
+
+    public static final String _ID = "_id";
+    public static final String NAME = "name";
+    public static final String USERS = "users";
+    public static final String USERS_TO_VERIFY = "usersToVerify";
+    public static final String LOGIN_WAITING_USERS = "loginWaitingUsers";
+    public static final String LOGGED_USER = "loggedUser";
+    public static final String SUBJECTS = "subjects";
+    public static final String TIMETABLE = "timetable";
+    public static final String LAST_CHECK_DATE = "lastCheckDate";
+    public static final String LK_SEMESTER_ID = "lkSemesterId";
+    public static final String SCHEDULE_SENT = "scheduleSent";
+    public static final String UPDATE_INTERVAL = "updateInterval";
+    public static final String UPDATE_AUTH_DATA_NOTIFIED = "loggedUser.updateAuthDataNotified";
 
     private static GroupsRepository instance = null;
     public static GroupsRepository getInstance () {
@@ -53,19 +68,12 @@ public class GroupsRepository {
                 .getCollection("groups", Group.class);
     }
 
-    public static final String _ID = "_id";
-    public static final String NAME = "name";
-    public static final String USERS = "users";
-    private static final String USERS_TO_VERIFY = "usersToVerify";
-    private static final String LOGIN_WAITING_USERS = "loginWaitingUsers";
-    public static final String LOGGED_USER = "loggedUser";
-    public static final String SUBJECTS = "subjects";
-    public static final String TIMETABLE = "timetable";
-    public static final String LAST_CHECK_DATE = "lastCheckDate";
-    public static final String LK_SEMESTER_ID = "lkSemesterId";
-
     public void insert (Group group) {
         groupsCollection.insertOne(group);
+    }
+
+    public void insertMany (List<Group> group) {
+        groupsCollection.insertMany(group);
     }
 
     public FindIterable<Group> findAllWithoutTimetable () {
@@ -212,6 +220,10 @@ public class GroupsRepository {
 
     public <T> void updateField (String groupName, String fieldName, T value) {
         updateBy(groupName, set(fieldName, value));
+    }
+
+    public <T> void updateEachField (String fieldName, T value) {
+        groupsCollection.updateMany(empty(), set(fieldName, value));
     }
 
     private void updateBy(@NotNull String groupName, Bson updateQuery) {

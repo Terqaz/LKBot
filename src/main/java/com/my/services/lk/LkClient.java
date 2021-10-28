@@ -1,6 +1,5 @@
 package com.my.services.lk;
 
-import com.ibm.icu.text.Transliterator;
 import com.my.TextUtils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.FileLoadingException;
@@ -20,6 +19,8 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.zip.GZIPInputStream;
 
 public class LkClient {
@@ -27,8 +28,6 @@ public class LkClient {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0";
     public static final String RELOGIN_IS_NEEDED = "Login or relogin needs";
     private String phpSessId = null;
-
-    private static final Transliterator toLatinTransliterator = Transliterator.getInstance("Russian-Latin/BGN");
 
     public LkClient() {}
 
@@ -120,7 +119,7 @@ public class LkClient {
         return null;
     }
 
-    public File loadFileTo(String fileDir, URL inputUrl) {
+    public Path loadFileTo(String fileDir, URL inputUrl) {
         try {
             HttpURLConnection connection = (HttpURLConnection) inputUrl.openConnection();
             connection.addRequestProperty("User-Agent", USER_AGENT);
@@ -142,10 +141,12 @@ public class LkClient {
                 throw new FileLoadingException("Server returned HTTP " + connection.getResponseCode()
                         + " " + connection.getResponseMessage());
 
-            File newFile = new File(fileDir + "\\" + getFileNameFromConnection(connection));
+            final String fileName = getFileNameFromConnection(connection);
+
+            File newFile = new File(fileDir + "\\" + fileName);
             FileUtils.copyInputStreamToFile(new GZIPInputStream(connection.getInputStream()), newFile);
             connection.disconnect();
-            return newFile;
+            return Paths.get(newFile.toURI());
 
         } catch (ConnectException | SocketTimeoutException e) {
             throw new LkNotRespondingException();
@@ -164,7 +165,7 @@ public class LkClient {
         var value = contentDisposition.split("=")[1];
         value = value.substring(1, value.length()-1);
         value = TextUtils.changeEncodingIso_8859_1_Windows_1251(value);
-        return toLatinTransliterator.transliterate(value); // Убрали кавычки
+        return TextUtils.transliterate(value); // Убрали кавычки
     }
 
     public Document loggedGet(String url) {

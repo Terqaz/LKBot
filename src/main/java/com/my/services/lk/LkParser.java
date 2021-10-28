@@ -8,7 +8,8 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
-import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -322,19 +323,35 @@ public class LkParser {
                 .toLowerCase(Locale.ROOT).contains("белая");
     }
 
-    public File loadMaterialsFile(LkDocument document, String groupName, String subjectName) {
-        String fileDir = ".\\" + groupName + "\\" + subjectName;
-        var file = new File(fileDir + "\\" + document.getFileName());
-        if (file.exists())
-            return file;
-        else return lkClient.loadFileTo(fileDir, LkUrlBuilder.buildMaterialsDocumentUrl(document));
+    public Path loadMaterialsFile(LkDocument document, String groupName, String subjectName) {
+        final Path path = tryLoadFromLocal(document, groupName, subjectName);
+        if (path != null)
+            return path;
+        else
+            return lkClient.loadFileTo(makeFileDir(groupName, subjectName),
+                LkUrlBuilder.buildMaterialsDocumentUrl(document));
     }
 
-    public File loadMessageFile(LkDocument document, String groupName, String subjectName) {
-        String fileDir = ".\\" + groupName + "\\" + subjectName;
-        var file = new File(fileDir + "\\" + document.getFileName());
-        if (file.exists())
-            return file;
-        else return lkClient.loadFileTo(fileDir, LkUrlBuilder.buildMessageDocumentUrl(document));
+    public Path loadMessageFile(LkDocument document, String groupName, String subjectName) {
+        final Path path = tryLoadFromLocal(document, groupName, subjectName);
+        if (path != null)
+            return path;
+        else
+            return lkClient.loadFileTo(makeFileDir(groupName, subjectName),
+                LkUrlBuilder.buildMessageDocumentUrl(document));
+    }
+
+    private Path tryLoadFromLocal(LkDocument document, String groupName, String subjectName) {
+        if (document.getFileName() == null)
+            return null;
+
+        var path = Paths.get(groupName, subjectName, document.getFileName());
+        if (path.toFile().exists())
+            return path;
+        else return null;
+    }
+
+    private String makeFileDir(String groupName, String subjectName) {
+        return ".\\" + groupName + "\\" + subjectName;
     }
 }

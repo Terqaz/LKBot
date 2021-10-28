@@ -42,7 +42,7 @@ public final class Utils {
             });
             newSubject.setMaterialsDocuments(new HashSet<>(newDocumentsMap.values()));
         }
-        return newSubjectsCopy;
+        return newSubjectsCopy.stream().filter(Subject::isNotEmpty).collect(Collectors.toList());
     }
 
     private static Subject gsonDeepCopy(Subject subject) {

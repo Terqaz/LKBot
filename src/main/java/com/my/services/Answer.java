@@ -1,12 +1,10 @@
 package com.my.services;
 
-import com.mongodb.lang.Nullable;
 import com.my.Utils;
 import com.my.models.*;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -72,7 +70,7 @@ public class Answer {
             "Мне не удалось войти через твои логин и пароль. Проверь правильность их ввода";
     public static final String YOU_LATE_LOGIN = "Ой, похоже ты опоздал! Эту группу уже успели зарегистрировать.";
     public static final String I_CAN_SEND_INFO =
-            "➡ Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК. " +
+            "➡ Ура, ты лидер своей группы! Теперь я могу присылать тебе и твоим одногруппникам информацию об обновлениях из ЛК. " +
             "Тебе нужно просто позвать их пообщаться со мной.";
 
     public static final String I_KNOW_THIS_GROUP = "О, я знаю эту группу!";
@@ -88,6 +86,10 @@ public class Answer {
             Command.GET_SUBJECTS+"\n" +
             "🔷 Узнать самую свежую информацию по номеру предмета:\n" +
             "n\n" +
+            "🔷 Получить список документов предмета под номером n:\n" +
+            "Документы n\n" +
+            "🔷 Получить документ k предмета под номером n:\n" +
+            "n k\n" +
             "🔶 Показать эти команды:\n" +
             Command.COMMANDS+"\n" +
             "🔶 Выйти из бота:\n" +
@@ -102,8 +104,6 @@ public class Answer {
 
     public static final String WRONG_SUBJECT_NUMBER = "Неправильный номер предмета";
     public static final String WRONG_DOCUMENT_NUMBER = "Неправильный номер файла";
-    public static final String INTERVAL_CHANGED = "Интервал изменен";
-    public static final String WRONG_INTERVAL = "Нельзя установить такой интервал обновления";
     public static final String SILENT_TIME_CHANGED = "Время тихого режима изменено";
     public static final String WRONG_SILENT_TIME = "Нельзя установить такое время тихого режима";
     public static final String TYPE_FORGET_ME = "Напиши " + quotes(Command.FORGET_ME) + ", чтобы перезайти в меня";
@@ -158,25 +158,23 @@ public class Answer {
         return subjectName + " документ:\n\"" + documentName + "\"";
     }
 
+    public static String getDocumentWithExtNotify(String subjectName, String documentName) {
+        return getDocument(subjectName, documentName) +
+                "\nУбери из расширения файла единицу, переименовав его. ВКонтакте не разрешил отправку этого файла с исходным расширением";
+    }
+
     public static String getUserCommands (Integer userId, Group group) {
         final LoggedUser loggedUser = group.getLoggedUser();
 
         if (loggedUser.is(userId))
-            return BASIC_COMMANDS +
-                    "\n🔶 Изменить интервал автоматического обновления (сейчас раз в " +
-                    group.getUpdateInterval() / 60000 + " минут):\n" + // Целочисленное деление
-                    "Новый интервал обновления: n (n - количество минут [5, 20160])\n"
+            return BASIC_COMMANDS + "\n"
                     +
-                    "🔶 Изменить время тихого режима (сейчас с " +
-                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n"
+                    getSchedingCommandDescription(group.getUserSchedulingEnabled(userId))
                     +
-                    "Новый тихий режим: с n до k (вместо n и k числа [0, 23])\n"
-                    +
-                    getSchedingCommandDescription(group.getUserSchedulingEnabled(userId)) + "\n"
-                    +
-                    (loggedUser.isAlwaysNotify() ?
-                            "🔶 Не присылать пустые результаты обновления:\n"+Command.WITHOUT_EMPTY_REPORTS :
-                            "🔶 Присылать даже пустые результаты обновления:\n"+Command.WITH_EMPTY_REPORTS);
+                    "\n🔶 Изменить время тихого режима (сейчас с " +
+                    group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
+                    "Новый тихий режим: с n до k (вместо n и k числа от 0 до 23)";
+
         else
             return BASIC_COMMANDS + "\n" +
                     getSchedingCommandDescription(group.getUserSchedulingEnabled(userId));
@@ -200,11 +198,6 @@ public class Answer {
         return "Держи расписание на завтра ;-)\n" + dayScheduleReport;
     }
 
-    public static String getUpdateNotSuccessful(Date nextCheckDate) {
-        return "Обновление не удалось, так как ЛК долго отвечал на запросы. " +
-                Answer.getNextUpdateDateText(nextCheckDate);
-    }
-
     public static String getSubjectsNames (List<Subject> subjects) {
         final var sb = new StringBuilder();
         for (Subject data : subjects) {
@@ -214,9 +207,9 @@ public class Answer {
         return sb.toString();
     }
 
-    public static String getSubjects(List<Subject> subjects, @Nullable Date nextCheckDate) {
+    public static String getSubjects(List<Subject> subjects) {
         if (subjects.isEmpty())
-            return emptySubjectsReport(nextCheckDate);
+            return "";
 
         final var sb = new StringBuilder();
 
@@ -233,9 +226,6 @@ public class Answer {
         if (reportPart.length() > 0)
             sb.append("\n\n\uD83D\uDD34 Новые сообщения:\n").append(reportPart);
 
-        if (nextCheckDate != null)
-            sb.append("\n\n").append(getNextUpdateDateText(nextCheckDate));
-
         return sb.toString();
     }
 
@@ -248,10 +238,6 @@ public class Answer {
                                 .map(lkDocument -> lkDocument.getId() + " " + lkDocument.getName())
                                 .collect(Collectors.joining("\n"))
                 ).collect(Collectors.joining("\n\n"));
-    }
-
-    public static String emptySubjectsReport(@Nullable Date nextCheckDate) {
-        return "Нет новой информации по предметам\n" + getNextUpdateDateText(nextCheckDate);
     }
 
     private static String getSubjectMessages(List<LkMessage> messages) {
@@ -283,10 +269,6 @@ public class Answer {
                 .sorted(Comparator.comparing(LkDocument::getId))
                 .map(document -> document.getId() + " " + document.getName())
                 .collect(Collectors.joining("\n"));
-    }
-
-    public static String getNextUpdateDateText (Date nextCheckDate) {
-        return "Следующее обновление в " + Utils.formatDate(nextCheckDate);
     }
 
     public static String getDaySchedule (List<TimetableSubject> subjects, boolean isWhiteWeek) {

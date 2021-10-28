@@ -36,8 +36,7 @@ public class PlannedSubjectsUpdate extends Thread {
         while (true) {
             try {
                 updateSubjects(Utils.getSemesterName());
-                Thread.sleep(10L * 1000); // 1 минута
-
+                Thread.sleep(5L * 60 * 1000); // 5 минут
             } catch (InterruptedException e) {
                 break;
             } catch (Exception e) {
@@ -50,31 +49,22 @@ public class PlannedSubjectsUpdate extends Thread {
         for (Group group : Bot.getGroupByGroupName().values()) {
             LoggedUser loggedUser = group.getLoggedUser();
             final GregorianCalendar calendar = new GregorianCalendar();
-            if (isNotUpdateTime(group, calendar, calendar.getTime()))
+            if (isNotUpdateTime(group, calendar))
                 continue;
 
             CompletableFuture.runAsync(() -> {
                 try {
-                    updateGroupSubjects(newSemester, group, loggedUser);
+                    updateGroupSubjects(newSemester, group);
                 } catch (AuthenticationException e) {
                     Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
-
-//                } catch (LoginNeedsException e) { // Не должен вызываться по идее
-//                    Bot.login(group);
-//                    CompletableFuture.runAsync(() ->
-//                            updateGroupSubjects(newSemester, group, loggedUser));
-
                 } catch (LkNotRespondingException e) {
-                    if (loggedUser.isAlwaysNotify()) {
-                        group.setLastCheckDate(new Date());
-                        vkBot.sendMessageTo(loggedUser.getId(), Answer.getUpdateNotSuccessful(group.getNextCheckDate()));
-                    }
+                    group.setLastCheckDate(new Date());
                 }
             });
         }
     }
 
-    private void updateGroupSubjects(String newSemester, Group group, LoggedUser loggedUser) {
+    private void updateGroupSubjects(String newSemester, Group group) {
         Bot.login(group);
         final String report;
         if (Bot.getActualSemester().equals(newSemester))
@@ -82,16 +72,13 @@ public class PlannedSubjectsUpdate extends Thread {
         else
             report = newSemesterUpdate(newSemester, group);
 
-        if (!report.startsWith("Нет новой"))
+        if (!report.isBlank())
             vkBot.sendLongMessageTo(group.getUserIds(), report);
-
-        else if (loggedUser.isAlwaysNotify())
-            vkBot.sendMessageTo(loggedUser.getId(), report);
     }
 
-    private boolean isNotUpdateTime (Group group, GregorianCalendar calendar, Date checkDate) {
+    private boolean isNotUpdateTime (Group group, GregorianCalendar calendar) {
         return Utils.isSilentTime(group.getSilentModeStart(), group.getSilentModeEnd(),
-                calendar.get(Calendar.HOUR_OF_DAY)) || !checkDate.after(group.getNextCheckDate());
+                calendar.get(Calendar.HOUR_OF_DAY));
     }
 
     private String sameSemesterUpdate(Group group) {
@@ -123,22 +110,21 @@ public class PlannedSubjectsUpdate extends Thread {
         group.setSubjects(newSubjects);
 
         return Answer.getSubjects (
-                Utils.removeOldDocuments(oldSubjects, newSubjects),
-                group.getNextCheckDate());
+                Utils.removeOldDocuments(oldSubjects, newSubjects));
     }
 
     private String newSemesterUpdate(String newSemester, Group group) {
         Bot.setActualSemester(newSemester);
         vkBot.sendMessageTo(group.getUserIds(),
-                "Данные теперь приходят из семестра: " + newSemester + "\n" +
-                        "Также советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
+                "Данные теперь будут приходить из семестра: " + newSemester + "\n" +
+                        "Советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
 
         final LkParser lkParser = group.getLkParser();
         final List<Subject> newSubjects = lkParser.getSubjectsFirstTime(newSemester);
 
         final var checkDate = new Date();
         group.setLastCheckDate(checkDate);
-        final String report = Answer.getSubjects(newSubjects, group.getNextCheckDate());
+        final String report = Answer.getSubjects(newSubjects);
 
         final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(newSemester);
         final var newLkSemesterId = lkIds.get(LkParser.SEMESTER_ID);

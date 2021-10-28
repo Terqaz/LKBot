@@ -17,8 +17,6 @@ public final class Command {
     public static final String WANT_TO_LOGIN = "Хочу войти в ЛК";
     public static final String GET_SUBJECTS = "Предметы";
     public static final String COMMANDS = "Команды";
-    public static final String WITHOUT_EMPTY_REPORTS = "Не присылай пустые отчеты";
-    public static final String WITH_EMPTY_REPORTS = "Присылай пустые отчеты";
     public static final String WITH_EVERYDAY_SCHEDULE = "Присылай расписание";
     public static final String WITHOUT_EVERYDAY_SCHEDULE = "Не присылай расписание";
     public static final String FORGET_ME = "Забудь меня";
@@ -29,8 +27,7 @@ public final class Command {
     public static final Pattern CREDENTIALS = wrap2("^\\S+\\n+\\S+$");
     public static final Pattern GET_SUBJECT = wrap2("^\\d{1,2}$");
     public static final Pattern GET_SUBJECT_DOCUMENTS = wrap1("^Документы \\d{1,2}$");
-    public static final Pattern GET_SUBJECT_DOCUMENT = wrap1("^Документ \\d{1,3} предмета \\d{1,2}$");
-    public static final Pattern CHANGE_UPDATE_INTERVAL = wrap1("^Новый интервал обновления: \\d+$");
+    public static final Pattern GET_SUBJECT_DOCUMENT = wrap1("^\\d{1,2} \\d{1,3}$");
     public static final Pattern CHANGE_SILENT_TIME = wrap1("^Новый тихий режим: с \\d+ по \\d+$");
     public static final Pattern VERIFICATION_CODE = wrap2("^\\d{6}$");
 

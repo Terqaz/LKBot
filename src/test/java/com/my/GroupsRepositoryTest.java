@@ -1,5 +1,6 @@
 package com.my;
 
+import com.mongodb.client.FindIterable;
 import com.my.models.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.mongodb.client.model.Filters.eq;
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,13 +40,13 @@ class GroupsRepositoryTest {
         testGroup
                 .setUsers(Set.of(new GroupUser(1234)))
                 .setLoggedUser(new LoggedUser(
-                1234, new AuthenticationData("login", "pass"), true, false));
+                1234, new AuthenticationData("login", "pass"), false));
 
         repository.insert(testGroup);
 
         // Тестируемое
         repository.updateLoggedUser(testGroupName, new LoggedUser(
-                12345, new AuthenticationData("login2", "pass2"), false, false));
+                12345, new AuthenticationData("login2", "pass2"), false));
 
         // Проверка
         Group group = repository.findByGroupName(testGroupName).get();
@@ -159,5 +161,23 @@ class GroupsRepositoryTest {
                         .first());
 
         assertNull(group2.getTimetable());
+    }
+
+    @Test
+    void updateEachField_isCorrect() {
+        final String eachFieldTest = "eachFieldTest";
+        final List<Group> groups = Stream.generate(() ->
+                new Group().setName(eachFieldTest).setScheduleSent(true))
+                .limit(3)
+                .collect(Collectors.toList());
+        repository.insertMany(groups);
+
+        repository.updateEachField(GroupsRepository.SCHEDULE_SENT, false);
+
+        final FindIterable<Group> groups1 = repository.findAll().filter(eq("name", eachFieldTest));
+        groups1.forEach(group ->
+                assertFalse(group.isScheduleSent())
+        );
+        repository.deleteMany(eachFieldTest);
     }
 }

@@ -2,7 +2,6 @@ package com.my.services.vk;
 
 import com.my.models.Command;
 import com.my.models.Group;
-import com.my.models.LoggedUser;
 import com.vk.api.sdk.objects.messages.*;
 
 import java.util.List;
@@ -42,12 +41,6 @@ public class KeyboardService {
     private static final KeyboardButton commandsButton =
             generateButton(Command.COMMANDS, KeyboardButtonColor.PRIMARY);
 
-    private static final KeyboardButton withoutEmptyReportsButton =
-            generateButton(Command.WITHOUT_EMPTY_REPORTS, KeyboardButtonColor.NEGATIVE);
-
-    private static final KeyboardButton withEmptyReportsButton =
-            generateButton(Command.WITH_EMPTY_REPORTS, KeyboardButtonColor.POSITIVE);
-
     private static final KeyboardButton scheduleEnableButton =
             generateButton(Command.WITH_EVERYDAY_SCHEDULE, KeyboardButtonColor.POSITIVE);
 
@@ -59,20 +52,14 @@ public class KeyboardService {
 
     public static Keyboard getCommands(Integer userId, Group group) {
         boolean isSchedulingEnabled = group.getUserSchedulingEnabled(userId);
-        return group.getLoggedUser().is(userId) ? getLoggedUserCommands(group.getLoggedUser(), isSchedulingEnabled) :
+        return group.getLoggedUser().is(userId) ? getLoggedUserCommands(isSchedulingEnabled) :
                                        getUserCommands(isSchedulingEnabled);
     }
 
-    public static Keyboard getLoggedUserCommands(Group group) {
-        LoggedUser loggedUser = group.getLoggedUser();
-        return getLoggedUserCommands(loggedUser, group.getUserSchedulingEnabled(loggedUser.getId()));
-    }
-
-    private static Keyboard getLoggedUserCommands(LoggedUser loggedUser, boolean isSchedulingEnabled) {
+    private static Keyboard getLoggedUserCommands(boolean isSchedulingEnabled) {
         return new Keyboard().setButtons(List.of(
                 List.of(subjectsButton, commandsButton),
-                List.of(loggedUser.isAlwaysNotify() ? withoutEmptyReportsButton : withEmptyReportsButton,
-                        isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
+                List.of(isSchedulingEnabled ? scheduleDisableButton : scheduleEnableButton),
                 List.of(forgetMeButton)));
     }
 

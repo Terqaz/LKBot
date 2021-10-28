@@ -226,7 +226,7 @@ class LkParserTest {
         String groupName = "ПИ-19-1";
         final String subjectName = "Предмет";
 
-        final List<File> files = List.of(
+        final List<Path> paths = List.of(
                 lkParser.loadMaterialsFile( // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:110038482
                         new LkDocument("тест1", "5:110038482"), groupName, subjectName),
 
@@ -236,16 +236,18 @@ class LkParserTest {
                 lkParser.loadMessageFile( // http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108785375
                         new LkDocument("тест3", "5:108785375"), groupName, subjectName)
         );
-        log.info("files loaded");
+        log.info("paths loaded");
+
+        final List<File> files = paths.stream().map(Path::toFile).collect(Collectors.toList());
 
         assertTrue(files.stream().allMatch(File::exists));
 
         assertEquals(18127, files.get(0).length());
-        assertEquals( "Информационное право.docx", files.get(0).getName());
+        assertEquals(TextUtils.transliterate("Информационное право.docx"), files.get(0).getName());
         assertEquals(4327936, files.get(1).length());
-        assertEquals("Заземление_2590.doc", files.get(1).getName());
+        assertEquals(TextUtils.transliterate("Заземление_2590.doc"), files.get(1).getName());
         assertEquals(56239, files.get(2).length());
-        assertEquals("Лекция 01.04 Предприятие, производство, издержки.docx", files.get(2).getName());
+        assertEquals(TextUtils.transliterate("Лекция 01.04 Предприятие, производство, издержки.docx"), files.get(2).getName());
 
         FileUtils.deleteDirectory(Path.of(groupName).toFile());
         assertFalse(Path.of(groupName).toFile().exists());

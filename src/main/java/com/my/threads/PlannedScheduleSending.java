@@ -48,20 +48,25 @@ public class PlannedScheduleSending extends Thread {
                         if (calendar.get(DAY_OF_WEEK) == MONDAY)
                             Bot.manualChangeWeekType();
                     }
-
                     final boolean isNextDayWeekWhite =
                             nextWeekDay == 0 ? !Bot.isActualWeekWhite() : Bot.isActualWeekWhite();
 
-                    for (Group group : Bot.getGroupByGroupName().values()) {
-                        CompletableFuture.runAsync(() -> sendSchedule(group, nextWeekDay, isNextDayWeekWhite));
-                    }
-                    Thread.sleep(3600L * 1000); // 1 час
+                    Bot.getGroupByGroupName().values().stream()
+                            .forEach(group -> CompletableFuture.runAsync(() -> {
+                                while(!sendSchedule(group, nextWeekDay, isNextDayWeekWhite)) {
+                                    try {
+                                        Thread.sleep(5L * 60 * 1000); // 5 минут
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+                            }));
 
                 } else if (hour == 19) {
-
-                } else {
+                    Bot.getGroupByGroupName().values().forEach(group -> group.setScheduleSent(false));
+                    groupsRepository.updateEachField(GroupsRepository.SCHEDULE_SENT, false);
+                } else
                     Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
-                }
 
             } catch (InterruptedException e) {
                 break;
@@ -71,33 +76,39 @@ public class PlannedScheduleSending extends Thread {
         }
     }
 
-    private void sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
+    private boolean sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
         try {
             Bot.login(group);
             final Timetable timetable = group.getLkParser()
                     .parseTimetable(group.getLkSemesterId(), group.getLkId());
 
             if (isNewTimetableCorrect(timetable, group.getTimetable())) {
-                groupsRepository.updateField(group.getName(),"timetable", timetable);
+                groupsRepository.updateField(group.getName(), GroupsRepository.TIMETABLE, timetable);
                 group.setTimetable(timetable);
             }
+            // Если не получилось обновить, то отправим предыдущее расписание. Расписание меняется очень редко
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         final String dayScheduleReport = Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
-
-        if (!dayScheduleReport.isEmpty())
+        if (!dayScheduleReport.isEmpty()) {
             vkBot.sendMessageTo(
                     group.getUsers().stream()
                             .filter(GroupUser::isEverydayScheduleEnabled)
                             .map(GroupUser::getId)
                             .collect(Collectors.toList()),
                     Answer.getTomorrowSchedule(dayScheduleReport));
+
+            group.setScheduleSent(true);
+            groupsRepository.updateField(group.getName(), GroupsRepository.SCHEDULE_SENT, true);
+        }
+        return group.isScheduleSent();
     }
 
     private boolean isNewTimetableCorrect (Timetable newTt, Timetable oldTt) {
-        return newTt.getWhiteSubjects().size() >= oldTt.getWhiteSubjects().size() &&
-               newTt.getGreenSubjects().size() >= oldTt.getGreenSubjects().size();
+        // Эмпирическое правило
+        return newTt.getWhiteSubjects().size() + newTt.getGreenSubjects().size() >=
+                oldTt.getWhiteSubjects().size() + oldTt.getGreenSubjects().size() - 2;
     }
 }

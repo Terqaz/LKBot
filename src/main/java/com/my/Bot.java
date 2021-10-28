@@ -18,6 +18,10 @@ import lombok.Setter;
 
 import javax.crypto.NoSuchPaddingException;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
@@ -70,7 +74,7 @@ public class Bot {
         vkBot.setOnline(false);
         plannedSubjectsUpdate.interrupt();
         plannedScheduleSending.interrupt();
-        vkBot.sendMessageTo(APP_ADMIN_ID1, "WARNING: APP STOPPED");
+        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.WARNING_APP_STOPPED);
     }
 
     public static void manualChangeWeekType() {
@@ -105,7 +109,7 @@ public class Bot {
 
     private static void processMessage(Message message) {
         try {
-            Thread.sleep(10); // Чтобы не ддосили ЛК
+            Thread.sleep(20); // Чтобы не ддосили ЛК
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -175,7 +179,7 @@ public class Bot {
             getSubjectDocuments(userId, command, group);
 
         else if (command.is(Command.GET_SUBJECT_DOCUMENT))
-            getSubjectDocument(userId, command, group, groupName);
+            getSubjectDocument(userId, command, group);
 
         else if (command.is(Command.GET_SUBJECT))
             getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
@@ -194,27 +198,12 @@ public class Bot {
         else if (command.is(Command.WITHOUT_EVERYDAY_SCHEDULE))
             changeUserSchedulingEnable(userId, group, false);
 
-        else if (command.is(Command.CHANGE_UPDATE_INTERVAL)) {
-            if (loggedUser.is(userId))
-                changeUpdateInterval(userId, command, group);
-            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
-
-        } else if (command.is(Command.CHANGE_SILENT_TIME)) {
+        else if (command.is(Command.CHANGE_SILENT_TIME)) {
             if (loggedUser.is(userId))
                 changeSilentTime(userId, command, group);
             else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
-
-        } else if (command.is(Command.WITHOUT_EMPTY_REPORTS)) {
-            if (loggedUser.is(userId))
-                changeLoggedUserNotifying(userId, group, false);
-            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
-
-        } else if (command.is(Command.WITH_EMPTY_REPORTS)) {
-            if (loggedUser.is(userId))
-                changeLoggedUserNotifying(userId, group, true);
-            else vkBot.sendMessageTo(userId, Answer.COMMAND_FOR_ONLY_LEADER);
-
-        } else vkBot.sendMessageTo(userId, "Я не понял твою команду");
+        } else
+            vkBot.sendMessageTo(userId, "Я не понял твою команду");
     }
 
     private static void getSubjectDocuments(Integer userId, Command command, Group group) {
@@ -225,29 +214,57 @@ public class Bot {
                         () -> vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER));
     }
 
-    private static void getSubjectDocument(Integer userId, Command command, Group group, String groupName) {
+    private static void getSubjectDocument(Integer userId, Command command, Group group) {
         final List<Integer> integers = command.parseNumbers();
-        final var documentId = integers.get(0);
-        final var subjectId = integers.get(1);
+        final var subjectId = integers.get(0);
+        final var documentId = integers.get(1);
 
         group.getSubjectById(subjectId).ifPresentOrElse(
                 subject -> {
-                    File file = null;
-                    Optional<LkDocument> document = subject.getMaterialsDocumentById(documentId);
-                    if (document.isPresent())
-                        file = group.getLkParser().loadMaterialsFile(document.get(), groupName, subject.getName());
+                    Path path = null;
+                    LkDocument document = subject.getMaterialsDocumentById(documentId);
+                    if (document != null)
+                        path = group.getLkParser().loadMaterialsFile(document, group.getName(), subject.getName());
                     else {
                         document = subject.getMessageDocumentById(documentId);
-                        if (document.isPresent())
-                            file = group.getLkParser().loadMessageFile(document.get(), groupName, subject.getName());
+                        if (document != null)
+                            path = group.getLkParser().loadMessageFile(document, group.getName(), subject.getName());
                     }
-                    if (file != null)
-                        vkBot.sendMessageTo(userId, file,
-                                Answer.getDocument(subject.getName(), document.get().getName()));
+                    if (path != null) {
+                        String documentName = document.getName();
+                        path = correctFileExt(path);
+                        document.setFileName(path.getFileName().toString());
 
-                    else vkBot.sendMessageTo(userId, Answer.WRONG_DOCUMENT_NUMBER);
+                        final File file = path.toFile();
+                        if (file.exists()) {
+
+                            if (isExtensionChanged(path))
+                                vkBot.sendMessageTo(userId, file, Answer.getDocument(subject.getName(), documentName));
+                            else
+                                vkBot.sendMessageTo(userId, file, Answer.getDocumentWithExtNotify(subject.getName(), documentName));
+                        } else throw new RuntimeException("Не удалось отправить файл"); // не должна появиться
+
+                    } else
+                        vkBot.sendMessageTo(userId, Answer.WRONG_DOCUMENT_NUMBER);
                 },
                 () -> vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER));
+    }
+
+    private static Path correctFileExt(Path path) {
+        String strFilePath = path.toString();
+        if (TextUtils.isUnacceptableFileExtension(strFilePath))
+            try {
+                final Path newPath = Paths.get(strFilePath + 1);
+                Files.move(path, newPath);
+                return newPath;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        return path;
+    }
+
+    private static boolean isExtensionChanged(Path path) {
+        return path.toString().endsWith("1");
     }
 
     private static void changeSilentTime(Integer userId, Command command, Group group) {
@@ -261,21 +278,6 @@ public class Bot {
 
         } else vkBot.sendMessageTo(userId, Answer.WRONG_SILENT_TIME);
     }
-
-    private static void changeUpdateInterval(Integer userId, Command command, Group group) {
-        final var minutes = command.parseNumbers().get(0);
-        if (5 <= minutes && minutes <= 20160) {
-            final long newUpdateInterval = minutes * 60 * 1000;
-
-            groupsRepository.updateField(group.getName(),"updateInterval", newUpdateInterval);
-            group.setUpdateInterval(newUpdateInterval);
-
-            vkBot.sendMessageTo(userId, Answer.INTERVAL_CHANGED + "\n" +
-                    Answer.getNextUpdateDateText(group.getNextCheckDate()));
-
-        } else vkBot.sendMessageTo(userId, Answer.WRONG_INTERVAL);
-    }
-
 
     private static boolean replyForNewUser(Integer userId, Command command) {
         String groupName = command.parseGroupName();
@@ -436,12 +438,6 @@ public class Bot {
                 isWeekWhite);
     }
 
-    private static void changeLoggedUserNotifying (Integer userId, Group group, boolean isEnable) {
-        groupsRepository.updateField(group.getName(), "loggedUser.alwaysNotify", isEnable);
-        group.getLoggedUser().setAlwaysNotify(isEnable);
-        vkBot.sendMessageTo(userId, KeyboardService.getLoggedUserCommands(group), Answer.OK);
-    }
-
     private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
         final var optionalSubject = group.getSubjects().stream()
                 .filter(subject1 -> subject1.getId() == subjectIndex)
@@ -457,8 +453,7 @@ public class Bot {
         newSubject = Utils.removeOldDocuments(List.of(oldSubject), List.of(newSubject)).get(0);
 
         if (newSubject.isNotEmpty()) {
-            vkBot.sendLongMessageTo(userId,
-                    Answer.getSubjects(List.of(newSubject), null));
+            vkBot.sendLongMessageTo(userId, Answer.getSubjects(List.of(newSubject)));
         } else {
             vkBot.sendMessageTo(userId, Answer.getNoNewSubjectInfo(newSubject.getName()));
         }
@@ -479,11 +474,10 @@ public class Bot {
 
     public static void rememberUpdateAuthDataMessage(String groupName, @NonNull LoggedUser loggedUser,
                                                      boolean isNotLoggedUser) {
-
         if (!isNotLoggedUser || !loggedUser.isUpdateAuthDataNotified()) {
             vkBot.sendMessageTo(loggedUser.getId(), Answer.UPDATE_CREDENTIALS);
 
-            groupsRepository.updateField(groupName, "loggedUser.updateAuthDataNotified", true);
+            groupsRepository.updateField(groupName, GroupsRepository.UPDATE_AUTH_DATA_NOTIFIED, true);
             loggedUser.setUpdateAuthDataNotified(true);
         }
     }
@@ -582,7 +576,7 @@ public class Bot {
         newUserSubjectsListMessage(userId, newGroup);
 
         vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
-                Answer.getSubjects(newSubjects, newGroup.getNextCheckDate()));
+                Answer.getSubjects(newSubjects));
 
         newGroup.setTimetable(lkParser.parseTimetable(newGroup.getLkSemesterId(), newGroup.getLkId()));
 

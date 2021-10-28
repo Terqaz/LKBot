@@ -33,6 +33,7 @@ public class Group {
     private Set<Integer> loginWaitingUsers = new HashSet<>();
 
     private Timetable timetable;
+    private boolean isScheduleSent = false;
 
     private int silentModeStart = 2; // Час [0, 23]
     private int silentModeEnd = 6;   // Час [0, 23]
@@ -48,11 +49,6 @@ public class Group {
     @BsonIgnore
     public boolean isNotLoggedBefore() {
         return subjects.isEmpty() && users.isEmpty();
-    }
-
-    @BsonIgnore
-    public Date getNextCheckDate () {
-        return new Date(lastCheckDate.getTime() + updateInterval);
     }
 
     @BsonIgnore
