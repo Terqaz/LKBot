@@ -191,7 +191,7 @@ public class Answer {
     }
 
     public static String getTodaySchedule(String dayScheduleReport) {
-        return "Держи расписание на сегодня ;-)\n" + dayScheduleReport;
+        return "Держи расписание на сегодня в качестве примера ;-)\n" + dayScheduleReport;
     }
 
     public static String getTomorrowSchedule(String dayScheduleReport) {

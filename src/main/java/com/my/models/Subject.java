@@ -5,6 +5,7 @@ import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 @Data
@@ -42,8 +43,12 @@ public class Subject {
     }
 
     private LkDocument getDocumentById(Set<LkDocument> materialsDocuments, int id) {
-        return materialsDocuments.stream()
-                .filter(document -> document.getId().equals(id))
-                .findFirst().get();
+        try {
+            return materialsDocuments.stream()
+                    .filter(document -> document.getId().equals(id))
+                    .findFirst().get();
+        } catch (NoSuchElementException e) {
+            return null;
+        }
     }
 }

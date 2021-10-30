@@ -5,7 +5,10 @@ import com.my.GroupsRepository;
 import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
-import com.my.models.*;
+import com.my.models.Group;
+import com.my.models.LkDocument;
+import com.my.models.Subject;
+import com.my.models.Timetable;
 import com.my.services.Answer;
 import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
@@ -36,7 +39,7 @@ public class PlannedSubjectsUpdate extends Thread {
         while (true) {
             try {
                 updateSubjects(Utils.getSemesterName());
-                Thread.sleep(5L * 60 * 1000); // 5 минут
+                Thread.sleep(3L * 60 * 1000); // 3 минуты
             } catch (InterruptedException e) {
                 break;
             } catch (Exception e) {
@@ -46,22 +49,25 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private void updateSubjects(String newSemester) {
-        for (Group group : Bot.getGroupByGroupName().values()) {
-            LoggedUser loggedUser = group.getLoggedUser();
-            final GregorianCalendar calendar = new GregorianCalendar();
-            if (isNotUpdateTime(group, calendar))
-                continue;
-
-            CompletableFuture.runAsync(() -> {
-                try {
-                    updateGroupSubjects(newSemester, group);
-                } catch (AuthenticationException e) {
-                    Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
-                } catch (LkNotRespondingException e) {
-                    group.setLastCheckDate(new Date());
-                }
-            });
-        }
+        Bot.getGroupByGroupName().values().stream()
+                .filter(group -> !group.isUpdating())
+                .forEach(group -> {
+                    group.setUpdating(true);
+                    final GregorianCalendar calendar = new GregorianCalendar();
+                    if (isNotUpdateTime(group, calendar))
+                        return;
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            updateGroupSubjects(newSemester, group);
+                        } catch (AuthenticationException e) {
+                            Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
+                        } catch (LkNotRespondingException e) {
+                            group.setLastCheckDate(new Date());
+                        } finally {
+                            group.setUpdating(false);
+                        }
+                    });
+        });
     }
 
     private void updateGroupSubjects(String newSemester, Group group) {

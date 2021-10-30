@@ -42,6 +42,9 @@ public class Group {
     private LkParser lkParser;
 
     @BsonIgnore
+    private boolean isUpdating = false;
+
+    @BsonIgnore
     public boolean hasLeader() {
         return loggedUser != null;
     }

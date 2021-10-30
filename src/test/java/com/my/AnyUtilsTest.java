@@ -36,8 +36,8 @@ class AnyUtilsTest {
         assertEquals("Тест", TextUtils.capitalize("Тест"));
         assertEquals("Тест", TextUtils.capitalize("ТЕСТ"));
         assertEquals("Тест", TextUtils.capitalize("тест"));
-        assertThrows(StringIndexOutOfBoundsException.class,
-                () -> TextUtils.capitalize(""));
+        assertEquals("", TextUtils.capitalize(""));
+        assertEquals("  ", TextUtils.capitalize("  "));
     }
 
     @Test

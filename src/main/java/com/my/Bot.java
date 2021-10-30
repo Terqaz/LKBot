@@ -181,8 +181,8 @@ public class Bot {
         else if (command.is(Command.GET_SUBJECT_DOCUMENT))
             getSubjectDocument(userId, command, group);
 
-        else if (command.is(Command.GET_SUBJECT))
-            getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
+//        else if (command.is(Command.GET_SUBJECT))
+//            getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
 
         else if (command.is(Command.GET_SUBJECTS))
             vkBot.sendMessageTo(userId, Answer.getSubjectsNames(group.getSubjects()));
@@ -237,12 +237,12 @@ public class Bot {
 
                         final File file = path.toFile();
                         if (file.exists()) {
-
                             if (isExtensionChanged(path))
                                 vkBot.sendMessageTo(userId, file, Answer.getDocument(subject.getName(), documentName));
                             else
                                 vkBot.sendMessageTo(userId, file, Answer.getDocumentWithExtNotify(subject.getName(), documentName));
-                        } else throw new RuntimeException("Не удалось отправить файл"); // не должна появиться
+                        } else
+                            throw new RuntimeException("Не удалось отправить файл"); // не должна появиться
 
                     } else
                         vkBot.sendMessageTo(userId, Answer.WRONG_DOCUMENT_NUMBER);
@@ -438,26 +438,28 @@ public class Bot {
                 isWeekWhite);
     }
 
-    private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
-        final var optionalSubject = group.getSubjects().stream()
-                .filter(subject1 -> subject1.getId() == subjectIndex)
-                .findFirst();
-        if (optionalSubject.isEmpty()) {
-            vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER);
-            return;
-        }
-        final var oldSubject = optionalSubject.get();
-        login(group);
-        Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
-        newSubject.setId(subjectIndex);
-        newSubject = Utils.removeOldDocuments(List.of(oldSubject), List.of(newSubject)).get(0);
-
-        if (newSubject.isNotEmpty()) {
-            vkBot.sendLongMessageTo(userId, Answer.getSubjects(List.of(newSubject)));
-        } else {
-            vkBot.sendMessageTo(userId, Answer.getNoNewSubjectInfo(newSubject.getName()));
-        }
-    }
+//    private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
+//        final var optionalSubject = group.getSubjects().stream()
+//                .filter(subject1 -> subject1.getId() == subjectIndex)
+//                .findFirst();
+//        if (optionalSubject.isEmpty()) {
+//            vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER);
+//            return;
+//        }
+//        var oldSubject = optionalSubject.get();
+//        login(group);
+//        Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
+//        Utils.setIdsWhereNull(newSubject);
+//        newSubject.setId(subjectIndex);
+//        final List<Subject> listWithSubject = Utils.removeOldDocuments(List.of(oldSubject), List.of(newSubject));
+//
+//        if (!listWithSubject.isEmpty()) {
+//            vkBot.sendLongMessageTo(group.getUserIds(), Answer.getSubjects(listWithSubject));
+//            oldSubject.setMaterialsDocuments(newSubject.getMaterialsDocuments());
+//            oldSubject.getMessagesDocuments().addAll(newSubject.getMessagesDocuments());
+//        } else
+//            vkBot.sendMessageTo(userId, Answer.getNoNewSubjectInfo(newSubject.getName()));
+//    }
 
     private static void loginFailedMessages(Integer userId, Group group) {
         String groupName = group.getName();
