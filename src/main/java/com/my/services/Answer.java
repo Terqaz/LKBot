@@ -11,6 +11,12 @@ import java.util.stream.Collectors;
 
 public class Answer {
 
+    public static final String TODAY_EMPTY_SCHEDULE = "Если я не ошибаюсь, сегодня у тебя нет пар ;-)";
+    public static final String NO_ACCESS_TO_FILE = "К сожалению, этот файл удален из ЛК 8о";
+    public static final String GROUP_ALREADY_EXISTS = "После уточнения имени твоей группы из ЛК, " +
+            "я узнал, что она уже существует";
+    public static final String VK_LOAD_FILE_FAILED = "Не удалось загрузить этот файл в вк";
+
     private Answer() {}
 
     public static final String FOR_ADMIN_NEED_REGISTRATION = "Срочно скажи мне свой новый пароль.";
@@ -84,8 +90,8 @@ public class Answer {
     private static final String BASIC_COMMANDS =
             "🔷 Вывести список предметов с номерами:\n" +
             Command.GET_SUBJECTS+"\n" +
-            "🔷 Узнать самую свежую информацию по номеру предмета:\n" +
-            "n\n" +
+//            "🔷 Узнать самую свежую информацию по номеру предмета:\n" +
+//            "n\n" +
             "🔷 Получить список документов предмета под номером n:\n" +
             "Документы n\n" +
             "🔷 Получить документ k предмета под номером n:\n" +
@@ -154,13 +160,10 @@ public class Answer {
                 getUserCommands(userId, group);
     }
 
-    public static String getDocument(String subjectName, String documentName) {
-        return subjectName + " документ:\n\"" + documentName + "\"";
-    }
-
-    public static String getDocumentWithExtNotify(String subjectName, String documentName) {
-        return getDocument(subjectName, documentName) +
-                "\nУбери из расширения файла единицу, переименовав его. ВКонтакте не разрешил отправку этого файла с исходным расширением";
+    public static String getDocument(String subjectName, String documentName, boolean isExtensionChanged) {
+        return subjectName + " документ:\n " + quotes(documentName)
+                + (!isExtensionChanged ? "" : "\nУбери из расширения файла единицу, переименовав его. " +
+                "ВКонтакте не разрешил отправку этого файла с исходным расширением");
     }
 
     public static String getUserCommands (Integer userId, Group group) {
@@ -186,9 +189,9 @@ public class Answer {
                 "🔶 Присылать ежедневное расписание на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE;
     }
 
-    public static String getNoNewSubjectInfo(String subjectName) {
-        return "Нет новой информации по предмету:\n " + subjectName;
-    }
+//    public static String getNoNewSubjectInfo(String subjectName) {
+//        return "Нет новой информации по предмету:\n " + subjectName;
+//    }
 
     public static String getTodaySchedule(String dayScheduleReport) {
         return "Держи расписание на сегодня в качестве примера ;-)\n" + dayScheduleReport;
@@ -252,36 +255,44 @@ public class Answer {
     }
 
     public static String getSubjectDocuments(Subject subject) {
-        String report = "Документы предмета " + subject.getName() + "\n";
-        String reportPart = getSubjectDocumentsPart(subject.getMaterialsDocuments());
-        if (!reportPart.isEmpty())
-            report += "Документы из материалов:\n" + reportPart;
+        if (!subject.hasDocuments())
+            return "У предмета " + subject.getName() + " нет документов";
 
-        reportPart = getSubjectDocumentsPart(subject.getMessagesDocuments());
+        String report = "\uD83D\uDD34 Документы предмета " + subject.getName();
+        String reportPart = getMaterialsDocuments(subject.getMaterialsDocuments());
         if (!reportPart.isEmpty())
-            report += "\nДокументы из сообщений:\n" + reportPart;
+            report += "\n➡ Документы из материалов:\n" + reportPart;
+
+        reportPart = getMessagesDocuments(subject.getMessagesDocuments());
+        if (!reportPart.isEmpty())
+            report += "\n➡ Документы из сообщений:\n" + reportPart;
 
         return report;
     }
 
-    private static String getSubjectDocumentsPart(Set<LkDocument> documents) {
+    private static String getMaterialsDocuments(Set<LkDocument> documents) {
         return documents.stream()
                 .sorted(Comparator.comparing(LkDocument::getId))
                 .map(document -> document.getId() + " " + document.getName())
                 .collect(Collectors.joining("\n"));
     }
 
+    private static String getMessagesDocuments(Set<LkDocument> documents) {
+        return documents.stream()
+                .sorted(Comparator.comparing(LkDocument::getId))
+                .map(document -> document.getSender() + ": " + document.getId() + " " + document.getName())
+                .collect(Collectors.joining("\n"));
+    }
+
     public static String getDaySchedule (List<TimetableSubject> subjects, boolean isWhiteWeek) {
         return subjects.isEmpty() ? "" :
-                "\uD83D\uDD36 " +
-                        (isWhiteWeek ? "Белая неделя" : "Зеленая неделя") +
-                        " \uD83D\uDD36\n" +
-                        subjects.stream()
-                                .map(subject -> "➡ " + subject.getInterval() + ' ' +
-                                        subject.getName() + '\n' +
-                                        subject.getPlace() + '\n' +
-                                        subject.getAcademicName())
-                                .collect(Collectors.joining("\n\n"));
+                "\uD83D\uDD36 " + (isWhiteWeek ? "Белая" : "Зеленая") + " неделя" + " \uD83D\uDD36\n" +
+                subjects.stream()
+                        .map(subject -> "➡ " + subject.getInterval() + ' ' +
+                                subject.getName() + '\n' +
+                                subject.getPlace() + '\n' +
+                                subject.getAcademicName())
+                        .collect(Collectors.joining("\n\n"));
 
     }
 

@@ -1,5 +1,6 @@
 package com.my.services;
 
+import com.my.TestUtils;
 import com.my.TextUtils;
 import com.my.Utils;
 import com.my.exceptions.LoginNeedsException;
@@ -81,8 +82,8 @@ class LkParserTest {
         final Timetable timetable = lkParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
         log.info("timetable loaded");
 
-        assertEquals(16, listsSizeCount(timetable.getWhiteSubjects()));
-        assertEquals(17, listsSizeCount(timetable.getGreenSubjects()));
+        assertEquals(16, TestUtils.listsSizeCount(timetable.getWhiteSubjects()));
+        assertEquals(17, TestUtils.listsSizeCount(timetable.getGreenSubjects()));
 
         assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getName().equals("")));
         assertFalse(anyTimetableSubjectMatch(timetable, subject -> subject.getInterval().equals("")));
@@ -102,10 +103,6 @@ class LkParserTest {
                 .anyMatch(timetableSubjects ->
                         timetableSubjects.stream()
                                 .anyMatch(cond));
-    }
-
-    private <T> int listsSizeCount(List<List<T>> lists) {
-        return lists.stream().map(List::size).reduce(Integer::sum).orElse(0);
     }
 
     @Test
@@ -142,13 +139,13 @@ class LkParserTest {
         assertNotNull(subject3);
         assertEquals("Экономика", subject3.getName());
         assertNull(subject3.getMessagesData().get(4).getDocument());
-        final LkDocument lkDocument1 = new LkDocument(6, "Лекция 01.04 Предприятие, производство, издержки", null, "5:108785375");
+        final LkDocument lkDocument1 = new LkDocument(6, "Лекция 01.04 Предприятие, производство, издержки", "5:108785375", "Круглов ИВ", null, null);
         assertEquals(lkDocument1,
                 subject3.getMessagesData().get(5).getDocument());
 
         assertIterableEquals(sortDocumentsByName(Set.of(lkDocument1,
-                new LkDocument(7, "Лекция 18.03 Равновесие потребителя", null, "5:108535269"),
-                new LkDocument(8,"Тема 3. Рынок и его механизмы", null, "5:108490770"))),
+                new LkDocument(7, "Лекция 18.03 Равновесие потребителя", "5:108535269","Круглов ИВ", null,null),
+                new LkDocument(8,"Тема 3. Рынок и его механизмы", "5:108490770","Круглов ИВ", null, null))),
                 sortDocumentsByName(subject3.getMessagesDocuments()));
     }
 
@@ -228,17 +225,18 @@ class LkParserTest {
 
         final List<Path> paths = List.of(
                 lkParser.loadMaterialsFile( // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:110038482
-                        new LkDocument("тест1", "5:110038482"), groupName, subjectName),
+                        new LkDocument("тест1", "5:110038482")),
 
                 lkParser.loadMaterialsFile( // http://lk.stu.lipetsk.ru/file/me_teachingmaterials/5:111571856
-                        new LkDocument("тест2", "5:111571856"), groupName, subjectName),
+                        new LkDocument("тест2", "5:111571856")),
 
                 lkParser.loadMessageFile( // http://lk.stu.lipetsk.ru/file/me_msg_lk/5:108785375
-                        new LkDocument("тест3", "5:108785375"), groupName, subjectName)
+                        new LkDocument("тест3", "5:108785375"))
         );
         log.info("paths loaded");
 
-        final List<File> files = paths.stream().map(Path::toFile).collect(Collectors.toList());
+        final List<File> files = paths.stream().map(Path::toFile)
+                .collect(Collectors.toList());
 
         assertTrue(files.stream().allMatch(File::exists));
 

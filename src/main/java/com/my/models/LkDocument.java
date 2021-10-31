@@ -12,11 +12,9 @@ public class LkDocument {
     private Integer id;
     @NonNull
     private String name;
-    private String fileName;
     @NonNull
     private String lkId;
-
-    public LkDocument(LkDocument that) {
-        this(that.id, that.name, that.fileName, that.lkId);
-    }
+    private String sender;
+    private String vkAttachment;
+    private Boolean isExtChanged = false;
 }

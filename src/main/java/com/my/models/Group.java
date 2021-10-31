@@ -25,7 +25,6 @@ public class Group {
     private String lkContingentId;
     private List<Subject> subjects = new ArrayList<>();
     private Date lastCheckDate;
-    private long updateInterval = 12L * 3600 * 1000; // 12 часов
 
     private LoggedUser loggedUser;
     private Set<GroupUser> users = new HashSet<>();

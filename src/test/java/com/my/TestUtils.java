@@ -29,25 +29,24 @@ public class TestUtils {
     }
 
     public static List<Subject> createSubjects1() {
-        final LkDocument document = new LkDocument("ЛР3", "lkid").setId(1);
+        final LkDocument msgDocument = new LkDocument("ЛР3", "lkid").setId(1).setSender("Сергеев СС");
         return List.of(
-                new Subject("1", "Матеша",
+                new Subject(1,"lk1", "Матеша",
                         createDocuments(2,"лекция 1", "лекция 2"),
-                        Set.of(document),
+                        Set.of(msgDocument),
                         List.of(
                                 new LkMessage("Выкладывайте лабы)))", "Игорев ИИ", date1),
-                                new LkMessage("Выложил лр3", "Сергеев СС", date1, document)))
-                        .setId(1),
-                new Subject("2", "Прога",
+                                new LkMessage("Выложил лр3", "Сергеев СС", date1, msgDocument))),
+
+                new Subject(2, "lk2", "Прога",
                         createDocuments(1, "варианты", "рабочая программа"),
                         emptySet(),
                         List.of(
                                 new LkMessage("Где лабы?", "Олегов ОО", date1),
-                                new LkMessage("Прошел тест", "Владимиров ВВ", date1)))
-                        .setId(2),
-                new Subject("3", "Пустой предмет", emptySet(), emptySet(),
+                                new LkMessage("Прошел тест", "Владимиров ВВ", date1))),
+
+                new Subject(3,"lk3", "Пустой предмет", emptySet(), emptySet(),
                         Collections.emptyList())
-                        .setId(3)
         );
     }
 
@@ -78,5 +77,9 @@ public class TestUtils {
                 new Subject("3", "Пустой предмет", emptySet(), emptySet(), emptyList())
                         .setId(3)
         );
+    }
+
+    public static <T> int listsSizeCount(List<List<T>> lists) {
+        return lists.stream().map(List::size).reduce(Integer::sum).orElse(0);
     }
 }

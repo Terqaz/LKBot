@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.net.URISyntaxException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -14,6 +13,7 @@ class VkBotServiceTest {
 
     VkBotService vkBot = VkBotService.getInstance();
     static final int APP_ADMIN_ID = 173315241;
+    static final int APP_ADMIN_FAKE = 267306707;
 
     @Test
     @Disabled ("Пройден")
@@ -22,9 +22,11 @@ class VkBotServiceTest {
     }
 
     @Test
-    void fileUpload () throws URISyntaxException {
-        vkBot.sendMessageTo(APP_ADMIN_ID,
-                new File("D:\\Mega\\Learning\\HW\\BD\\ê°€.docx"),
+    void fileUpload () {
+        final String docAttachment = vkBot.sendMessageTo(APP_ADMIN_ID,
+                new File("C:\\Users\\Terqaz\\Desktop\\1.txt"),
                 "Тестовый файл");
+        vkBot.sendMessageTo(APP_ADMIN_ID, docAttachment, "Тот же тестовый файл");
+        vkBot.sendMessageTo(APP_ADMIN_FAKE, docAttachment, "Тестовый файл");
     }
 }

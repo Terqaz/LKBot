@@ -61,6 +61,7 @@ public class PlannedScheduleSending extends Thread {
                                     }
                                 }
                             }));
+                    Thread.sleep(5L * 60 * 1000); // 5 минут
 
                 } else if (hour == 19) {
                     Bot.getGroupByGroupName().values().forEach(group -> group.setScheduleSent(false));

@@ -6,10 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -179,5 +176,144 @@ class GroupsRepositoryTest {
                 assertFalse(group.isScheduleSent())
         );
         repository.deleteMany(eachFieldTest);
+    }
+
+    @Test
+    void updateDocumentVkAttachment_isCorrect() {
+        testGroup.setSubjects(TestUtils.createSubjects1());
+
+        repository.insert(testGroup);
+
+        repository.updateDocumentVkAttachment(testGroupName, 1, 1, false, "attachment1");
+        repository.updateDocumentVkAttachment(testGroupName, 2, 2, true, "attachment2");
+
+        final Group group2 = repository.findByGroupName(testGroupName).get();
+
+        assertEquals("attachment1", group2.getSubjectById(1).get().getMessageDocumentById(1).getVkAttachment());
+        assertEquals("attachment2", group2.getSubjectById(2).get().getMaterialsDocumentById(2).getVkAttachment());
+    }
+
+//    @Test
+//    void removeDocument_isCorrect() {
+//        testGroup.setSubjects(TestUtils.createSubjects1());
+//
+//        repository.insert(testGroup);
+//
+//        repository.removeDocument(testGroupName, 1, 1, true);
+//        final Group group2 = repository.findByGroupName(testGroupName).get();
+//        final LkDocument msgDoc = assertDoesNotThrow(() -> group2.getSubjectById(1).get().getMessageDocumentById(1));
+//        assertNotNull(msgDoc);
+//
+//        repository.removeDocument(testGroupName, 1, 1, false);
+//        repository.removeDocument(testGroupName, 2, 2, true);
+//        final Group group3 = repository.findByGroupName(testGroupName).get();
+//        assertThrows(Exception.class, () -> group3.getSubjectById(1).get().getMessageDocumentById(1));
+//
+//        final Subject subject2 = group3.getSubjectById(2).get();
+//        final List<LkDocument> subject2MatDocs = new ArrayList<>(subject2.getMaterialsDocuments());
+//        assertEquals(1, subject2MatDocs.size());
+//        assertEquals(1, subject2MatDocs.get(0).getId());
+//    }
+
+//    @Test
+//    void temp_updateGroups() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
+//        System.out.println("Обновление");
+//
+//        final LkParser lkParser = new LkParser();
+//        CipherService cipherService = CipherService.getInstance();
+//
+//        final FindIterable<Document> documents = repository.temp_updateGroups();
+//
+//        Set<Group> groups = new HashSet<>();
+//
+//        documents.forEach(document -> {
+//            final String groupName = (String) document.get("name");
+//
+//            if (document.get("scheduleSent") != null) {
+//                System.out.println("Группа "+ groupName+" уже обновлена");
+//                return;
+//            }
+//
+//            final Document loggedUser = (Document) document.get("loggedUser");
+//
+//            if (loggedUser == null) {
+//                System.out.println("group " + groupName + "need to delete");
+//                return;
+//            }
+//
+//            final Document authData = (Document) loggedUser.get("authData");
+//
+//            try {
+//                lkParser.login(cipherService.decrypt(new AuthenticationData((String) authData.get("login"),(String)  authData.get("password"))));
+//            } catch (Exception e) {
+//                System.out.println("auth exception with: "+document.get("name"));
+//                e.printStackTrace();
+//                return;
+//            }
+//
+//            final Group group = new Group(
+//                    groupName,
+//                    (String) document.get("lkId"),
+//                    (String) document.get("lkSemesterId"),
+//                    (String) document.get("lkContingentId"),
+//                    lkParser.getSubjectsFirstTime("2021-О"),
+//                    new Date(),
+//
+//                    new LoggedUser(
+//                            (Integer) loggedUser.get("_id"),
+//                            new AuthenticationData(
+//                                    (String) authData.get("login"),
+//                                    (String) authData.get("password")
+//                            ),
+//                            (boolean) loggedUser.get("updateAuthDataNotified")
+//                    ),
+//                    castUsers((List<Document>) document.get("users")),
+//                    castUserToVerify((List<Document>) document.get("usersToVerify")),
+//                    castLoginWaitingUsers((List<Document>) document.get("loginWaitingUsers")),
+//
+//                    lkParser.parseTimetable((String) document.get("lkSemesterId"), (String) document.get("lkId")),
+//                    false,
+//                    (int) document.get("silentModeStart"),
+//                    (int) document.get("silentModeEnd")
+//            );
+//            lkParser.logout();
+//
+//            if (TestUtils.listsSizeCount(group.getTimetable().getWhiteSubjects()) == 0) {
+//                System.out.println("Расписание группы "+groupName+" пустое");
+//                return;
+//            }
+//            if (group.getSubjects().isEmpty()) {
+//                System.out.println("Предметы группы "+groupName+" пустые");
+//                return;
+//            }
+//
+//            repository.updateGroup(group);
+//            System.out.println(groupName +" обновлена");
+//        });
+//    }
+//
+//    private Set<GroupUser> castUsers(List<Document> users) {
+//        return users.stream().map(user ->
+//            new GroupUser((Integer) user.get("_id"), (boolean) user.get("everydayScheduleEnabled"))
+//        ).collect(Collectors.toSet());
+//    }
+//
+//    private Set<UserToVerify> castUserToVerify (List<Document> users) {
+//        return users.stream().map(user ->
+//                new UserToVerify((Integer) user.get("_id"), (Integer) user.get("code"))
+//        ).collect(Collectors.toSet());
+//    }
+//
+//    private Set<Integer> castLoginWaitingUsers(List<Document> users) {
+//        return users.stream().map(user ->
+//                Integer.parseInt(user.toString())
+//        ).collect(Collectors.toSet());
+//    }
+
+    @Test
+    void temp_updateGroupDate() {
+        repository.findAll().forEach(group -> {
+            repository.updateField(group.getName(), "lastCheckDate", new Date());
+        });
     }
 }

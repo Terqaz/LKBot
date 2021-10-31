@@ -160,7 +160,7 @@ public class LkClient {
         //Content-disposition: inline; filename="file.pdf"
         final var contentDisposition = connection.getHeaderField("Content-disposition");
         if (contentDisposition == null)
-            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
+            throw new FileLoadingException("Файл не найден или недоступен");
 
         var value = contentDisposition.split("=")[1];
         value = value.substring(1, value.length()-1);

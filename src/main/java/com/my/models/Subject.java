@@ -34,14 +34,22 @@ public class Subject {
         return !(materialsDocuments.isEmpty() && messagesDocuments.isEmpty() && messagesData.isEmpty());
     }
 
+    @BsonIgnore
+    public boolean hasDocuments () {
+        return !(materialsDocuments.isEmpty() && messagesDocuments.isEmpty());
+    }
+
+    @BsonIgnore
     public LkDocument getMaterialsDocumentById(int id) {
         return getDocumentById(materialsDocuments, id);
     }
 
+    @BsonIgnore
     public LkDocument getMessageDocumentById(int id) {
         return getDocumentById(messagesDocuments, id);
     }
 
+    @BsonIgnore
     private LkDocument getDocumentById(Set<LkDocument> materialsDocuments, int id) {
         try {
             return materialsDocuments.stream()
@@ -50,5 +58,13 @@ public class Subject {
         } catch (NoSuchElementException e) {
             return null;
         }
+    }
+
+    @BsonIgnore
+    public void deleteDocumentById(Integer documentId, boolean isFromMaterials) {
+        if (isFromMaterials)
+            materialsDocuments.removeIf(lkDocument -> lkDocument.getId().equals(documentId));
+        else
+            messagesDocuments.removeIf(lkDocument -> lkDocument.getId().equals(documentId));
     }
 }

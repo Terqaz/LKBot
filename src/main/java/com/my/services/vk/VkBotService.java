@@ -3,6 +3,7 @@ package com.my.services.vk;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonSyntaxException;
+import com.my.exceptions.FileLoadingException;
 import com.vk.api.sdk.client.ApiRequest;
 import com.vk.api.sdk.client.TransportClient;
 import com.vk.api.sdk.client.VkApiClient;
@@ -17,6 +18,7 @@ import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.responses.GetLongPollServerResponse;
 import com.vk.api.sdk.objects.users.GetNameCase;
 import com.vk.api.sdk.objects.users.responses.GetResponse;
+import com.vk.api.sdk.queries.messages.MessagesSendQuery;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -148,42 +150,44 @@ public class VkBotService {
         }
     }
 
-    public void sendMessageTo (@NotNull Integer userId, Keyboard keyboard, String message) {
+    private MessagesSendQuery userSendMessageOrigin(@NotNull Integer userId, String message) {
         final var query = vk.messages().send(groupActor)
                 .message(message)
                 .userId(userId)
                 .randomId(random.nextInt(Integer.MAX_VALUE))
-                .dontParseLinks(true)
-                .keyboard(keyboard);
-        executeRequest(query);
+                .dontParseLinks(true);
+        if (unsetKeyboard) {
+            query.keyboard(emptyKeyboard);
+            unsetKeyboard = false;
+        }
+        return query;
     }
 
     public void sendMessageTo (@NotNull Integer userId, String message) {
-        final var query = vk.messages().send(groupActor)
-                .message(message)
-                .userId(userId)
-                .randomId(random.nextInt(Integer.MAX_VALUE))
-                .dontParseLinks(true);
-        if (unsetKeyboard) {
-            query.keyboard(emptyKeyboard);
-            unsetKeyboard = false;
-        }
-        executeRequest(query);
+        executeRequest(
+                userSendMessageOrigin(userId, message));
     }
 
-    public void sendMessageTo(@NotNull Integer userId, File file, String message) {
+    public void sendMessageTo (@NotNull Integer userId, Keyboard keyboard, String message) {
+        executeRequest(
+                userSendMessageOrigin(userId, message)
+                        .keyboard(keyboard));
+    }
+
+    public String sendMessageTo(@NotNull Integer userId, File file, String message) {
         final var doc = saveDocument(userId, file).getDoc();
-        final var query = vk.messages().send(groupActor)
-                .message(message)
-                .userId(userId)
-                .attachment("doc"+doc.getOwnerId()+"_"+doc.getId())
-                .randomId(random.nextInt(Integer.MAX_VALUE))
-                .dontParseLinks(true);
-        if (unsetKeyboard) {
-            query.keyboard(emptyKeyboard);
-            unsetKeyboard = false;
-        }
-        executeRequest(query);
+        final String docAttachment = "doc" + doc.getOwnerId() + "_" + doc.getId();
+        executeRequest(
+                userSendMessageOrigin(userId, message)
+                        .attachment(docAttachment));
+
+        return docAttachment+"_"+doc.getAccessKey();
+    }
+
+    public void sendMessageTo(@NotNull Integer userId, String docAttachment, String message) {
+        executeRequest(
+                userSendMessageOrigin(userId, message)
+                        .attachment(docAttachment));
     }
 
     public void sendMessageTo (Collection<Integer> userIds, String message) {
@@ -264,11 +268,12 @@ public class VkBotService {
                 vk.upload()
                         .doc(getDocumentUploadUri(userId).toString(), file));
 
-        final var docSaveResponse = executeRequest(
-                vk.docs()
-                    .save(groupActor, docUploadResponse.getFile()));
-
-        return docSaveResponse;
+        if (docUploadResponse.getFile() == null) {
+            throw new FileLoadingException("Не удалось загрузить файл в ВК:" + file.getName());
+        } else {
+            return executeRequest(
+                    vk.docs().save(groupActor, docUploadResponse.getFile()));
+        }
     }
 
     private URI getDocumentUploadUri (Integer userId) {

@@ -7,6 +7,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
+import com.mongodb.client.model.UpdateOptions;
 import com.my.models.*;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
@@ -40,6 +41,8 @@ public class GroupsRepository {
     public static final String SCHEDULE_SENT = "scheduleSent";
     public static final String UPDATE_INTERVAL = "updateInterval";
     public static final String UPDATE_AUTH_DATA_NOTIFIED = "loggedUser.updateAuthDataNotified";
+    private static final String MATERIALS_DOCUMENTS = "materialsDocuments";
+    private static final String MESSAGES_DOCUMENTS = "messagesDocuments";
 
     private static GroupsRepository instance = null;
     public static GroupsRepository getInstance () {
@@ -154,6 +157,26 @@ public class GroupsRepository {
                        pull(LOGIN_WAITING_USERS, userId));
     }
 
+
+//    public void removeDocument(String groupName, Integer subjectId, Integer documentId, boolean isFromMaterials) {
+//        final List<Bson> filter = new ArrayList<>();
+//        filter.add(eq(SUBJECTS + "." + _ID, subjectId));
+//
+//        if (isFromMaterials)
+//            filter.add(eq(SUBJECTS + "." + MATERIALS_DOCUMENTS+"."+_ID, documentId));
+//        else
+//            filter.add(eq(SUBJECTS + "." + MESSAGES_DOCUMENTS+"."+_ID, documentId));
+//
+////        eq("users._id", userId)),
+////        set("users.$.everydayScheduleEnabled", isEnable));
+//
+//        updateBy(groupName, filter,
+//                isFromMaterials ?
+//                        pull(SUBJECTS + "." + MATERIALS_DOCUMENTS+".$.", eq(_ID, documentId)) :
+//                        pull(SUBJECTS + "." + MESSAGES_DOCUMENTS+".$.", eq(_ID, documentId))
+//        );
+//    }
+
     public void moveLoginWaitingUsersToUsers (String groupName) {
         final Optional<Group> groupOptional = Optional.ofNullable(groupsCollection
                 .find(eq(NAME, groupName))
@@ -230,6 +253,11 @@ public class GroupsRepository {
         groupsCollection.updateOne(eq(NAME, groupName), updateQuery);
     }
 
+    private void updateBy(@NotNull String groupName, List<Bson> filter, Bson updateQuery) {
+        filter.add(eq(NAME, groupName));
+        groupsCollection.updateOne(combine(filter), updateQuery);
+    }
+
     public void deleteMany (String groupName) {
         groupsCollection.deleteMany(eq(NAME, groupName));
     }
@@ -239,5 +267,23 @@ public class GroupsRepository {
                 eq(NAME, groupName),
                 eq("users._id", userId)),
                 set("users.$.everydayScheduleEnabled", isEnable));
+    }
+
+    public void updateDocumentVkAttachment(String groupName, Integer subjectId, Integer documentId, boolean isFromMaterials, String vkAttachment) {
+        if (isFromMaterials) {
+            groupsCollection.updateOne(eq(NAME, groupName),
+                    set("subjects.$[s].materialsDocuments.$[sd].vkAttachment", vkAttachment),
+                    new UpdateOptions().arrayFilters(List.of(
+                            eq("s._id", subjectId),
+                            eq("sd._id", documentId)))
+            );
+        } else {
+            groupsCollection.updateOne(eq(NAME, groupName),
+                    set("subjects.$[s].messagesDocuments.$[sd].vkAttachment", vkAttachment),
+                    new UpdateOptions().arrayFilters(List.of(
+                            eq("s._id", subjectId),
+                            eq("sd._id", documentId)))
+            );
+        }
     }
 }

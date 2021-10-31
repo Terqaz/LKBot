@@ -2,6 +2,7 @@ package com.my;
 
 import com.my.exceptions.ApplicationStopNeedsException;
 import com.my.exceptions.AuthenticationException;
+import com.my.exceptions.FileLoadingException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.models.*;
 import com.my.services.Answer;
@@ -15,11 +16,11 @@ import com.vk.api.sdk.objects.messages.Message;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
+import org.apache.commons.io.FileUtils;
 
 import javax.crypto.NoSuchPaddingException;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
@@ -221,45 +222,76 @@ public class Bot {
 
         group.getSubjectById(subjectId).ifPresentOrElse(
                 subject -> {
-                    Path path = null;
+                    final String subjectName = subject.getName();
+
+                    boolean isFromMaterials = true;
                     LkDocument document = subject.getMaterialsDocumentById(documentId);
-                    if (document != null)
-                        path = group.getLkParser().loadMaterialsFile(document, group.getName(), subject.getName());
-                    else {
+                    if (document == null) {
                         document = subject.getMessageDocumentById(documentId);
-                        if (document != null)
-                            path = group.getLkParser().loadMessageFile(document, group.getName(), subject.getName());
+                        isFromMaterials = false;
                     }
-                    if (path != null) {
-                        String documentName = document.getName();
-                        path = correctFileExt(path);
-                        document.setFileName(path.getFileName().toString());
 
-                        final File file = path.toFile();
-                        if (file.exists()) {
-                            if (isExtensionChanged(path))
-                                vkBot.sendMessageTo(userId, file, Answer.getDocument(subject.getName(), documentName));
-                            else
-                                vkBot.sendMessageTo(userId, file, Answer.getDocumentWithExtNotify(subject.getName(), documentName));
-                        } else
-                            throw new RuntimeException("Не удалось отправить файл"); // не должна появиться
-
-                    } else
+                    if (document == null) {
                         vkBot.sendMessageTo(userId, Answer.WRONG_DOCUMENT_NUMBER);
+                        return;
+
+                    } else if (document.getVkAttachment() != null) {
+                        vkBot.sendMessageTo(userId, document.getVkAttachment(),
+                                    Answer.getDocument(subjectName, document.getName(), document.getIsExtChanged()));
+                        return;
+                    }
+
+                    Path path;
+                    try {
+                        if (isFromMaterials)
+                            path = group.getLkParser().loadMaterialsFile(document);
+                        else
+                            path = group.getLkParser().loadMessageFile(document);
+                    } catch (FileLoadingException e) {
+                        vkBot.sendMessageTo(userId, Answer.NO_ACCESS_TO_FILE);
+                        subject.deleteDocumentById(documentId, isFromMaterials);
+                        // TODO капец сложный запрос там(
+//                        groupsRepository.removeDocument(group.getName(), subjectId, documentId, isFromMaterials);
+                        return;
+                    }
+
+                    path = correctFileExt(path);
+                    document.setIsExtChanged(isExtensionChanged(path));
+
+                    final File file = path.toFile();
+                    try {
+                        document.setVkAttachment(vkBot.sendMessageTo(userId, file,
+                                Answer.getDocument(subjectName, document.getName(), document.getIsExtChanged())));
+
+                        groupsRepository.updateDocumentVkAttachment(group.getName(), subjectId, documentId, isFromMaterials, document.getVkAttachment());
+
+                    } catch (FileLoadingException e) {
+                        vkBot.sendMessageTo(List.of(APP_ADMIN_ID1), Answer.getForAdminsIBroken(0, e));
+                        vkBot.sendMessageTo(userId, Answer.VK_LOAD_FILE_FAILED);
+                        e.printStackTrace();
+                    }
+                    try {
+                        FileUtils.forceDelete(file.getParentFile());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 },
                 () -> vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER));
     }
 
     private static Path correctFileExt(Path path) {
         String strFilePath = path.toString();
-        if (TextUtils.isUnacceptableFileExtension(strFilePath))
+        if (TextUtils.isUnacceptableFileExtension(strFilePath)) {
+            final Path newPath = Paths.get(strFilePath + 1);
             try {
-                final Path newPath = Paths.get(strFilePath + 1);
-                Files.move(path, newPath);
-                return newPath;
+//                Files.move(path, newPath);
+                FileUtils.moveFile(path.toFile(), newPath.toFile());
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            return newPath;
+        }
         return path;
     }
 
@@ -418,13 +450,15 @@ public class Bot {
                 .filter(user -> user.getId().equals(userId))
                 .findFirst().get()
                 .setEverydayScheduleEnabled(isEnable);
-
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group), Answer.OK);
+
         if (isEnable) {
-            final String dayScheduleReport = getDayScheduleReport(
-                    Utils.getThisWeekDayIndex(), isActualWeekWhite, group);
+            String dayScheduleReport = getDayScheduleReport(Utils.getThisWeekDayIndex(), isActualWeekWhite, group);
+
             if (!dayScheduleReport.isEmpty())
                 vkBot.sendMessageTo(userId, Answer.getTodaySchedule(dayScheduleReport));
+            else
+                vkBot.sendMessageTo(userId, Answer.TODAY_EMPTY_SCHEDULE);
         }
     }
 
@@ -559,6 +593,13 @@ public class Bot {
         //vkBotService.deleteLastMessage(message);
 
         groupName = actualizeGroupName(userId, groupName, lkParser);
+
+        Group oldGroup = groupByGroupName.get(groupName);
+        if (oldGroup != null) {
+            vkBot.sendMessageTo(userId, Answer.GROUP_ALREADY_EXISTS);
+            startUserVerification(userId, oldGroup);
+            return;
+        }
 
         List<Subject> newSubjects = lkParser.getSubjectsFirstTime(actualSemester);
         final var newGroup = new Group(groupName)

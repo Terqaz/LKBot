@@ -79,7 +79,7 @@ public class LkParser {
 
     private Subject getSubjectByHtmlUrl (Element htmlSubjectUrl, Date lastCheckDate) {
         final String localUrl = htmlSubjectUrl.attr("href");
-        return getNewSubject(TextUtils.capitalize(htmlSubjectUrl.text()), localUrl, lastCheckDate);
+        return getNewSubject(TextUtils.capitalize(htmlSubjectUrl.text().strip()), localUrl, lastCheckDate);
     }
 
     private Subject getNewSubject(String subjectName, String subjectLocalUrl, Date lastCheckDate) {
@@ -172,13 +172,15 @@ public class LkParser {
             comment = parseMessageComment(htmlMessage);
             sender = TextUtils.makeShortSenderName(parseMessageSender(htmlMessage));
             lkDocument = parseMessageDocument(htmlMessage);
+            if (lkDocument != null)
+                lkDocument.setSender(sender);
             lkMessageList.add(new LkMessage(comment, sender, date, lkDocument));
         }
         return lkMessageList;
     }
 
     private String parseMessageComment(Element htmlMessage) {
-        return htmlMessage.select("div.comment__body > .row")
+        return htmlMessage.select("div.comment__body > .row > div")
                 .first().text();
     }
 
@@ -323,35 +325,19 @@ public class LkParser {
                 .toLowerCase(Locale.ROOT).contains("белая");
     }
 
-    public Path loadMaterialsFile(LkDocument document, String groupName, String subjectName) {
-        final Path path = tryLoadFromLocal(document, groupName, subjectName);
-        if (path != null)
-            return path;
-        else
-            return lkClient.loadFileTo(makeFileDir(groupName, subjectName),
+    public Path loadMaterialsFile(LkDocument document) {
+        return lkClient.loadFileTo(createTempFileDir(),
                 LkUrlBuilder.buildMaterialsDocumentUrl(document));
     }
 
-    public Path loadMessageFile(LkDocument document, String groupName, String subjectName) {
-        final Path path = tryLoadFromLocal(document, groupName, subjectName);
-        if (path != null)
-            return path;
-        else
-            return lkClient.loadFileTo(makeFileDir(groupName, subjectName),
+    public Path loadMessageFile(LkDocument document) {
+        return lkClient.loadFileTo(createTempFileDir(),
                 LkUrlBuilder.buildMessageDocumentUrl(document));
     }
 
-    private Path tryLoadFromLocal(LkDocument document, String groupName, String subjectName) {
-        if (document.getFileName() == null)
-            return null;
+    private static final Random random = new Random();
 
-        var path = Paths.get(groupName, subjectName, document.getFileName());
-        if (path.toFile().exists())
-            return path;
-        else return null;
-    }
-
-    private String makeFileDir(String groupName, String subjectName) {
-        return ".\\" + groupName + "\\" + subjectName;
+    private String createTempFileDir() {
+        return Paths.get("temp", String.valueOf(random.nextLong())).toString();
     }
 }
