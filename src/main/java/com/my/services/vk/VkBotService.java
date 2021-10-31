@@ -268,7 +268,7 @@ public class VkBotService {
                 vk.upload()
                         .doc(getDocumentUploadUri(userId).toString(), file));
 
-        if (docUploadResponse.getFile() == null) {
+        if (docUploadResponse == null || docUploadResponse.getFile() == null) {
             throw new FileLoadingException("Не удалось загрузить файл в ВК:" + file.getName());
         } else {
             return executeRequest(

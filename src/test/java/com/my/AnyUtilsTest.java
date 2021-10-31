@@ -192,4 +192,31 @@ class AnyUtilsTest {
         assertEquals(6, (Calendar.SUNDAY - 2 + 7) % 7);
         assertEquals(0, (Calendar.MONDAY - 2 + 7) % 7);
     }
+
+//    @Test
+//    void toUnixCompatibleName_isCorrect() {
+//        final List<String> strings1 = List.of(
+//                "Вопросы к защите по 1-й П.Р. (БЖД).exe",
+//                "Вопросы к защите по 2-й П.Р. (БЖД).exe",
+//                "Вопросы к защите по 3-й и 4-й П.Р. (БЖД).7z",
+//                "Вопросы к защите по 5-й П.Р. (БЖД).1",
+//                "Заготовка по 2-й практической работе (Вариант№1) (БЖД)",
+//                "Заготовка по 3-й лабораторной работе (БЖД)",
+//                "Лекция №3,4",
+//                "МУ2820 ШУМ",
+//                "Письмо для студентов как выполнять РГЗ и сроки сдачи на оценку",
+//                "РГЗ по БЖД (задание)",
+//                "Рабочая программа");
+//        strings1.stream()
+//                .map(TextUtils::toUnixCompatibleName)
+//                .forEach(System.out::println);
+//    }
+
+//    @Test
+//    void s () {
+//        final Path path = Paths.get("11", "22");
+//        System.out.println(path);
+//        final Path path1 = Paths.get(path.toAbsolutePath().toString(), "44.txt");
+//        System.out.println(path1);
+//    }
 }

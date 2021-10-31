@@ -119,7 +119,7 @@ public class LkClient {
         return null;
     }
 
-    public Path loadFileTo(String fileDir, URL inputUrl) {
+    public Path loadFileTo(Path fileDir, URL inputUrl) {
         try {
             HttpURLConnection connection = (HttpURLConnection) inputUrl.openConnection();
             connection.addRequestProperty("User-Agent", USER_AGENT);
@@ -143,7 +143,7 @@ public class LkClient {
 
             final String fileName = getFileNameFromConnection(connection);
 
-            File newFile = new File(fileDir + "\\" + fileName);
+            File newFile = Paths.get(fileDir.toAbsolutePath().toString(), fileName).toFile();
             FileUtils.copyInputStreamToFile(new GZIPInputStream(connection.getInputStream()), newFile);
             connection.disconnect();
             return Paths.get(newFile.toURI());
@@ -165,7 +165,7 @@ public class LkClient {
         var value = contentDisposition.split("=")[1];
         value = value.substring(1, value.length()-1);
         value = TextUtils.changeEncodingIso_8859_1_Windows_1251(value);
-        return TextUtils.transliterate(value); // Убрали кавычки
+        return TextUtils.toUnixCompatibleName(value); // Убрали кавычки
     }
 
     public Document loggedGet(String url) {

@@ -129,8 +129,8 @@
                 <artifactId>heroku-maven-plugin</artifactId>
                 <version>3.0.3</version>
                 <configuration>
-<!--                    <appName>bot-dorime</appName>-->
-                    <appName>dorime-lk</appName>
+                    <appName>bot-dorime</appName>
+<!--                    <appName>dorime-lk</appName>-->
                     <jdkVersion>${java.version}</jdkVersion>
                     <processTypes>
                         <worker>java $JAVA_OPTS -cp ./target/classes:./target/dependency/* com.my.Main</worker>

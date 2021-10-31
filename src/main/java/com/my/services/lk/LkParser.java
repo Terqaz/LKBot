@@ -337,7 +337,7 @@ public class LkParser {
 
     private static final Random random = new Random();
 
-    private String createTempFileDir() {
-        return Paths.get("temp", String.valueOf(random.nextLong())).toString();
+    private Path createTempFileDir() {
+        return Paths.get("temp", String.valueOf(random.nextLong()));
     }
 }

@@ -241,11 +241,11 @@ class LkParserTest {
         assertTrue(files.stream().allMatch(File::exists));
 
         assertEquals(18127, files.get(0).length());
-        assertEquals(TextUtils.transliterate("Информационное право.docx"), files.get(0).getName());
+        assertEquals(TextUtils.toUnixCompatibleName("Информационное право.docx"), files.get(0).getName());
         assertEquals(4327936, files.get(1).length());
-        assertEquals(TextUtils.transliterate("Заземление_2590.doc"), files.get(1).getName());
+        assertEquals(TextUtils.toUnixCompatibleName("Заземление_2590.doc"), files.get(1).getName());
         assertEquals(56239, files.get(2).length());
-        assertEquals(TextUtils.transliterate("Лекция 01.04 Предприятие, производство, издержки.docx"), files.get(2).getName());
+        assertEquals(TextUtils.toUnixCompatibleName("Лекция 01.04 Предприятие, производство, издержки.docx"), files.get(2).getName());
 
         FileUtils.deleteDirectory(Path.of(groupName).toFile());
         assertFalse(Path.of(groupName).toFile().exists());
