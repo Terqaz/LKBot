@@ -250,6 +250,7 @@ public class Bot {
                     } catch (FileLoadingException e) {
                         vkBot.sendMessageTo(userId, Answer.NO_ACCESS_TO_FILE);
                         subject.deleteDocumentById(documentId, isFromMaterials);
+
                         // TODO капец сложный запрос там(
 //                        groupsRepository.removeDocument(group.getName(), subjectId, documentId, isFromMaterials);
                         return;
@@ -644,6 +645,9 @@ public class Bot {
         group.removeUserFromGroup(userId);
     }
 
+    @Getter @Setter
+    private static volatile boolean isWeekTypeUpdated = false;
+
     public static void actualizeWeekType() {
         Optional.ofNullable(groupByGroupName.get("ПИ-19-1"))
                 .ifPresentOrElse(group -> {
@@ -655,6 +659,8 @@ public class Bot {
                     try {
                         lkParser.login(cipherService.decrypt(group.getLoggedUser().getAuthData()));
                         isActualWeekWhite = lkParser.parseWeekType(group.getLkSemesterId());
+                        isWeekTypeUpdated = true;
+
                     } catch (AuthenticationException ignored) {
                         vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_NEED_REGISTRATION);
                     }

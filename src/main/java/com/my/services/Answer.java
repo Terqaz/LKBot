@@ -172,7 +172,7 @@ public class Answer {
         if (loggedUser.is(userId))
             return BASIC_COMMANDS + "\n"
                     +
-                    getSchedingCommandDescription(group.getUserSchedulingEnabled(userId))
+                    getSchedulingCommandDescription(group.getUserSchedulingEnabled(userId))
                     +
                     "\n🔶 Изменить время тихого режима (сейчас с " +
                     group.getSilentModeStart() + " до " + group.getSilentModeEnd() + " часов):\n" +
@@ -180,13 +180,13 @@ public class Answer {
 
         else
             return BASIC_COMMANDS + "\n" +
-                    getSchedingCommandDescription(group.getUserSchedulingEnabled(userId));
+                    getSchedulingCommandDescription(group.getUserSchedulingEnabled(userId));
     }
 
-    private static String getSchedingCommandDescription(boolean enabled) {
+    private static String getSchedulingCommandDescription(boolean enabled) {
         return enabled ?
-                "🔶 Не присылать ежедневное расписание на завтра:\n"+ Command.WITHOUT_EVERYDAY_SCHEDULE :
-                "🔶 Присылать ежедневное расписание на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE;
+                "🔶 Не присылать ежедневное расписание в 18 часов на завтра:\n"+ Command.WITHOUT_EVERYDAY_SCHEDULE :
+                "🔶 Присылать ежедневное расписание в 18 часов на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE;
     }
 
 //    public static String getNoNewSubjectInfo(String subjectName) {

@@ -19,7 +19,6 @@ import javax.crypto.NoSuchPaddingException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class PlannedSubjectsUpdate extends Thread {
@@ -39,9 +38,6 @@ public class PlannedSubjectsUpdate extends Thread {
         while (true) {
             try {
                 updateSubjects(Utils.getSemesterName());
-                Thread.sleep(3L * 60 * 1000); // 3 минуты
-            } catch (InterruptedException e) {
-                break;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -56,17 +52,16 @@ public class PlannedSubjectsUpdate extends Thread {
                     final GregorianCalendar calendar = new GregorianCalendar();
                     if (isNotUpdateTime(group, calendar))
                         return;
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            updateGroupSubjects(newSemester, group);
-                        } catch (AuthenticationException e) {
-                            Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
-                        } catch (LkNotRespondingException e) {
-                            group.setLastCheckDate(new Date());
-                        } finally {
-                            group.setUpdating(false);
-                        }
-                    });
+
+                    try {
+                        updateGroupSubjects(newSemester, group);
+                    } catch (AuthenticationException e) {
+                        Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
+                    } catch (LkNotRespondingException e) {
+                        group.setLastCheckDate(new Date());
+                    } finally {
+                        group.setUpdating(false);
+                    }
         });
     }
 
@@ -111,12 +106,18 @@ public class PlannedSubjectsUpdate extends Thread {
                 }).collect(Collectors.toList());
 
         final var checkDate = new Date();
-        groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);
-        group.setLastCheckDate(checkDate);
-        group.setSubjects(newSubjects);
 
-        return Answer.getSubjects (
-                Utils.removeOldDocuments(oldSubjects, newSubjects));
+        final List<Subject> cleanedSubjects = Utils.removeOldDocuments(oldSubjects, newSubjects);
+
+        if (!cleanedSubjects.stream()
+                .allMatch(subject -> subject.getMaterialsDocuments().isEmpty() && subject.getMessagesData().isEmpty())) {
+            groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);
+            group.setSubjects(newSubjects);
+        } else
+            groupsRepository.updateLastCheckDate(group.getName(), checkDate);
+
+        group.setLastCheckDate(checkDate);
+        return Answer.getSubjects(cleanedSubjects);
     }
 
     private String newSemesterUpdate(String newSemester, Group group) {

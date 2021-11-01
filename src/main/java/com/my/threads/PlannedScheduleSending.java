@@ -13,7 +13,6 @@ import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
 
 import java.util.GregorianCalendar;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static java.util.Calendar.*;
@@ -45,29 +44,23 @@ public class PlannedScheduleSending extends Thread {
                         Bot.login(Bot.getGroupByGroupName().get("ПИ-19-1"));
                         Bot.actualizeWeekType();
                     } catch (LkNotRespondingException e) {
-                        if (calendar.get(DAY_OF_WEEK) == MONDAY)
+                        if (!Bot.isWeekTypeUpdated() && calendar.get(DAY_OF_WEEK) == MONDAY)
                             Bot.manualChangeWeekType();
                     }
                     final boolean isNextDayWeekWhite =
                             nextWeekDay == 0 ? !Bot.isActualWeekWhite() : Bot.isActualWeekWhite();
 
                     Bot.getGroupByGroupName().values().stream()
-                            .forEach(group -> CompletableFuture.runAsync(() -> {
-                                while(!sendSchedule(group, nextWeekDay, isNextDayWeekWhite)) {
-                                    try {
-                                        Thread.sleep(5L * 60 * 1000); // 5 минут
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }));
+                            .filter(group -> !group.isScheduleSent())
+                            .forEach(group -> sendSchedule(group, nextWeekDay, isNextDayWeekWhite));
                     Thread.sleep(5L * 60 * 1000); // 5 минут
 
-                } else if (hour == 19) {
+                } else {
+                    Bot.setWeekTypeUpdated(false);
                     Bot.getGroupByGroupName().values().forEach(group -> group.setScheduleSent(false));
                     groupsRepository.updateEachField(GroupsRepository.SCHEDULE_SENT, false);
-                } else
                     Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
+                }
 
             } catch (InterruptedException e) {
                 break;
@@ -77,7 +70,7 @@ public class PlannedScheduleSending extends Thread {
         }
     }
 
-    private boolean sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
+    private void sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
         try {
             Bot.login(group);
             final Timetable timetable = group.getLkParser()
@@ -104,7 +97,6 @@ public class PlannedScheduleSending extends Thread {
             group.setScheduleSent(true);
             groupsRepository.updateField(group.getName(), GroupsRepository.SCHEDULE_SENT, true);
         }
-        return group.isScheduleSent();
     }
 
     private boolean isNewTimetableCorrect (Timetable newTt, Timetable oldTt) {

@@ -122,6 +122,12 @@ public class GroupsRepository {
         ));
     }
 
+    public void updateLastCheckDate(@NotNull String groupName, @NotNull Date lastCheckDate) {
+        updateBy(groupName, combine(
+                set(LAST_CHECK_DATE, lastCheckDate)
+        ));
+    }
+
     public void setNewSemesterData (@NotNull String groupName,
                                     @NotEmpty List<Subject> subjects,
                                     @NotNull Date lastCheckDate,
