@@ -59,6 +59,9 @@ public class PlannedSubjectsUpdate extends Thread {
                         Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
                     } catch (LkNotRespondingException e) {
                         group.setLastCheckDate(new Date());
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     } finally {
                         group.setUpdating(false);
                     }

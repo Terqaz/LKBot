@@ -51,10 +51,12 @@ class AnyUtilsTest {
         assertIterableEquals(createSubjects1(), oldSubjectData); // oldSubjectData не изменилась
         assertIterableEquals(createSubjects2(), newSubjectData); // newSubjectData не изменилась
 
-        assertTrue(postSubjectData.get(0).getMaterialsDocuments().isEmpty());
-        assertTrue(postSubjectData.get(1).getMaterialsDocuments().isEmpty());
-        assertEquals(TestUtils.createDocuments("2abcdef"), postSubjectData.get(2).getMaterialsDocuments());
-        assertEquals(TestUtils.createDocuments("3abcdef"), postSubjectData.get(3).getMaterialsDocuments());
+        assertEquals(TestUtils.createDocuments("2abcdef"), postSubjectData.get(0).getMaterialsDocuments());
+        assertEquals(TestUtils.createDocuments("3abcdef"), postSubjectData.get(1).getMaterialsDocuments());
+        assertEquals(Set.of(
+                new LkDocument().setName("4abc").setLkId("6"),
+                new LkDocument().setName("4abcdef").setLkId("8")
+        ), postSubjectData.get(2).getMaterialsDocuments());
     }
 
     @Test
@@ -117,6 +119,9 @@ class AnyUtilsTest {
 
         final List<LkDocument> oldDocuments = TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f");
 
+        assertDoesNotThrow(() -> Utils.copyIdsFrom(List.of(), oldDocuments));
+        assertDoesNotThrow(() -> Utils.copyIdsFrom(oldDocuments, List.of()));
+
         oldDocuments.get(1).setId(3);
         oldDocuments.get(3).setId(1);
         oldDocuments.get(6).setId(2);
@@ -139,7 +144,15 @@ class AnyUtilsTest {
                 createSubject1().setName("a").setMaterialsDocuments(TestUtils.createDocuments("0abc", "0abcd", "0abcde")),
                 createSubject1().setName("b").setMaterialsDocuments(TestUtils.createDocuments("1abc", "1abcd", "1abcde")),
                 createSubject1().setName("c").setMaterialsDocuments(TestUtils.createDocuments("2abc", "2abcd", "2abcde")),
-                createSubject1().setName("d").setMaterialsDocuments(TestUtils.createDocuments("3abc", "3abcd", "3abcde"))
+                createSubject1().setName("d").setMaterialsDocuments(TestUtils.createDocuments("3abc", "3abcd", "3abcde")),
+                createSubject1().setName("e").setMaterialsDocuments(Set.of(
+                        new LkDocument().setName("4ab").setLkId("1"),
+                        new LkDocument().setName("4abc").setLkId("2"),
+                        new LkDocument().setName("4abc").setLkId("3"),
+                        new LkDocument().setName("4abc").setLkId("4"),
+                        new LkDocument().setName("4abcd").setLkId("5"),
+                        new LkDocument().setName("4abcde").setLkId("51")
+                ))
         );
     }
 
@@ -152,7 +165,14 @@ class AnyUtilsTest {
                 createSubject1() // Добавили элемент
                         .setName("c").setMaterialsDocuments(TestUtils.createDocuments("2abc", "2abcd", "2abcde", "2abcdef")),
                 createSubject1()  // Удалили и добавили элементы
-                        .setName("d").setMaterialsDocuments(TestUtils.createDocuments("3abcd", "3abcde", "3abcdef"))
+                        .setName("d").setMaterialsDocuments(TestUtils.createDocuments("3abcd", "3abcde", "3abcdef")),
+                createSubject1() // Удалили и добавили везде подряд
+                        .setName("e").setMaterialsDocuments(Set.of(
+                                new LkDocument().setName("4ab").setLkId("1"),
+                                new LkDocument().setName("4abc").setLkId("6"),
+                                new LkDocument().setName("4abc").setLkId("4"),
+                                new LkDocument().setName("4abcdef").setLkId("8")
+                        ))
         );
     }
 

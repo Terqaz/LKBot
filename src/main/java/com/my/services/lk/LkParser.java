@@ -2,12 +2,16 @@ package com.my.services.lk;
 
 import com.my.TextUtils;
 import com.my.Utils;
+import com.my.exceptions.LkNotRespondingException;
 import com.my.models.*;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
@@ -325,14 +329,25 @@ public class LkParser {
                 .toLowerCase(Locale.ROOT).contains("белая");
     }
 
-    public Path loadMaterialsFile(LkDocument document) {
-        return lkClient.loadFileTo(createTempFileDir(),
-                LkUrlBuilder.buildMaterialsDocumentUrl(document));
+    public Path loadMaterialsFile(LkDocument document) throws IOException {
+        try {
+            return lkClient.loadFileTo(createTempFileDir(),
+                    LkUrlBuilder.buildMaterialsDocumentUrl(document));
+
+        } catch (ConnectException | SocketTimeoutException e) {
+            throw new LkNotRespondingException();
+        }
     }
 
-    public Path loadMessageFile(LkDocument document) {
-        return lkClient.loadFileTo(createTempFileDir(),
-                LkUrlBuilder.buildMessageDocumentUrl(document));
+
+    public Path loadMessageFile(LkDocument document) throws IOException {
+        try {
+            return lkClient.loadFileTo(createTempFileDir(),
+                    LkUrlBuilder.buildMessageDocumentUrl(document));
+
+        } catch (ConnectException | SocketTimeoutException e) {
+            throw new LkNotRespondingException();
+        }
     }
 
     private static final Random random = new Random();

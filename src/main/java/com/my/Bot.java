@@ -133,7 +133,7 @@ public class Bot {
 
             } catch (Exception e) {
                 vkBot.sendMessageTo(userId, Answer.I_BROKEN);
-                vkBot.sendMessageTo(List.of(APP_ADMIN_ID1), Answer.getForAdminsIBroken(userId, e));
+                vkBot.sendMessageTo(List.of(APP_ADMIN_ID1, APP_ADMIN_ID2), Answer.getForAdminsIBroken(userId, e));
                 e.printStackTrace();
             }
         });
@@ -247,12 +247,10 @@ public class Bot {
                             path = group.getLkParser().loadMaterialsFile(document);
                         else
                             path = group.getLkParser().loadMessageFile(document);
-                    } catch (FileLoadingException e) {
-                        vkBot.sendMessageTo(userId, Answer.NO_ACCESS_TO_FILE);
-                        subject.deleteDocumentById(documentId, isFromMaterials);
 
-                        // TODO капец сложный запрос там(
-//                        groupsRepository.removeDocument(group.getName(), subjectId, documentId, isFromMaterials);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        vkBot.sendMessageTo(userId, Answer.NO_ACCESS_TO_FILE);
                         return;
                     }
 

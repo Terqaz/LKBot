@@ -12,10 +12,10 @@ import java.util.stream.Collectors;
 public class Answer {
 
     public static final String TODAY_EMPTY_SCHEDULE = "Если я не ошибаюсь, сегодня у тебя нет пар ;-)";
-    public static final String NO_ACCESS_TO_FILE = "К сожалению, этот файл удален из ЛК 8о";
+    public static final String NO_ACCESS_TO_FILE = "Не удалось загрузить этот файл из ЛК. Попробуй позже";
     public static final String GROUP_ALREADY_EXISTS = "После уточнения имени твоей группы из ЛК, " +
             "я узнал, что она уже существует";
-    public static final String VK_LOAD_FILE_FAILED = "Не удалось загрузить этот файл в вк";
+    public static final String VK_LOAD_FILE_FAILED = "Не удалось загрузить этот файл в ВКонтакте";
 
     private Answer() {}
 
@@ -64,9 +64,10 @@ public class Answer {
             "Хорошо.\nВведи свой логин и пароль подряд на двух строках, " +
             "а потом удали свое сообщение на всякий случай ;-)";
     public static final String UPDATE_CREDENTIALS =
-            "Кажется ты забыл сказать мне свой новый пароль после изменения его в ЛК. " +
-            "Введи свой логин и новый пароль подряд на двух строках, " +
-            "а потом удали свое сообщение на всякий случай ;-)";
+            "Ты не сказал мне свой новый пароль после изменения его в ЛК.\n" +
+            "➡ Если ты хочешь продолжать пользоваться мной, введи свой логин и новый пароль подряд на двух строках, " +
+            "а потом удали свое сообщение на всякий случай ;-)\n" +
+            "➡ Если ты больше не хочешь продолжать пользоваться ботом, напиши "+quotes(Command.FORGET_ME);
 
     public static final String CREDENTIALS_UPDATED = "Я обновил твой пароль";
     public static final String TRY_TO_LOGIN = "Пробую зайти в твой ЛК...";
@@ -161,7 +162,7 @@ public class Answer {
     }
 
     public static String getDocument(String subjectName, String documentName, boolean isExtensionChanged) {
-        return subjectName + " документ:\n " + quotes(documentName)
+        return subjectName + "\nДокумент: " + quotes(documentName)
                 + (!isExtensionChanged ? "" : "\nУбери из расширения файла единицу, переименовав его. " +
                 "ВКонтакте не разрешил отправку этого файла с исходным расширением");
     }

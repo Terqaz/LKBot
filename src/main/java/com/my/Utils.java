@@ -35,11 +35,11 @@ public final class Utils {
             final Subject newSubject = newSubjectsCopyIterator.next();
 
             final Map<String, LkDocument> newDocumentsMap = newSubject.getMaterialsDocuments().stream()
-                    .collect(Collectors.toMap(LkDocument::getName, doc -> doc));
+                    .collect(Collectors.toMap(d -> d.getLkId()+d.getName(), doc -> doc));
 
-            oldSubject.getMaterialsDocuments().forEach(oldDocument -> {
-                newDocumentsMap.remove(oldDocument.getName());
-            });
+            oldSubject.getMaterialsDocuments().forEach(oldDocument ->
+                    newDocumentsMap.remove(oldDocument.getLkId() + oldDocument.getName()));
+
             newSubject.setMaterialsDocuments(new HashSet<>(newDocumentsMap.values()));
         }
         return newSubjectsCopy.stream().filter(Subject::isNotEmpty).collect(Collectors.toList());
@@ -52,13 +52,17 @@ public final class Utils {
     // Changes newDocuments
     public static void copyIdsFrom(Collection<LkDocument> newDocuments,
                                    Collection<LkDocument> oldDocuments) {
-        Map<String, Integer> oldDocumentByName = oldDocuments.stream()
-                .collect(Collectors.toMap(LkDocument::getName, LkDocument::getId));
 
-        newDocuments.forEach(newDocument -> {
-            final Integer oldDocumentId = oldDocumentByName.get(newDocument.getName());
-            newDocument.setId(oldDocumentId);
-        });
+        if (newDocuments.isEmpty()) return;
+
+        Map<String, Integer> oldDocumentByName = oldDocuments.stream()
+                .collect(Collectors.toMap(d -> d.getLkId()+d.getName(), LkDocument::getId));
+
+        if (!oldDocumentByName.isEmpty())
+            newDocuments.forEach(newDocument -> {
+                final Integer oldDocumentId = oldDocumentByName.get(newDocument.getLkId()+newDocument.getName());
+                newDocument.setId(oldDocumentId);
+            });
     }
 
     // Changes subject

@@ -26,7 +26,8 @@ import java.util.zip.GZIPInputStream;
 public class LkClient {
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0";
-    public static final String RELOGIN_IS_NEEDED = "Login or relogin needs";
+    public static final String LOGIN_NEEDS = "Login or relogin needs";
+
     private String phpSessId = null;
 
     public LkClient() {}
@@ -97,7 +98,7 @@ public class LkClient {
 
     private Connection getOriginSessionConnection(String url) {
         if (isSessionDiscarded())
-            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
+            throw new LoginNeedsException(LOGIN_NEEDS);
 
         return Jsoup.connect(url)
                 .userAgent(USER_AGENT)
@@ -119,41 +120,33 @@ public class LkClient {
         return null;
     }
 
-    public Path loadFileTo(Path fileDir, URL inputUrl) {
-        try {
-            HttpURLConnection connection = (HttpURLConnection) inputUrl.openConnection();
-            connection.addRequestProperty("User-Agent", USER_AGENT);
-            connection.addRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-            connection.addRequestProperty("Accept-Language", "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3");
-            connection.addRequestProperty("Accept-Encoding", "gzip, deflate");
-            connection.addRequestProperty("Connection", "Keep-alive");
-            connection.addRequestProperty("DNT", "1");
-            connection.addRequestProperty("Upgrade-Insecure-Requests", "1");
-            connection.addRequestProperty("Cookie", "PHPSESSID=" + phpSessId);
+    public Path loadFileTo(Path fileDir, URL inputUrl) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) inputUrl.openConnection();
+        connection.addRequestProperty("User-Agent", USER_AGENT);
+        connection.addRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+        connection.addRequestProperty("Accept-Language", "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3");
+        connection.addRequestProperty("Accept-Encoding", "gzip, deflate");
+        connection.addRequestProperty("Connection", "Keep-alive");
+        connection.addRequestProperty("DNT", "1");
+        connection.addRequestProperty("Upgrade-Insecure-Requests", "1");
+        connection.addRequestProperty("Cookie", "PHPSESSID=" + phpSessId);
 
-            connection.connect();
+        connection.connect();
 
-            if (isNotAuthorized(connection.getResponseCode())) {
-                discardSession();
-                throw new LoginNeedsException(RELOGIN_IS_NEEDED);
+        if (isNotAuthorized(connection.getResponseCode())) {
+            discardSession();
+            throw new LoginNeedsException(LOGIN_NEEDS);
 
-            } else if (connection.getResponseCode() != HttpURLConnection.HTTP_OK)
-                throw new FileLoadingException("Server returned HTTP " + connection.getResponseCode()
-                        + " " + connection.getResponseMessage());
+        } else if (connection.getResponseCode() != HttpURLConnection.HTTP_OK)
+            throw new FileLoadingException("Server returned HTTP " + connection.getResponseCode()
+                    + " " + connection.getResponseMessage());
 
-            final String fileName = getFileNameFromConnection(connection);
+        final String fileName = getFileNameFromConnection(connection);
 
-            File newFile = Paths.get(fileDir.toAbsolutePath().toString(), fileName).toFile();
-            FileUtils.copyInputStreamToFile(new GZIPInputStream(connection.getInputStream()), newFile);
-            connection.disconnect();
-            return Paths.get(newFile.toURI());
-
-        } catch (ConnectException | SocketTimeoutException e) {
-            throw new LkNotRespondingException();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        throw new FileLoadingException("Unknown exception while file loading");
+        File newFile = Paths.get(fileDir.toAbsolutePath().toString(), fileName).toFile();
+        FileUtils.copyInputStreamToFile(new GZIPInputStream(connection.getInputStream()), newFile);
+        connection.disconnect();
+        return Paths.get(newFile.toURI());
     }
 
     private String getFileNameFromConnection(HttpURLConnection connection) {
@@ -222,7 +215,7 @@ public class LkClient {
         final int code = response.statusCode();
         if (isNotAuthorized(code)) {
             discardSession();
-            throw new LoginNeedsException(RELOGIN_IS_NEEDED);
+            throw new LoginNeedsException(LOGIN_NEEDS);
         }
         return response;
     }
