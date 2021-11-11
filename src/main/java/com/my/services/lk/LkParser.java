@@ -303,22 +303,26 @@ public class LkParser {
         }
     }
 
-    public static final String SEMESTER_ID = "semesterId";
-    public static final String GROUP_ID = "groupId";
-    public static final String CONTINGENT_ID = "contingentId";
-
-    public Map<String, String> getSubjectsGeneralLkIds (String semesterName) {
+    // Changes group
+    public boolean setSubjectsGeneralLkIds(Group group, String semesterName) {
         lkClient.keepAuth();
-        return getHtmlSubjectsUrls(semesterName).findFirst()
-                .map(htmlSubjectUrl -> htmlSubjectUrl.attr("href"))
-                .map(localUrl -> {
-                    String[] segments = localUrl.split("/");
-                    final HashMap<String, String> namedSegments = new HashMap<>();
-                    namedSegments.put(SEMESTER_ID, segments[3]);
-                    namedSegments.put(GROUP_ID, segments[5]);
-                    namedSegments.put(CONTINGENT_ID, segments[6]);
-                    return namedSegments;
-                }).orElse(new HashMap<>());
+
+        final Optional<String> localUrl = getHtmlSubjectsUrls(semesterName).findFirst()
+                .map(htmlSubjectUrl -> htmlSubjectUrl.attr("href"));
+
+        if (localUrl.isPresent()) {
+            String[] segments = localUrl.get().split("/");
+
+            String segment = segments[3];
+            if (segment != null) group.setLkSemesterId(segment);
+
+            segment = segments[5];
+            if (segment != null) group.setLkId(segment);
+
+            segment = segments[6];
+            if (segment != null) group.setLkContingentId(segment);
+        }
+        return localUrl.isPresent();
     }
 
     // Белая ли неделя

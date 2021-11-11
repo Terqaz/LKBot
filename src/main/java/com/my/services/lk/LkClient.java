@@ -32,7 +32,7 @@ public class LkClient {
 
     public LkClient() {}
 
-    // Гарантирует логин, даже если токен сессии прросрочен
+    // Гарантирует логин, даже если токен сессии просрочен
     public synchronized void login (AuthenticationData data) {
         if (!keepAuth())
             discardSession();
@@ -188,7 +188,7 @@ public class LkClient {
     public Document get(String url) {
         try {
             return executeRequest(getOriginSessionConnection(url)
-                    .method(Connection.Method.POST)).parse();
+                    .method(Connection.Method.GET)).parse();
         } catch (LkNotRespondingException e) {
             throw e;
 
@@ -226,14 +226,13 @@ public class LkClient {
     }
 
     private Response executeRequest(Connection connection) {
-        for (int triesCount = 10; triesCount > 0; triesCount--) {
+        connection.timeout(10000);
+        for (int triesCount = 4; triesCount > 0; triesCount--) {
             try {
                 return connection.execute();
             } catch (ConnectException | SocketTimeoutException ignored) {
-                continue;
             } catch (IOException e) {
                 e.printStackTrace();
-                continue;
             }
         }
         throw new LkNotRespondingException();

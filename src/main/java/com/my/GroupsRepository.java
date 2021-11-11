@@ -13,7 +13,6 @@ import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 
-import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import java.util.*;
@@ -37,12 +36,14 @@ public class GroupsRepository {
     public static final String SUBJECTS = "subjects";
     public static final String TIMETABLE = "timetable";
     public static final String LAST_CHECK_DATE = "lastCheckDate";
-    public static final String LK_SEMESTER_ID = "lkSemesterId";
     public static final String SCHEDULE_SENT = "scheduleSent";
     public static final String UPDATE_INTERVAL = "updateInterval";
     public static final String UPDATE_AUTH_DATA_NOTIFIED = "loggedUser.updateAuthDataNotified";
     private static final String MATERIALS_DOCUMENTS = "materialsDocuments";
     private static final String MESSAGES_DOCUMENTS = "messagesDocuments";
+    public static final String LK_ID = "lkId";
+    public static final String LK_SEMESTER_ID = "lkSemesterId";
+    public static final String LK_CONTINGENT_ID = "lkContingentId";
 
     private static GroupsRepository instance = null;
     public static GroupsRepository getInstance () {
@@ -114,8 +115,8 @@ public class GroupsRepository {
     }
 
     public void updateSubjects(@NotNull String groupName,
-                                   @NotEmpty List<Subject> subjects,
-                                   @NotNull Date lastCheckDate) {
+                               @NotEmpty List<Subject> subjects,
+                               @NotNull Date lastCheckDate) {
         updateBy(groupName, combine(
                 set(SUBJECTS, subjects),
                 set(LAST_CHECK_DATE, lastCheckDate)
@@ -128,11 +129,19 @@ public class GroupsRepository {
         ));
     }
 
+    public void updateLkIds(@NotNull String groupName, String lkId, String lkSemesterId, String lkContingentId) {
+        updateBy(groupName, combine(
+                set(LK_ID, lkId),
+                set(LK_SEMESTER_ID, lkSemesterId),
+                set(LK_CONTINGENT_ID, lkContingentId)
+        ));
+    }
+
     public void setNewSemesterData (@NotNull String groupName,
-                                    @NotEmpty List<Subject> subjects,
+                                    List<Subject> subjects,
                                     @NotNull Date lastCheckDate,
-                                    @NotNull Timetable timetable,
-                                    @NotBlank String lkSemesterId) {
+                                    Timetable timetable,
+                                    String lkSemesterId) {
         updateBy(groupName, combine(
                 set(SUBJECTS, subjects),
                 set(LAST_CHECK_DATE, lastCheckDate),
@@ -291,5 +300,9 @@ public class GroupsRepository {
                             eq("sd._id", documentId)))
             );
         }
+    }
+
+    public long updateGroup(@NotNull Group group) {
+        return groupsCollection.replaceOne(eq(NAME, group.getName()), group).getModifiedCount();
     }
 }

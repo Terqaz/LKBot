@@ -2,14 +2,11 @@ package com.my.services.vk;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonSyntaxException;
 import com.my.exceptions.FileLoadingException;
 import com.vk.api.sdk.client.ApiRequest;
 import com.vk.api.sdk.client.TransportClient;
 import com.vk.api.sdk.client.VkApiClient;
 import com.vk.api.sdk.client.actors.GroupActor;
-import com.vk.api.sdk.exceptions.ApiException;
-import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.docs.GetMessagesUploadServerType;
 import com.vk.api.sdk.objects.docs.responses.SaveResponse;
@@ -80,8 +77,7 @@ public class VkBotService {
     public <T> T executeRequest(ApiRequest<T> apiRequest) {
         try {
             return apiRequest.execute();
-        } catch (JsonSyntaxException ignore) {
-        } catch (ApiException | ClientException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
@@ -164,34 +160,31 @@ public class VkBotService {
     }
 
     public void sendMessageTo (@NotNull Integer userId, String message) {
-        executeRequest(
-                userSendMessageOrigin(userId, message));
+        if (!message.isBlank())
+            executeRequest(userSendMessageOrigin(userId, message));
     }
 
     public void sendMessageTo (@NotNull Integer userId, Keyboard keyboard, String message) {
-        executeRequest(
-                userSendMessageOrigin(userId, message)
+        executeRequest(userSendMessageOrigin(userId, message)
                         .keyboard(keyboard));
     }
 
     public String sendMessageTo(@NotNull Integer userId, File file, String message) {
         final var doc = saveDocument(userId, file).getDoc();
         final String docAttachment = "doc" + doc.getOwnerId() + "_" + doc.getId();
-        executeRequest(
-                userSendMessageOrigin(userId, message)
+        executeRequest(userSendMessageOrigin(userId, message)
                         .attachment(docAttachment));
 
         return docAttachment+"_"+doc.getAccessKey();
     }
 
     public void sendMessageTo(@NotNull Integer userId, String docAttachment, String message) {
-        executeRequest(
-                userSendMessageOrigin(userId, message)
+        executeRequest(userSendMessageOrigin(userId, message)
                         .attachment(docAttachment));
     }
 
     public void sendMessageTo (Collection<Integer> userIds, String message) {
-        if (userIds.isEmpty()) return;
+        if (userIds.isEmpty() || message.isBlank()) return;
 
         final var query = vk.messages().send(groupActor)
                 .message(message)
@@ -224,25 +217,6 @@ public class VkBotService {
                 sendMessageTo(userIds, message.substring(i, i+4000));
 
         sendMessageTo(userIds, message.substring(i));
-    }
-
-    public void deleteLastMessage (Message message) {
-        var query = vk.messages().delete(groupActor)
-                .deleteForAll(true)
-                .messageIds(message.getId())
-                //.messageIds(message.getId())
-                .unsafeParam("peer_id", message.getPeerId());
-//                .unsafeParam("conversation_message_ids", message.getConversationMessageId());
-        executeRequest(query);
-
-//        query = vk.messages().delete(groupActor)
-//                .deleteForAll(true)
-//                //.messageIds(message.getId())
-//                .unsafeParam("peer_id", 2000000000+message.getPeerId())
-//                .unsafeParam("conversation_message_ids", message.getConversationMessageId());
-//        executeRequest(query);
-
-        final var response = executeRequest(vk.messages().getConversations(groupActor));
     }
 
     public String getUserName(Integer userId) {
@@ -282,5 +256,24 @@ public class VkBotService {
                         .type(GetMessagesUploadServerType.DOC)
                         .peerId(userId));
         return response.getUploadUrl();
+    }
+
+    public void deleteLastMessage (Message message) {
+        var query = vk.messages().delete(groupActor)
+                .deleteForAll(true)
+                .messageIds(message.getId())
+                //.messageIds(message.getId())
+                .unsafeParam("peer_id", message.getPeerId());
+//                .unsafeParam("conversation_message_ids", message.getConversationMessageId());
+        executeRequest(query);
+
+//        query = vk.messages().delete(groupActor)
+//                .deleteForAll(true)
+//                //.messageIds(message.getId())
+//                .unsafeParam("peer_id", 2000000000+message.getPeerId())
+//                .unsafeParam("conversation_message_ids", message.getConversationMessageId());
+//        executeRequest(query);
+
+        final var response = executeRequest(vk.messages().getConversations(groupActor));
     }
 }

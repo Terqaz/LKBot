@@ -13,7 +13,10 @@ import org.junit.jupiter.api.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -63,21 +66,17 @@ class LkParserTest {
     @Test
     @Disabled ("Пройден")
     void getSubjectsGeneralLkIds_IsCorrect () {
-        final Map<String, String> ids = lkParser.getSubjectsGeneralLkIds(testSemester);
-        assertEquals("5:94052862", ids.get(LkParser.SEMESTER_ID));
-        assertEquals("5:94564750", ids.get(LkParser.GROUP_ID));
-        assertEquals("5:95319097", ids.get(LkParser.CONTINGENT_ID));
+        lkParser.setSubjectsGeneralLkIds(testGroup, testSemester);
+        assertEquals("5:94052862", testGroup.getLkSemesterId());
+        assertEquals("5:94564750", testGroup.getLkId());
+        assertEquals("5:95319097", testGroup.getLkContingentId());
     }
 
     @Test
 //    @Disabled ("Пройден")
     void parseTimetable_IsCorrect () {
-        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester2);
-        testGroup.setLkIds(
-                lkIds.get(LkParser.SEMESTER_ID),
-                lkIds.get(LkParser.GROUP_ID),
-                lkIds.get(LkParser.CONTINGENT_ID)
-        );
+        lkParser.setSubjectsGeneralLkIds(testGroup, testSemester2);
+
         // Семестр, в котором не поменяют расписание
         final Timetable timetable = lkParser.parseTimetable(testGroup.getLkSemesterId(), testGroup.getLkId());
         log.info("timetable loaded");
@@ -166,12 +165,8 @@ class LkParserTest {
                 .anyMatch(subjectData -> !subjectData.getMessagesData().isEmpty()));
 
         // Получаем новые данные
-        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
-        testGroup.setLkIds(
-                lkIds.get(LkParser.SEMESTER_ID),
-                lkIds.get(LkParser.GROUP_ID),
-                lkIds.get(LkParser.CONTINGENT_ID)
-        );
+        lkParser.setSubjectsGeneralLkIds(testGroup, testSemester);
+
         testGroup.setLastCheckDate(new Date());
 
         final List<Subject> newSubjects = lkParser.getNewSubjects(firstSubjects, testGroup);
@@ -255,7 +250,7 @@ class LkParserTest {
     @Test
     @Disabled ("Пройден")
     void weekType () {
-        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(testSemester);
-        assertTrue(lkParser.parseWeekType(lkIds.get(LkParser.SEMESTER_ID)));
+        lkParser.setSubjectsGeneralLkIds(testGroup, testSemester);
+        assertTrue(lkParser.parseWeekType(testGroup.getLkSemesterId()));
     }
 }

@@ -6,17 +6,17 @@ import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.models.Group;
-import com.my.models.GroupUser;
 import com.my.models.Timetable;
 import com.my.services.Answer;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
+import lombok.extern.log4j.Log4j2;
 
 import java.util.GregorianCalendar;
-import java.util.stream.Collectors;
 
 import static java.util.Calendar.*;
 
+@Log4j2
 public class PlannedScheduleSending extends Thread {
 
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
@@ -31,6 +31,8 @@ public class PlannedScheduleSending extends Thread {
     public void run() {
         while (true) {
             try {
+                vkBot.setOnline(true); // Чтобы соединение с вк не отрубалось ночью
+
                 GregorianCalendar calendar = new GregorianCalendar();
                 int second = calendar.get(SECOND);
                 int minute = calendar.get(MINUTE);
@@ -57,15 +59,17 @@ public class PlannedScheduleSending extends Thread {
 
                 } else {
                     Bot.setWeekTypeUpdated(false);
-                    Bot.getGroupByGroupName().values().forEach(group -> group.setScheduleSent(false));
-                    groupsRepository.updateEachField(GroupsRepository.SCHEDULE_SENT, false);
+                    if (Bot.getGroupByGroupName().values().stream().anyMatch(Group::isScheduleSent)) {
+                        Bot.getGroupByGroupName().values().forEach(group -> group.setScheduleSent(false));
+                        groupsRepository.updateEachField(GroupsRepository.SCHEDULE_SENT, false);
+                    }
                     Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
                 }
 
             } catch (InterruptedException e) {
                 break;
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error("Ошибка c отправкой расписания у всех: ", e);
             }
         }
     }
@@ -73,6 +77,9 @@ public class PlannedScheduleSending extends Thread {
     private void sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
         try {
             Bot.login(group);
+            if (group.getLkId() == null || group.getLkSemesterId() == null || group.getLkContingentId() == null)
+                Bot.loadLkIdsIfNeeds(group);
+
             final Timetable timetable = group.getLkParser()
                     .parseTimetable(group.getLkSemesterId(), group.getLkId());
 
@@ -85,17 +92,18 @@ public class PlannedScheduleSending extends Thread {
             e.printStackTrace();
         }
 
-        final String dayScheduleReport = Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
-        if (!dayScheduleReport.isEmpty()) {
-            vkBot.sendMessageTo(
-                    group.getUsers().stream()
-                            .filter(GroupUser::isEverydayScheduleEnabled)
-                            .map(GroupUser::getId)
-                            .collect(Collectors.toList()),
-                    Answer.getTomorrowSchedule(dayScheduleReport));
+        try {
+            final String dayScheduleReport = Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
+            if (!dayScheduleReport.isEmpty()) {
+                vkBot.sendMessageTo(
+                        group.getSchedulingEnabledUsers(),
+                        Answer.getTomorrowSchedule(dayScheduleReport));
 
-            group.setScheduleSent(true);
-            groupsRepository.updateField(group.getName(), GroupsRepository.SCHEDULE_SENT, true);
+                group.setScheduleSent(true);
+                groupsRepository.updateField(group.getName(), GroupsRepository.SCHEDULE_SENT, true);
+            }
+        } catch (Exception e) {
+            log.error("Ошибка c отправкой расписания у группы: " + group.getName(), e);
         }
     }
 

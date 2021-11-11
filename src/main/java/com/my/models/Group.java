@@ -5,9 +5,6 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,9 +36,6 @@ public class Group {
 
     @BsonIgnore
     private LkParser lkParser;
-
-    @BsonIgnore
-    private boolean isUpdating = false;
 
     @BsonIgnore
     public boolean hasLeader() {
@@ -125,11 +119,9 @@ public class Group {
     }
 
     @BsonIgnore
-    public void setNewSemesterData(@NotEmpty List<Subject> subjects,
-                                   @NotNull Timetable timetable,
-                                   @NotBlank String lkSemesterId) {
+    public void setNewSemesterData(List<Subject> subjects, Date checkDate, Timetable timetable) {
         this.subjects = subjects;
+        this.lastCheckDate = checkDate;
         this.timetable = timetable;
-        this.lkSemesterId = lkSemesterId;
     }
 }

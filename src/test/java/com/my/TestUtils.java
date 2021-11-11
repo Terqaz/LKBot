@@ -1,8 +1,10 @@
 package com.my;
 
+import com.google.gson.Gson;
 import com.my.models.LkDocument;
 import com.my.models.LkMessage;
 import com.my.models.Subject;
+import org.junit.jupiter.api.Assertions;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -81,5 +83,11 @@ public class TestUtils {
 
     public static <T> int listsSizeCount(List<List<T>> lists) {
         return lists.stream().map(List::size).reduce(Integer::sum).orElse(0);
+    }
+
+    public static final  Gson gson = new Gson();
+
+    public static void assertDeepObjectEquals(Object o1, Object o2) {
+        Assertions.assertEquals(gson.toJson(o1), gson.toJson(o2));
     }
 }

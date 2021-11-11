@@ -60,7 +60,6 @@ public class Bot {
 
         plannedSubjectsUpdate = new PlannedSubjectsUpdate();
         plannedScheduleSending = new PlannedScheduleSending();
-        vkBot.setOnline(true);
         vkBot.sendMessageTo(APP_ADMIN_ID1,
                 "APP STARTED.\nTO STOP TYPE: "+ APPLICATION_STOP_TEXT);
 
@@ -123,11 +122,6 @@ public class Bot {
             } catch (AuthenticationException e) {
                 loginFailedMessages(userId, groupByGroupName.get(groupNameByUserId.get(userId)));
 
-//            } catch (LoginNeedsException e) { // Не должен вызываться по идее
-//                e.printStackTrace();
-//                login(groupByGroupName.get(groupNameByUserId.get(userId)));
-//                replyToMessage(userId, messageText);
-
             } catch (LkNotRespondingException e) {
                 vkBot.sendMessageTo(userId, Answer.LK_NOT_RESPONDING);
 
@@ -185,10 +179,14 @@ public class Bot {
 //        else if (command.is(Command.GET_SUBJECT))
 //            getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
 
-        else if (command.is(Command.GET_SUBJECTS))
-            vkBot.sendMessageTo(userId, Answer.getSubjectsNames(group.getSubjects()));
+        else if (command.is(Command.GET_SUBJECTS)) {
+            final List<Subject> subjects = group.getSubjects();
+            if (subjects == null || subjects.isEmpty())
+                vkBot.sendLongMessageTo(userId, Answer.WAIT_WHEN_SUBJECTS_LOADED);
+            else
+                vkBot.sendMessageTo(userId, Answer.getSubjectsNames(subjects));
 
-        else if (command.is(Command.COMMANDS))
+        } else if (command.is(Command.COMMANDS))
             vkBot.sendMessageTo(userId,
                 KeyboardService.getCommands(userId, group),
                 Answer.getUserCommands(userId, group));
@@ -208,6 +206,10 @@ public class Bot {
     }
 
     private static void getSubjectDocuments(Integer userId, Command command, Group group) {
+        final List<Subject> subjects = group.getSubjects();
+        if (subjects == null || subjects.isEmpty())
+            vkBot.sendMessageTo(userId, loadSubjectsFirstTimeIfNeeds(group, userId));
+
         final var subjectId = command.parseNumbers().get(0);
         group.getSubjectById(subjectId)
                 .ifPresentOrElse(
@@ -216,6 +218,8 @@ public class Bot {
     }
 
     private static void getSubjectDocument(Integer userId, Command command, Group group) {
+        vkBot.sendMessageTo(userId, loadSubjectsFirstTimeIfNeeds(group, userId));
+
         final List<Integer> integers = command.parseNumbers();
         final var subjectId = integers.get(0);
         final var documentId = integers.get(1);
@@ -283,7 +287,6 @@ public class Bot {
         if (TextUtils.isUnacceptableFileExtension(strFilePath)) {
             final Path newPath = Paths.get(strFilePath + 1);
             try {
-//                Files.move(path, newPath);
                 FileUtils.moveFile(path.toFile(), newPath.toFile());
             } catch (IOException e) {
                 e.printStackTrace();
@@ -472,6 +475,8 @@ public class Bot {
     }
 
 //    private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
+//        vkBot.sendMessageTo(userId, loadSubjectsFirstTimeIfNeeds(group, group.getSubjects(), userId));
+
 //        final var optionalSubject = group.getSubjects().stream()
 //                .filter(subject1 -> subject1.getId() == subjectIndex)
 //                .findFirst();
@@ -601,6 +606,7 @@ public class Bot {
         }
 
         List<Subject> newSubjects = lkParser.getSubjectsFirstTime(actualSemester);
+
         final var newGroup = new Group(groupName)
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
                 .setSubjects(newSubjects)
@@ -608,17 +614,14 @@ public class Bot {
         newGroup.getUsers().add(new GroupUser(userId));
         newGroup.setLkParser(lkParser);
 
-        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(actualSemester);
-        newGroup.setLkIds(
-                lkIds.get(LkParser.SEMESTER_ID),
-                lkIds.get(LkParser.GROUP_ID),
-                lkIds.get(LkParser.CONTINGENT_ID)
-        );
+        lkParser.setSubjectsGeneralLkIds(newGroup, actualSemester);
 
         newUserSubjectsListMessage(userId, newGroup);
 
-        vkBot.sendLongMessageTo(userId, "Результат последнего обновления: \n" +
-                Answer.getSubjects(newSubjects));
+        if (!newSubjects.isEmpty())
+            vkBot.sendLongMessageTo(userId, Answer.getSubjectsFirstTime(newSubjects));
+        else
+            vkBot.sendLongMessageTo(userId, Answer.I_CANT_GOT_SUBJECTS);
 
         newGroup.setTimetable(lkParser.parseTimetable(newGroup.getLkSemesterId(), newGroup.getLkId()));
 
@@ -641,6 +644,32 @@ public class Bot {
         groupsRepository.removeUserFromGroup(groupName, userId);
         groupNameByUserId.remove(userId);
         group.removeUserFromGroup(userId);
+    }
+
+    public static synchronized void loadLkIdsIfNeeds(Group group) {
+        group.getLkParser().setSubjectsGeneralLkIds(group, Bot.getActualSemester());
+        groupsRepository.updateLkIds(group.getName(),
+                group.getLkId(), group.getLkSemesterId(), group.getLkContingentId());
+    }
+
+    public static String loadSubjectsFirstTimeIfNeeds(Group group) {
+        return loadSubjectsFirstTimeIfNeeds(group, null);
+    }
+
+    public static synchronized String loadSubjectsFirstTimeIfNeeds(Group group, Integer userId) {
+        if (userId != null)
+            vkBot.sendMessageTo(userId, Answer.TRY_LOAD_SUBJECTS);
+
+        List<Subject> newSubjects = group.getLkParser().getSubjectsFirstTime(Bot.getActualSemester());
+
+        if (newSubjects.isEmpty() && userId != null) {
+            vkBot.sendMessageTo(userId, Answer.TRY_LOAD_SUBJECTS_FAILED);
+            return "";
+        }
+
+        groupsRepository.updateSubjects(group.getName(), newSubjects, new Date());
+        group.setSubjects(newSubjects);
+        return Answer.getSubjectsSuccessful(newSubjects);
     }
 
     @Getter @Setter

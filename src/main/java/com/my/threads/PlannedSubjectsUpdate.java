@@ -14,6 +14,7 @@ import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
+import lombok.extern.log4j.Log4j2;
 
 import javax.crypto.NoSuchPaddingException;
 import java.security.NoSuchAlgorithmException;
@@ -21,6 +22,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Log4j2
 public class PlannedSubjectsUpdate extends Thread {
 
     private static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
@@ -38,6 +40,10 @@ public class PlannedSubjectsUpdate extends Thread {
         while (true) {
             try {
                 updateSubjects(Utils.getSemesterName());
+                sleep(50);
+
+            } catch (InterruptedException e) {
+                break;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -46,26 +52,30 @@ public class PlannedSubjectsUpdate extends Thread {
 
     private void updateSubjects(String newSemester) {
         Bot.getGroupByGroupName().values().stream()
-                .filter(group -> !group.isUpdating())
+                .filter(group -> group.getLoggedUser() != null)
                 .forEach(group -> {
-                    group.setUpdating(true);
                     final GregorianCalendar calendar = new GregorianCalendar();
                     if (isNotUpdateTime(group, calendar))
                         return;
 
                     try {
                         updateGroupSubjects(newSemester, group);
+
                     } catch (AuthenticationException e) {
                         Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
+
                     } catch (LkNotRespondingException e) {
                         group.setLastCheckDate(new Date());
 
                     } catch (Exception e) {
-                        e.printStackTrace();
-                    } finally {
-                        group.setUpdating(false);
+                        log.error("Ошибка c обновлением предметов у группы: " + group.getName(), e);
                     }
         });
+    }
+
+    private boolean isNotUpdateTime (Group group, GregorianCalendar calendar) {
+        return Utils.isSilentTime(group.getSilentModeStart(), group.getSilentModeEnd(),
+                calendar.get(Calendar.HOUR_OF_DAY));
     }
 
     private void updateGroupSubjects(String newSemester, Group group) {
@@ -80,14 +90,18 @@ public class PlannedSubjectsUpdate extends Thread {
             vkBot.sendLongMessageTo(group.getUserIds(), report);
     }
 
-    private boolean isNotUpdateTime (Group group, GregorianCalendar calendar) {
-        return Utils.isSilentTime(group.getSilentModeStart(), group.getSilentModeEnd(),
-                calendar.get(Calendar.HOUR_OF_DAY));
-    }
-
     private String sameSemesterUpdate(Group group) {
+        if (group.getLkId() == null || group.getLkSemesterId() == null || group.getLkContingentId() == null) {
+            Bot.loadLkIdsIfNeeds(group);
+        }
+
         final List<Subject> oldSubjects = group.getSubjects();
+
+        final String report = Bot.loadSubjectsFirstTimeIfNeeds(group);
+        if (!report.isBlank()) return report;
+
         List<Subject> newSubjects = group.getLkParser().getNewSubjects(oldSubjects, group);
+        final var checkDate = new Date();
 
         Map<Integer, Subject> newSubjectsById = newSubjects.stream()
                 .collect(Collectors.toMap(Subject::getId, subject -> subject));
@@ -107,8 +121,6 @@ public class PlannedSubjectsUpdate extends Thread {
                     return newSubject;
 
                 }).collect(Collectors.toList());
-
-        final var checkDate = new Date();
 
         final List<Subject> cleanedSubjects = Utils.removeOldDocuments(oldSubjects, newSubjects);
 
@@ -131,19 +143,18 @@ public class PlannedSubjectsUpdate extends Thread {
 
         final LkParser lkParser = group.getLkParser();
         final List<Subject> newSubjects = lkParser.getSubjectsFirstTime(newSemester);
-
         final var checkDate = new Date();
-        group.setLastCheckDate(checkDate);
+
         final String report = Answer.getSubjects(newSubjects);
 
-        final Map<String, String> lkIds = lkParser.getSubjectsGeneralLkIds(newSemester);
-        final var newLkSemesterId = lkIds.get(LkParser.SEMESTER_ID);
+        lkParser.setSubjectsGeneralLkIds(group, newSemester);
+        final var newLkSemesterId = group.getLkSemesterId();
 
         Timetable timetable = lkParser.parseTimetable(newLkSemesterId, group.getLkId());
 
         groupsRepository.setNewSemesterData(group.getName(),
                 newSubjects, checkDate, timetable, newLkSemesterId);
-        group.setNewSemesterData(newSubjects, timetable, newLkSemesterId);
+        group.setNewSemesterData(newSubjects, checkDate, timetable);
 
         return report;
     }

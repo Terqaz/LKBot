@@ -2,11 +2,16 @@ package com.my;
 
 import com.mongodb.client.FindIterable;
 import com.my.models.*;
+import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -14,6 +19,7 @@ import static com.mongodb.client.model.Filters.eq;
 import static org.junit.jupiter.api.Assertions.*;
 
 // MONGO_STRING=mongodb://localhost:27017/lk-bot?retryWrites=true&w=majority
+@Log4j2
 class GroupsRepositoryTest {
 
     static final GroupsRepository repository = GroupsRepository.getInstance();
@@ -193,27 +199,22 @@ class GroupsRepositoryTest {
         assertEquals("attachment2", group2.getSubjectById(2).get().getMaterialsDocumentById(2).getVkAttachment());
     }
 
-//    @Test
-//    void removeDocument_isCorrect() {
-//        testGroup.setSubjects(TestUtils.createSubjects1());
-//
-//        repository.insert(testGroup);
-//
-//        repository.removeDocument(testGroupName, 1, 1, true);
-//        final Group group2 = repository.findByGroupName(testGroupName).get();
-//        final LkDocument msgDoc = assertDoesNotThrow(() -> group2.getSubjectById(1).get().getMessageDocumentById(1));
-//        assertNotNull(msgDoc);
-//
-//        repository.removeDocument(testGroupName, 1, 1, false);
-//        repository.removeDocument(testGroupName, 2, 2, true);
-//        final Group group3 = repository.findByGroupName(testGroupName).get();
-//        assertThrows(Exception.class, () -> group3.getSubjectById(1).get().getMessageDocumentById(1));
-//
-//        final Subject subject2 = group3.getSubjectById(2).get();
-//        final List<LkDocument> subject2MatDocs = new ArrayList<>(subject2.getMaterialsDocuments());
-//        assertEquals(1, subject2MatDocs.size());
-//        assertEquals(1, subject2MatDocs.get(0).getId());
-//    }
+    @Test
+    @Disabled("Пройден")
+    void updateLkIds_isCorrect() {
+        testGroup.setLkId("lkid");
+        testGroup.setLkSemesterId("semesterid");
+        testGroup.setLkContingentId("lkcontingentid");
+
+        repository.updateLkIds(testGroupName,
+                testGroup.getLkId(), testGroup.getLkSemesterId(), testGroup.getLkContingentId());
+        repository.insert(testGroup);
+
+        final Group group2 = repository.findByGroupName(testGroupName).get();
+        assertEquals("lkid", group2.getLkId());
+        assertEquals("semesterid", group2.getLkSemesterId());
+        assertEquals("lkcontingentid", group2.getLkContingentId());
+    }
 
 //    @Test
 //    void temp_updateGroups() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
@@ -309,11 +310,4 @@ class GroupsRepositoryTest {
 //                Integer.parseInt(user.toString())
 //        ).collect(Collectors.toSet());
 //    }
-
-    @Test
-    void temp_updateGroupDate() {
-        repository.findAll().forEach(group -> {
-            repository.updateField(group.getName(), "lastCheckDate", new Date());
-        });
-    }
 }

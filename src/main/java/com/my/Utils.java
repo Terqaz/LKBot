@@ -20,6 +20,8 @@ public final class Utils {
 
     public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
                                                     List<Subject> newSubjects) {
+        if (oldSubjects.isEmpty())
+            return newSubjects;
 
         final Iterator<Subject> oldSubjectsIterator = oldSubjects.stream()
                 .sorted(Comparator.comparing(Subject::getId)).iterator();
