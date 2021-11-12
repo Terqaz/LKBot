@@ -4,6 +4,7 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
+import java.util.Date;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -23,11 +24,11 @@ public class Subject {
     Set<LkDocument> materialsDocuments;
     @NonNull
     Set<LkDocument> messagesDocuments;
-
     // Используется только при передаче новых сообщений из ЛК
-    @NonNull
-    @BsonIgnore
+    @BsonIgnore @NonNull
     private List<LkMessage> messagesData;
+    @NonNull
+    Date lastMessageDate;
 
     @BsonIgnore
     public boolean isNotEmpty () {

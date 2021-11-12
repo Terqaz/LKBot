@@ -156,4 +156,8 @@ public final class Utils {
     public static int getNextWeekDayIndex(GregorianCalendar calendar) {
         return calendar.get(Calendar.DAY_OF_WEEK) - 1;
     }
+
+    public static <T> boolean isNullOrEmptyCollection(Collection<T> collection) {
+        return collection == null || collection.isEmpty();
+    }
 }

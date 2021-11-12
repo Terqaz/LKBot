@@ -78,7 +78,7 @@ public class PlannedScheduleSending extends Thread {
         try {
             Bot.login(group);
             if (group.getLkId() == null || group.getLkSemesterId() == null || group.getLkContingentId() == null)
-                Bot.loadLkIdsIfNeeds(group);
+                return; // Загрузятся во время обновления
 
             final Timetable timetable = group.getLkParser()
                     .parseTimetable(group.getLkSemesterId(), group.getLkId());

@@ -35,7 +35,7 @@ public class GroupsRepository {
     public static final String LOGGED_USER = "loggedUser";
     public static final String SUBJECTS = "subjects";
     public static final String TIMETABLE = "timetable";
-    public static final String LAST_CHECK_DATE = "lastCheckDate";
+//    public static final String LAST_CHECK_DATE = "lastCheckDate";
     public static final String SCHEDULE_SENT = "scheduleSent";
     public static final String UPDATE_INTERVAL = "updateInterval";
     public static final String UPDATE_AUTH_DATA_NOTIFIED = "loggedUser.updateAuthDataNotified";
@@ -115,17 +115,9 @@ public class GroupsRepository {
     }
 
     public void updateSubjects(@NotNull String groupName,
-                               @NotEmpty List<Subject> subjects,
-                               @NotNull Date lastCheckDate) {
+                               @NotEmpty List<Subject> subjects) {
         updateBy(groupName, combine(
-                set(SUBJECTS, subjects),
-                set(LAST_CHECK_DATE, lastCheckDate)
-        ));
-    }
-
-    public void updateLastCheckDate(@NotNull String groupName, @NotNull Date lastCheckDate) {
-        updateBy(groupName, combine(
-                set(LAST_CHECK_DATE, lastCheckDate)
+                set(SUBJECTS, subjects)
         ));
     }
 
@@ -137,16 +129,15 @@ public class GroupsRepository {
         ));
     }
 
-    public void setNewSemesterData (@NotNull String groupName,
-                                    List<Subject> subjects,
-                                    @NotNull Date lastCheckDate,
-                                    Timetable timetable,
-                                    String lkSemesterId) {
+    public void setNewSemesterData(@NotNull String groupName,
+                                   List<Subject> subjects,
+                                   Timetable timetable,
+                                   String lkSemesterId, String lkContingentId) {
         updateBy(groupName, combine(
                 set(SUBJECTS, subjects),
-                set(LAST_CHECK_DATE, lastCheckDate),
                 set(TIMETABLE, timetable),
-                set(LK_SEMESTER_ID, lkSemesterId)
+                set(LK_SEMESTER_ID, lkSemesterId),
+                set(LK_CONTINGENT_ID, lkContingentId)
         ));
     }
 
@@ -171,7 +162,6 @@ public class GroupsRepository {
                        pull(USERS_TO_VERIFY, eq(_ID, userId)),
                        pull(LOGIN_WAITING_USERS, userId));
     }
-
 
 //    public void removeDocument(String groupName, Integer subjectId, Integer documentId, boolean isFromMaterials) {
 //        final List<Bson> filter = new ArrayList<>();

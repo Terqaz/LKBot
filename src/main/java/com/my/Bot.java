@@ -181,7 +181,7 @@ public class Bot {
 
         else if (command.is(Command.GET_SUBJECTS)) {
             final List<Subject> subjects = group.getSubjects();
-            if (subjects == null || subjects.isEmpty())
+            if (Utils.isNullOrEmptyCollection(subjects))
                 vkBot.sendLongMessageTo(userId, Answer.WAIT_WHEN_SUBJECTS_LOADED);
             else
                 vkBot.sendMessageTo(userId, Answer.getSubjectsNames(subjects));
@@ -207,8 +207,10 @@ public class Bot {
 
     private static void getSubjectDocuments(Integer userId, Command command, Group group) {
         final List<Subject> subjects = group.getSubjects();
-        if (subjects == null || subjects.isEmpty())
-            vkBot.sendMessageTo(userId, loadSubjectsFirstTimeIfNeeds(group, userId));
+        if (Utils.isNullOrEmptyCollection(subjects)) {
+            vkBot.sendLongMessageTo(userId, Answer.WAIT_WHEN_SUBJECTS_LOADED);
+            return;
+        }
 
         final var subjectId = command.parseNumbers().get(0);
         group.getSubjectById(subjectId)
@@ -218,7 +220,10 @@ public class Bot {
     }
 
     private static void getSubjectDocument(Integer userId, Command command, Group group) {
-        vkBot.sendMessageTo(userId, loadSubjectsFirstTimeIfNeeds(group, userId));
+        if (Utils.isNullOrEmptyCollection(group.getSubjects())) {
+            vkBot.sendLongMessageTo(userId, Answer.WAIT_WHEN_SUBJECTS_LOADED);
+            return;
+        }
 
         final List<Integer> integers = command.parseNumbers();
         final var subjectId = integers.get(0);
@@ -609,8 +614,7 @@ public class Bot {
 
         final var newGroup = new Group(groupName)
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
-                .setSubjects(newSubjects)
-                .setLastCheckDate(new Date());
+                .setSubjects(newSubjects);
         newGroup.getUsers().add(new GroupUser(userId));
         newGroup.setLkParser(lkParser);
 
@@ -644,32 +648,6 @@ public class Bot {
         groupsRepository.removeUserFromGroup(groupName, userId);
         groupNameByUserId.remove(userId);
         group.removeUserFromGroup(userId);
-    }
-
-    public static synchronized void loadLkIdsIfNeeds(Group group) {
-        group.getLkParser().setSubjectsGeneralLkIds(group, Bot.getActualSemester());
-        groupsRepository.updateLkIds(group.getName(),
-                group.getLkId(), group.getLkSemesterId(), group.getLkContingentId());
-    }
-
-    public static String loadSubjectsFirstTimeIfNeeds(Group group) {
-        return loadSubjectsFirstTimeIfNeeds(group, null);
-    }
-
-    public static synchronized String loadSubjectsFirstTimeIfNeeds(Group group, Integer userId) {
-        if (userId != null)
-            vkBot.sendMessageTo(userId, Answer.TRY_LOAD_SUBJECTS);
-
-        List<Subject> newSubjects = group.getLkParser().getSubjectsFirstTime(Bot.getActualSemester());
-
-        if (newSubjects.isEmpty() && userId != null) {
-            vkBot.sendMessageTo(userId, Answer.TRY_LOAD_SUBJECTS_FAILED);
-            return "";
-        }
-
-        groupsRepository.updateSubjects(group.getName(), newSubjects, new Date());
-        group.setSubjects(newSubjects);
-        return Answer.getSubjectsSuccessful(newSubjects);
     }
 
     @Getter @Setter

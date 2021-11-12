@@ -21,7 +21,7 @@ public class Group {
     private String lkSemesterId;
     private String lkContingentId;
     private List<Subject> subjects = new ArrayList<>();
-    private Date lastCheckDate;
+//    private Date lastCheckDate;
 
     private LoggedUser loggedUser;
     private Set<GroupUser> users = new HashSet<>();
@@ -119,9 +119,8 @@ public class Group {
     }
 
     @BsonIgnore
-    public void setNewSemesterData(List<Subject> subjects, Date checkDate, Timetable timetable) {
+    public void setNewSemesterData(List<Subject> subjects, Timetable timetable) {
         this.subjects = subjects;
-        this.lastCheckDate = checkDate;
         this.timetable = timetable;
     }
 }

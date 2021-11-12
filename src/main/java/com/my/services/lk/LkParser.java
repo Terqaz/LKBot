@@ -86,7 +86,7 @@ public class LkParser {
         return getNewSubject(TextUtils.capitalize(htmlSubjectUrl.text().strip()), localUrl, lastCheckDate);
     }
 
-    private Subject getNewSubject(String subjectName, String subjectLocalUrl, Date lastCheckDate) {
+    private Subject getNewSubject(String subjectName, String subjectLocalUrl, Date fromDate) {
 
         final Document subjectPage = lkClient.loggedGet(LkUrlBuilder.buildByLocalUrl(subjectLocalUrl));
 
@@ -95,12 +95,14 @@ public class LkParser {
         final String subjectId = pathSegments[4];
         final String groupId = pathSegments[5];
 
-        final List<LkMessage> messagesAfterDate = loadMessagesAfterDate(semesterId, subjectId, groupId, lastCheckDate);
+        final List<LkMessage> messagesAfterDate = loadMessagesAfterDate(semesterId, subjectId, groupId, fromDate);
+        final Date newFromDate = !messagesAfterDate.isEmpty() ?
+                messagesAfterDate.get(0).getDate() : new Date();
 
         return new Subject(subjectId, subjectName,
                 parseLkDocumentsFromMaterials(subjectPage),
                 getMessagesDocuments(messagesAfterDate),
-                messagesAfterDate);
+                messagesAfterDate, newFromDate);
     }
 
     private Set<LkDocument> getMessagesDocuments(List<LkMessage> messagesAfterDate) {
@@ -126,12 +128,15 @@ public class LkParser {
         lkClient.keepAuth();
 
         final var messagesAfterDate = loadMessagesAfterDate(
-                group.getLkSemesterId(), subject.getLkId(), group.getLkId(), group.getLastCheckDate());
+                group.getLkSemesterId(), subject.getLkId(), group.getLkId(), subject.getLastMessageDate());
+
+        final Date newFromDate = !messagesAfterDate.isEmpty() ?
+                messagesAfterDate.get(0).getDate() : new Date();
 
         return new Subject(subject.getLkId(), subject.getName(),
                 parseLkDocumentsFromMaterials(subjectPage),
                 getMessagesDocuments(messagesAfterDate),
-                messagesAfterDate);
+                messagesAfterDate, newFromDate);
     }
 
     private Set<LkDocument> parseLkDocumentsFromMaterials(Document subjectPage) {
@@ -141,7 +146,7 @@ public class LkParser {
     }
 
     private List<LkMessage> loadMessagesAfterDate (String semesterId, String subjectId,
-                                                   String groupId, Date lastCheckDate) {
+                                                   String groupId, Date fromDate) {
         final List<LkMessage> lkMessageList = new ArrayList<>();
 
         Document pageWithMessages;
@@ -151,7 +156,7 @@ public class LkParser {
             pageWithMessages = lkClient.loggedPost(
                     LkUrlBuilder.buildNextMessagesUrl(semesterId, subjectId, groupId, lastMessageDate));
 
-            messagesChunk = parseMessages(pageWithMessages, lastCheckDate);
+            messagesChunk = parseMessages(pageWithMessages, fromDate);
             if (messagesChunk.isEmpty())
                 break;
             lkMessageList.addAll(messagesChunk);
@@ -162,7 +167,7 @@ public class LkParser {
         return lkMessageList;
     }
 
-    private List<LkMessage> parseMessages(Document pageWithMessages, Date lastCheckDate) {
+    private List<LkMessage> parseMessages(Document pageWithMessages, Date fromDate) {
         final Elements htmlMessages = pageWithMessages.getElementsByClass("comment__block");
         final List<LkMessage> lkMessageList = new ArrayList<>();
         String comment;
@@ -170,15 +175,15 @@ public class LkParser {
         LkDocument lkDocument;
 
         for (var htmlMessage : htmlMessages) {
-            final var date = parseMessageDate(htmlMessage);
-            if (!date.after(lastCheckDate))
+            final var messageDate = parseMessageDate(htmlMessage);
+            if (!messageDate.after(fromDate))
                 break;
             comment = parseMessageComment(htmlMessage);
             sender = TextUtils.makeShortSenderName(parseMessageSender(htmlMessage));
             lkDocument = parseMessageDocument(htmlMessage);
             if (lkDocument != null)
                 lkDocument.setSender(sender);
-            lkMessageList.add(new LkMessage(comment, sender, date, lkDocument));
+            lkMessageList.add(new LkMessage(comment, sender, messageDate, lkDocument));
         }
         return lkMessageList;
     }

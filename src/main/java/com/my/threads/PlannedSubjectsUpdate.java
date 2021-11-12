@@ -64,9 +64,7 @@ public class PlannedSubjectsUpdate extends Thread {
                     } catch (AuthenticationException e) {
                         Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
 
-                    } catch (LkNotRespondingException e) {
-                        group.setLastCheckDate(new Date());
-
+                    } catch (LkNotRespondingException ignored) {
                     } catch (Exception e) {
                         log.error("Ошибка c обновлением предметов у группы: " + group.getName(), e);
                     }
@@ -91,18 +89,12 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private String sameSemesterUpdate(Group group) {
-        if (group.getLkId() == null || group.getLkSemesterId() == null || group.getLkContingentId() == null) {
-            Bot.loadLkIdsIfNeeds(group);
-        }
+        final String report = loadSubjectsFirstTimeIfNeeds(group);
+        if (!report.isEmpty()) return report;
+        loadLkIdsIfNeeds(group);
 
         final List<Subject> oldSubjects = group.getSubjects();
-
-        final String report = Bot.loadSubjectsFirstTimeIfNeeds(group);
-        if (!report.isBlank()) return report;
-
         List<Subject> newSubjects = group.getLkParser().getNewSubjects(oldSubjects, group);
-        final var checkDate = new Date();
-
         Map<Integer, Subject> newSubjectsById = newSubjects.stream()
                 .collect(Collectors.toMap(Subject::getId, subject -> subject));
 
@@ -126,13 +118,34 @@ public class PlannedSubjectsUpdate extends Thread {
 
         if (!cleanedSubjects.stream()
                 .allMatch(subject -> subject.getMaterialsDocuments().isEmpty() && subject.getMessagesData().isEmpty())) {
-            groupsRepository.updateSubjects(group.getName(), newSubjects, checkDate);
+            groupsRepository.updateSubjects(group.getName(), newSubjects);
             group.setSubjects(newSubjects);
-        } else
-            groupsRepository.updateLastCheckDate(group.getName(), checkDate);
+        }
 
-        group.setLastCheckDate(checkDate);
         return Answer.getSubjects(cleanedSubjects);
+    }
+
+    public static String loadSubjectsFirstTimeIfNeeds(Group group) {
+        if (!Utils.isNullOrEmptyCollection(group.getSubjects()))
+            return "";
+
+        List<Subject> newSubjects = group.getLkParser().getSubjectsFirstTime(Bot.getActualSemester());
+
+        if (Utils.isNullOrEmptyCollection(newSubjects))
+            return "";
+
+        groupsRepository.updateSubjects(group.getName(), newSubjects);
+        group.setSubjects(newSubjects);
+        return Answer.getSubjectsSuccessful(newSubjects);
+    }
+
+    public static void loadLkIdsIfNeeds(Group group) {
+        if (group.getLkId() != null && group.getLkSemesterId() != null && group.getLkContingentId() != null)
+            return;
+
+        group.getLkParser().setSubjectsGeneralLkIds(group, Bot.getActualSemester());
+        groupsRepository.updateLkIds(group.getName(),
+                group.getLkId(), group.getLkSemesterId(), group.getLkContingentId());
     }
 
     private String newSemesterUpdate(String newSemester, Group group) {
@@ -152,10 +165,11 @@ public class PlannedSubjectsUpdate extends Thread {
 
         Timetable timetable = lkParser.parseTimetable(newLkSemesterId, group.getLkId());
 
-        groupsRepository.setNewSemesterData(group.getName(),
-                newSubjects, checkDate, timetable, newLkSemesterId);
-        group.setNewSemesterData(newSubjects, checkDate, timetable);
+        groupsRepository.setNewSemesterData(group.getName(), newSubjects,
+                timetable,
+                newLkSemesterId, group.getLkContingentId());
 
+        group.setNewSemesterData(newSubjects, timetable);
         return report;
     }
 }
