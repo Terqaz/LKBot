@@ -55,16 +55,15 @@ public final class Utils {
     public static void copyIdsFrom(Collection<LkDocument> newDocuments,
                                    Collection<LkDocument> oldDocuments) {
 
-        if (newDocuments.isEmpty()) return;
+        if (newDocuments.isEmpty() || oldDocuments.isEmpty()) return;
 
         Map<String, Integer> oldDocumentByName = oldDocuments.stream()
                 .collect(Collectors.toMap(d -> d.getLkId()+d.getName(), LkDocument::getId));
 
-        if (!oldDocumentByName.isEmpty())
-            newDocuments.forEach(newDocument -> {
-                final Integer oldDocumentId = oldDocumentByName.get(newDocument.getLkId()+newDocument.getName());
-                newDocument.setId(oldDocumentId);
-            });
+        newDocuments.forEach(newDocument -> {
+            final Integer oldDocumentId = oldDocumentByName.get(newDocument.getLkId()+newDocument.getName());
+            newDocument.setId(oldDocumentId);
+        });
     }
 
     // Changes subject

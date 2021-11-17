@@ -112,6 +112,7 @@ public class PlannedSubjectsUpdate extends Thread {
                     Utils.copyIdsFrom(
                             newSubject.getMaterialsDocuments(), oldSubject.getMaterialsDocuments());
                     Utils.setIdsWhereNull(newSubject);
+                    moveVkAttachments(newSubject.getMaterialsDocuments(), oldMaterialsDocuments);
                     return newSubject;
 
                 }).collect(Collectors.toList());
@@ -125,6 +126,21 @@ public class PlannedSubjectsUpdate extends Thread {
         }
 
         return Answer.getSubjects(cleanedSubjects);
+    }
+
+    // Changes newMaterialsDocuments
+    public void moveVkAttachments(Set<LkDocument> newMaterialsDocuments,
+                                   Set<LkDocument> oldMaterialsDocuments) {
+
+        final Map<String, LkDocument> newDocumentsMap =
+                newMaterialsDocuments.stream()
+                        .collect(Collectors.toMap(LkDocument::getLkId, d -> d));
+
+        oldMaterialsDocuments.stream()
+                .filter(lkDocument -> lkDocument.getVkAttachment() != null)
+                .forEach(oldDocument ->
+                        newDocumentsMap.get(oldDocument.getLkId())
+                                .setVkAttachment(oldDocument.getVkAttachment()));
     }
 
     public static String loadSubjectsFirstTime(Group group) {

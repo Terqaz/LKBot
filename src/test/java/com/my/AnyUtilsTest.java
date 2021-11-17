@@ -119,7 +119,7 @@ class AnyUtilsTest {
 
     @Test
     @Disabled ("Пройден")
-    void copyIdsFromOldMaterialsDocuments_isCorrect() {
+    void copyIdsFrom_isCorrect() {
         assertDoesNotThrow(() -> Utils.copyIdsFrom(List.of(), List.of()));
 
         final List<LkDocument> oldDocuments = TestUtils.createDocumentsList("0k", "1a", "2b", "3c", "4d", "5e", "6f");

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 @Setter
 @NoArgsConstructor
 @RequiredArgsConstructor
+@AllArgsConstructor
 @Accessors (chain = true)
 public class Group {
 

@@ -113,7 +113,8 @@ class MainTest {
                 final Subject newSubject = newSubjectsMap.get(oldSubject.getLkId());
                 final Map<String, String> oldMateraialsVkAttachmentsMap =
                         oldSubject.getMaterialsDocuments().stream()
-                        .collect(Collectors.toMap(LkDocument::getLkId, LkDocument::getVkAttachment));
+                                .filter(lkDocument -> lkDocument.getVkAttachment() != null)
+                                .collect(Collectors.toMap(LkDocument::getLkId, LkDocument::getVkAttachment));
 
                 newSubject.getMaterialsDocuments().forEach(newDocument ->
                         newDocument.setVkAttachment(
@@ -121,7 +122,8 @@ class MainTest {
 
                 final Map<String, String> oldMessagesVkAttachmentsMap =
                         oldSubject.getMessagesDocuments().stream()
-                        .collect(Collectors.toMap(LkDocument::getLkId, LkDocument::getVkAttachment));
+                                .filter(lkDocument -> lkDocument.getVkAttachment() != null)
+                                .collect(Collectors.toMap(LkDocument::getLkId, LkDocument::getVkAttachment));
 
                 newSubject.getMessagesDocuments().forEach(newDocument ->
                         newDocument.setVkAttachment(
