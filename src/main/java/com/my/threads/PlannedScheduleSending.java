@@ -76,16 +76,15 @@ public class PlannedScheduleSending extends Thread {
 
     private void sendSchedule(Group group, int nextWeekDay, boolean isNextDayWeekWhite) {
         try {
-            Bot.login(group);
-            if (group.getLkId() == null || group.getLkSemesterId() == null || group.getLkContingentId() == null)
-                return; // Загрузятся во время обновления
+            if (group.getLkId() != null && group.getLkSemesterId() != null && group.getLkContingentId() != null) {
+                Bot.login(group);
+                final Timetable timetable = group.getLkParser()
+                        .parseTimetable(group.getLkSemesterId(), group.getLkId());
 
-            final Timetable timetable = group.getLkParser()
-                    .parseTimetable(group.getLkSemesterId(), group.getLkId());
-
-            if (isNewTimetableCorrect(timetable, group.getTimetable())) {
-                groupsRepository.updateField(group.getName(), GroupsRepository.TIMETABLE, timetable);
-                group.setTimetable(timetable);
+                if (isNewTimetableCorrect(timetable, group.getTimetable())) {
+                    groupsRepository.updateField(group.getName(), GroupsRepository.TIMETABLE, timetable);
+                    group.setTimetable(timetable);
+                }
             }
             // Если не получилось обновить, то отправим предыдущее расписание. Расписание меняется очень редко
         } catch (Exception e) {

@@ -14,7 +14,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -166,8 +165,6 @@ class LkParserTest {
 
         // Получаем новые данные
         lkParser.setSubjectsGeneralLkIds(testGroup, testSemester);
-
-        testGroup.setLastCheckDate(new Date());
 
         final List<Subject> newSubjects = lkParser.getNewSubjects(firstSubjects, testGroup);
         log.info("New subjects loaded");

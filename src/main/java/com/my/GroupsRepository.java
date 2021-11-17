@@ -9,6 +9,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.UpdateOptions;
 import com.my.models.*;
+import com.my.models.temp.OldGroup;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
@@ -54,6 +55,7 @@ public class GroupsRepository {
 
     private final MongoClient mongoClient;
     private final MongoCollection<Group> groupsCollection;
+    public final MongoCollection<OldGroup> olgGroupsCollection; // TODO temp
 
     private GroupsRepository () {
         final CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
@@ -70,6 +72,10 @@ public class GroupsRepository {
         groupsCollection = mongoClient
                 .getDatabase(connectionString.getDatabase())
                 .getCollection("groups", Group.class);
+
+        olgGroupsCollection = mongoClient
+                .getDatabase(connectionString.getDatabase())
+                .getCollection("groups", OldGroup.class);
     }
 
     public void insert (Group group) {

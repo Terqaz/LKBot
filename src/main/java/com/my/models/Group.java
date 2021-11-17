@@ -21,7 +21,6 @@ public class Group {
     private String lkSemesterId;
     private String lkContingentId;
     private List<Subject> subjects = new ArrayList<>();
-//    private Date lastCheckDate;
 
     private LoggedUser loggedUser;
     private Set<GroupUser> users = new HashSet<>();

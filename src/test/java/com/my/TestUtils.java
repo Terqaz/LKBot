@@ -38,17 +38,17 @@ public class TestUtils {
                         Set.of(msgDocument),
                         List.of(
                                 new LkMessage("Выкладывайте лабы)))", "Игорев ИИ", date1),
-                                new LkMessage("Выложил лр3", "Сергеев СС", date1, msgDocument))),
+                                new LkMessage("Выложил лр3", "Сергеев СС", date1, msgDocument)), new Date()),
 
                 new Subject(2, "lk2", "Прога",
                         createDocuments(1, "варианты", "рабочая программа"),
                         emptySet(),
                         List.of(
                                 new LkMessage("Где лабы?", "Олегов ОО", date1),
-                                new LkMessage("Прошел тест", "Владимиров ВВ", date1))),
+                                new LkMessage("Прошел тест", "Владимиров ВВ", date1)), new Date()),
 
                 new Subject(3,"lk3", "Пустой предмет", emptySet(), emptySet(),
-                        Collections.emptyList())
+                        Collections.emptyList(), new Date())
         );
     }
 
@@ -71,12 +71,12 @@ public class TestUtils {
     public static List<Subject> createSubjects2() {
         return List.of(
                 new Subject("1", "Матеша",
-                        createDocuments(1,"Лекция 1"), emptySet(), List.of())
+                        createDocuments(1,"Лекция 1"), emptySet(), List.of(), new Date())
                         .setId(1),
                 new Subject("2", "Прога",
-                        createDocuments(1, "Задачи к практикам", "Рабочая программа"), emptySet(), List.of())
+                        createDocuments(1, "Задачи к практикам", "Рабочая программа"), emptySet(), List.of(), new Date())
                         .setId(2),
-                new Subject("3", "Пустой предмет", emptySet(), emptySet(), emptyList())
+                new Subject("3", "Пустой предмет", emptySet(), emptySet(), emptyList(), new Date())
                         .setId(3)
         );
     }

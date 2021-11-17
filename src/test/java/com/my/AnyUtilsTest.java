@@ -88,7 +88,7 @@ class AnyUtilsTest {
     @Test
     @Disabled ("Пройден")
     void setIdsWhereNull_isCorrect() {
-        assertDoesNotThrow(() -> Utils.setIdsWhereNull(new Subject("1", "2", Set.of(), Set.of(), List.of())));
+        assertDoesNotThrow(() -> Utils.setIdsWhereNull(new Subject("1", "2", Set.of(), Set.of(), List.of(), new Date())));
 
         final var subject = createSubject1()
                 .setMaterialsDocuments(TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f"))

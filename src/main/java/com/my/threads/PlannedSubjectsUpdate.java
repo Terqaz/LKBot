@@ -68,7 +68,7 @@ public class PlannedSubjectsUpdate extends Thread {
                     } catch (Exception e) {
                         log.error("Ошибка c обновлением предметов у группы: " + group.getName(), e);
                     }
-        });
+                });
     }
 
     private boolean isNotUpdateTime (Group group, GregorianCalendar calendar) {
@@ -89,8 +89,10 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private String sameSemesterUpdate(Group group) {
-        final String report = loadSubjectsFirstTimeIfNeeds(group);
-        if (!report.isEmpty()) return report;
+        if (Utils.isNullOrEmptyCollection(group.getSubjects())) {
+            final String report = loadSubjectsFirstTime(group);
+            if (!report.isEmpty()) return report;
+        }
         loadLkIdsIfNeeds(group);
 
         final List<Subject> oldSubjects = group.getSubjects();
@@ -125,10 +127,7 @@ public class PlannedSubjectsUpdate extends Thread {
         return Answer.getSubjects(cleanedSubjects);
     }
 
-    public static String loadSubjectsFirstTimeIfNeeds(Group group) {
-        if (!Utils.isNullOrEmptyCollection(group.getSubjects()))
-            return "";
-
+    public static String loadSubjectsFirstTime(Group group) {
         List<Subject> newSubjects = group.getLkParser().getSubjectsFirstTime(Bot.getActualSemester());
 
         if (Utils.isNullOrEmptyCollection(newSubjects))
@@ -156,7 +155,6 @@ public class PlannedSubjectsUpdate extends Thread {
 
         final LkParser lkParser = group.getLkParser();
         final List<Subject> newSubjects = lkParser.getSubjectsFirstTime(newSemester);
-        final var checkDate = new Date();
 
         final String report = Answer.getSubjects(newSubjects);
 
