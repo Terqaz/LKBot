@@ -31,7 +31,7 @@ public final class Utils {
         }
     }
 
-    private static final Gson gson;
+    public static final Gson gson;
     static {
         gson = new GsonBuilder()
                 .registerTypeAdapter(LocalDateTime.class, new GsonLocalDateTime())
@@ -49,6 +49,9 @@ public final class Utils {
     public static String reportFormatMessageDate(LocalDateTime date) {
         if (date.toLocalDate().equals(LocalDate.now()))
             return " сегодня в " + date.format(timeReportFormatter);
+
+        else if (date.toLocalDate().equals(LocalDate.now().minusDays(1)))
+            return " вчера в " + date.format(timeReportFormatter);
         else
             return " в " + date.format(reportFormatter);
     }
@@ -65,8 +68,8 @@ public final class Utils {
         return date.format(queryFormatter);
     }
 
-    public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
-                                                    List<Subject> newSubjects) {
+    public static List<Subject> removeOldMaterialsDocuments(List<Subject> oldSubjects,
+                                                            List<Subject> newSubjects) {
         if (oldSubjects.isEmpty())
             return newSubjects;
 

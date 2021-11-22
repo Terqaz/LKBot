@@ -61,12 +61,12 @@ class AnyUtilsTest {
         List<Subject> oldSubjectData = createSubjects1();
         List<Subject> newSubjectData = createSubjects2();
 
-        assertTrue(Utils.removeOldDocuments(oldSubjectData, Collections.emptyList()).isEmpty());
+        assertTrue(Utils.removeOldMaterialsDocuments(oldSubjectData, Collections.emptyList()).isEmpty());
 
         TestUtils.assertDeepObjectEquals(
-                createSubjects2(), Utils.removeOldDocuments(Collections.emptyList(), newSubjectData));
+                createSubjects2(), Utils.removeOldMaterialsDocuments(Collections.emptyList(), newSubjectData));
 
-        List<Subject> postSubjectData = Utils.removeOldDocuments(oldSubjectData, newSubjectData);
+        List<Subject> postSubjectData = Utils.removeOldMaterialsDocuments(oldSubjectData, newSubjectData);
 
         assertIterableEquals(createSubjects1(), oldSubjectData); // oldSubjectData не изменилась
         assertIterableEquals(createSubjects2(), newSubjectData); // newSubjectData не изменилась

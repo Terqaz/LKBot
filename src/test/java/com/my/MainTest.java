@@ -2,22 +2,21 @@ package com.my;
 
 import com.mongodb.client.FindIterable;
 import com.my.models.Group;
-import com.my.models.LkDocument;
 import com.my.models.LoggedUser;
 import com.my.models.Subject;
 import com.my.models.temp.OldGroup;
 import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
+import com.my.threads.PlannedSubjectsUpdate;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.NoSuchPaddingException;
+import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -74,7 +73,7 @@ class MainTest {
 
     @Test
     @Disabled("Только для ручного обновления групп")
-    void temp_updateGroups() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
+    void temp_updateGroups() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         System.out.println("Обновление");
 
         final LkParser lkParser = new LkParser();
@@ -82,124 +81,89 @@ class MainTest {
 
         final FindIterable<OldGroup> oldGroups = repository.olgGroupsCollection.find();
 
+        List<OldGroup> oldGroupList = new LinkedList<>();
+        oldGroups.forEach(oldGroupList::add);
+
+//        FileUtils.write(new File("dump.json"), Utils.gson.toJson(oldGroupList), StandardCharsets.UTF_8);
+
+        Set<String> updatedGroups = Set.of("ПИ-19-1", "ПД-п-20-1", "ПД-21-1", "ТХ-19-1",
+                "т9-УК-20-1","ПМ-20-2","ПИ-21-2","ДТ-20-1","СЦ-20-1","ПП-20-1", "ПМ-19-2", "МС-п-21-1");
+
         oldGroups.forEach(oldGroup -> {
-            final String groupName = oldGroup.getName();
+            if (updatedGroups.contains(oldGroup.getName())) {
+                System.out.println("Группа " + oldGroup.getName() + " уже обновлена");
+                return;
+            }
+
+            try {
+                updateGroup(lkParser, cipherService, oldGroup);
+            } catch (Exception e) {
+                System.out.println("Ошибка у группы " + oldGroup.getName());
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private void updateGroup(LkParser lkParser, CipherService cipherService, OldGroup oldGroup) {
+        final String groupName = oldGroup.getName();
 
 //            if (document.get("scheduleSent") != null) {
 //                System.out.println("Группа "+ groupName+" уже обновлена");
 //                return;
 //            }
 
-            final LoggedUser loggedUser = oldGroup.getLoggedUser();
-            if (loggedUser == null || loggedUser.getAuthData() == null) {
-                System.out.println("group " + groupName + "need to delete");
-                return;
-            }
+        final LoggedUser loggedUser = oldGroup.getLoggedUser();
+        if (loggedUser == null || loggedUser.getAuthData() == null) {
+            System.out.println("group " + groupName + "need to delete");
+            return;
+        }
 
-            try {
-                lkParser.login(cipherService.decrypt(loggedUser.getAuthData()));
-            } catch (Exception e) {
-                System.out.println("auth exception with: "+groupName);
-                e.printStackTrace();
-                return;
-            }
+        try {
+            lkParser.login(cipherService.decrypt(loggedUser.getAuthData()));
+        } catch (Exception e) {
+            System.out.println("auth exception with: "+groupName);
+            e.printStackTrace();
+            return;
+        }
 
-            final List<Subject> newSubjects = lkParser.getSubjectsFirstTime("2021-О");
+        final List<Subject> newSubjects = lkParser.getSubjectsFirstTime("2021-О");
 
-            Map<String, Subject> newSubjectsMap = newSubjects.stream()
-                    .collect(Collectors.toMap(Subject::getLkId, subject -> subject));
+        Map<String, Subject> newSubjectsMap = newSubjects.stream()
+                .collect(Collectors.toMap(Subject::getLkId, subject -> subject));
 
-            oldGroup.getSubjects().forEach(oldSubject -> {
-                final Subject newSubject = newSubjectsMap.get(oldSubject.getLkId());
-                final Map<String, String> oldMateraialsVkAttachmentsMap =
-                        oldSubject.getMaterialsDocuments().stream()
-                                .filter(lkDocument -> lkDocument.getVkAttachment() != null)
-                                .collect(Collectors.toMap(LkDocument::getLkId, LkDocument::getVkAttachment));
-
-                newSubject.getMaterialsDocuments().forEach(newDocument ->
-                        newDocument.setVkAttachment(
-                                oldMateraialsVkAttachmentsMap.get(newDocument.getLkId())));
-
-                final Map<String, String> oldMessagesVkAttachmentsMap =
-                        oldSubject.getMessagesDocuments().stream()
-                                .filter(lkDocument -> lkDocument.getVkAttachment() != null)
-                                .collect(Collectors.toMap(LkDocument::getLkId, LkDocument::getVkAttachment));
-
-                newSubject.getMessagesDocuments().forEach(newDocument ->
-                        newDocument.setVkAttachment(
-                                oldMessagesVkAttachmentsMap.get(newDocument.getLkId())));
-            });
-
-            final Group newGroup = new Group()
-                    .setName(oldGroup.getName())
-                    .setLkId(oldGroup.getLkId())
-                    .setLkSemesterId(oldGroup.getLkSemesterId())
-                    .setLkContingentId(oldGroup.getLkContingentId())
-                    .setSubjects(newSubjects)
-                    .setLoggedUser(loggedUser)
-                    .setUsers(oldGroup.getUsers())
-                    .setUsersToVerify(oldGroup.getUsersToVerify())
-                    .setLoginWaitingUsers(oldGroup.getLoginWaitingUsers())
-                    .setTimetable(oldGroup.getTimetable())
-                    .setScheduleSent(oldGroup.isScheduleSent())
-                    .setSilentModeStart(oldGroup.getSilentModeStart())
-                    .setSilentModeEnd(oldGroup.getSilentModeEnd());
-
-//            final Group group = new Group(
-//                    groupName,
-//                    (String) document.get("lkId"),
-//                    (String) document.get("lkSemesterId"),
-//                    (String) document.get("lkContingentId"),
-//                    lkParser.getSubjectsFirstTime("2021-О"),
-//
-//                    new LoggedUser(
-//                            (Integer) loggedUser.get("_id"),
-//                            new AuthenticationData(
-//                                    (String) authData.get("login"),
-//                                    (String) authData.get("password")
-//                            ),
-//                            (boolean) loggedUser.get("updateAuthDataNotified")
-//                    ),
-//                    castUsers((List<Document>) document.get("users")),
-//                    castUserToVerify((List<Document>) document.get("usersToVerify")),
-//                    castLoginWaitingUsers((List<Document>) document.get("loginWaitingUsers")),
-//
-//                    lkParser.parseTimetable((String) document.get("lkSemesterId"), (String) document.get("lkId")),
-//                    false,
-//                    (int) document.get("silentModeStart"),
-//                    (int) document.get("silentModeEnd")
-//            );
-            lkParser.logout();
-
-            if (TestUtils.listsSizeCount(newGroup.getTimetable().getWhiteSubjects()) == 0) {
-                System.out.println("Расписание группы "+groupName+" пустое");
-                return;
-            }
-            if (newGroup.getSubjects().isEmpty()) {
-                System.out.println("Предметы группы "+groupName+" пустые");
-                return;
-            }
-
-            repository.updateGroup(newGroup);
-            System.out.println(groupName +" обновлена");
+        oldGroup.getSubjects().forEach(oldSubject -> {
+            final Subject newSubject = newSubjectsMap.get(oldSubject.getLkId());
+            PlannedSubjectsUpdate.copyVkAttachments(newSubject.getMaterialsDocuments(), oldSubject.getMaterialsDocuments());
+            PlannedSubjectsUpdate.copyVkAttachments(newSubject.getMessagesDocuments(), oldSubject.getMessagesDocuments());
         });
+
+        final Group newGroup = new Group()
+                .setName(oldGroup.getName())
+                .setLkId(oldGroup.getLkId())
+                .setLkSemesterId(oldGroup.getLkSemesterId())
+                .setLkContingentId(oldGroup.getLkContingentId())
+                .setSubjects(newSubjects)
+                .setLoggedUser(loggedUser)
+                .setUsers(oldGroup.getUsers())
+                .setUsersToVerify(oldGroup.getUsersToVerify())
+                .setLoginWaitingUsers(oldGroup.getLoginWaitingUsers())
+                .setTimetable(oldGroup.getTimetable())
+                .setScheduleSent(oldGroup.isScheduleSent())
+                .setSilentModeStart(oldGroup.getSilentModeStart())
+                .setSilentModeEnd(oldGroup.getSilentModeEnd());
+
+        lkParser.logout();
+
+        if (TestUtils.listsSizeCount(newGroup.getTimetable().getWhiteSubjects()) == 0) {
+            System.out.println("Расписание группы "+groupName+" пустое");
+            return;
+        }
+        if (newGroup.getSubjects().isEmpty()) {
+            System.out.println("Предметы группы "+groupName+" пустые");
+            return;
+        }
+
+        repository.updateGroup(newGroup);
+        System.out.println(groupName +" обновлена");
     }
-//
-//    private Set<GroupUser> castUsers(List<Document> users) {
-//        return users.stream().map(user ->
-//            new GroupUser((Integer) user.get("_id"), (boolean) user.get("everydayScheduleEnabled"))
-//        ).collect(Collectors.toSet());
-//    }
-//
-//    private Set<UserToVerify> castUserToVerify (List<Document> users) {
-//        return users.stream().map(user ->
-//                new UserToVerify((Integer) user.get("_id"), (Integer) user.get("code"))
-//        ).collect(Collectors.toSet());
-//    }
-//
-//    private Set<Integer> castLoginWaitingUsers(List<Document> users) {
-//        return users.stream().map(user ->
-//                Integer.parseInt(user.toString())
-//        ).collect(Collectors.toSet());
-//    }
 }

@@ -117,7 +117,7 @@ public class PlannedSubjectsUpdate extends Thread {
 
                 }).collect(Collectors.toList());
 
-        final List<Subject> cleanedSubjects = Utils.removeOldDocuments(oldSubjects, newSubjects);
+        final List<Subject> cleanedSubjects = Utils.removeOldMaterialsDocuments(oldSubjects, newSubjects);
 
         if (!cleanedSubjects.stream()
                 .allMatch(subject -> subject.getMaterialsDocuments().isEmpty() && subject.getMessagesData().isEmpty())) {

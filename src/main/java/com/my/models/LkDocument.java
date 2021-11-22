@@ -12,9 +12,23 @@ public class LkDocument {
     private Integer id;
     @NonNull
     private String name;
-    @NonNull
     private String lkId;
     private String sender;
+
     private String vkAttachment;
-    private Boolean isExtChanged = false;
+    private Boolean isExtChanged; // null значит false
+
+    private String url; // если прикреплен url, то vkAttachment, isExtChanged == null
+                        // а lkId = md5(url)[:10]
+
+    public LkDocument(@NonNull String name, @NonNull String lkId) {
+        this.name = name;
+        this.lkId = lkId;
+    }
+
+    public LkDocument(@NonNull String name, @NonNull String lkId, @NonNull String url) {
+        this.name = name;
+        this.lkId = lkId;
+        this.url = url;
+    }
 }

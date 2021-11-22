@@ -74,7 +74,7 @@ public class Answer {
 
     public static final String INPUT_CREDENTIALS =
             "Хорошо.\nВведи свой логин и пароль подряд на двух строках, " +
-            "а потом удали свое сообщение на всякий случай ;-)";
+            "а потом удали свое сообщение на всякий случай. Пример ввода:\nмой_логин\nмой_пароль";
     public static final String UPDATE_CREDENTIALS =
             "Возможно, ты не сказал мне свой новый пароль после изменения его в ЛК.\n" +
             "➡ Если ты хочешь продолжать пользоваться мной, введи свой логин и новый пароль подряд на двух строках, " +
@@ -173,10 +173,14 @@ public class Answer {
                 getUserCommands(userId, group);
     }
 
-    public static String getDocument(String subjectName, String documentName, boolean isExtensionChanged) {
+    public static String getDocument(String subjectName, String documentName, Boolean isExtensionChanged) {
         return subjectName + "\nДокумент: " + quotes(documentName)
-                + (!isExtensionChanged ? "" : "\nУбери из расширения файла единицу, переименовав его. " +
+                + ((isExtensionChanged != null && !isExtensionChanged) ? "" : "\nУбери из расширения файла единицу, переименовав его. " +
                 "ВКонтакте не разрешил отправку этого файла с исходным расширением");
+    }
+
+    public static String getDocumentUrl(String subjectName, String documentName, String url) {
+        return subjectName + "\nСсылка на документ " + quotes(documentName) + ": " + url;
     }
 
     public static String getUserCommands (Integer userId, Group group) {

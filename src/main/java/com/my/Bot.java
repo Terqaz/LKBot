@@ -16,6 +16,7 @@ import com.vk.api.sdk.objects.messages.Message;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
 
 import javax.crypto.NoSuchPaddingException;
@@ -28,6 +29,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+@Log4j2
 public class Bot {
     static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
     static final VkBotService vkBot = VkBotService.getInstance();
@@ -176,9 +178,6 @@ public class Bot {
         else if (command.is(Command.GET_SUBJECT_DOCUMENT))
             getSubjectDocument(userId, command, group);
 
-//        else if (command.is(Command.GET_SUBJECT))
-//            getActualSubjectMessage(userId, group, Utils.tryParseInteger(command.getValue()));
-
         else if (command.is(Command.GET_SUBJECTS)) {
             final List<Subject> subjects = group.getSubjects();
             if (Utils.isNullOrEmptyCollection(subjects))
@@ -244,6 +243,9 @@ public class Bot {
                         vkBot.sendMessageTo(userId, Answer.WRONG_DOCUMENT_NUMBER);
                         return;
 
+                    } else if (document.getUrl() != null) {
+                        vkBot.sendMessageTo(userId, Answer.getDocumentUrl(subjectName, document.getName(), document.getUrl()));
+
                     } else if (document.getVkAttachment() != null) {
                         vkBot.sendMessageTo(userId, document.getVkAttachment(),
                                     Answer.getDocument(subjectName, document.getName(), document.getIsExtChanged()));
@@ -302,8 +304,10 @@ public class Bot {
         return path;
     }
 
-    private static boolean isExtensionChanged(Path path) {
-        return path.toString().endsWith("1");
+    private static Boolean isExtensionChanged(Path path) {
+        if (path.toString().endsWith("1"))
+            return true;
+        else return null;
     }
 
     private static void changeSilentTime(Integer userId, Command command, Group group) {
@@ -479,31 +483,6 @@ public class Bot {
                 isWeekWhite);
     }
 
-//    private static void getActualSubjectMessage (Integer userId, Group group, Integer subjectIndex) {
-//        vkBot.sendMessageTo(userId, loadSubjectsFirstTimeIfNeeds(group, group.getSubjects(), userId));
-
-//        final var optionalSubject = group.getSubjects().stream()
-//                .filter(subject1 -> subject1.getId() == subjectIndex)
-//                .findFirst();
-//        if (optionalSubject.isEmpty()) {
-//            vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER);
-//            return;
-//        }
-//        var oldSubject = optionalSubject.get();
-//        login(group);
-//        Subject newSubject = group.getLkParser().getNewSubject(oldSubject, group);
-//        Utils.setIdsWhereNull(newSubject);
-//        newSubject.setId(subjectIndex);
-//        final List<Subject> listWithSubject = Utils.removeOldDocuments(List.of(oldSubject), List.of(newSubject));
-//
-//        if (!listWithSubject.isEmpty()) {
-//            vkBot.sendLongMessageTo(group.getUserIds(), Answer.getSubjects(listWithSubject));
-//            oldSubject.setMaterialsDocuments(newSubject.getMaterialsDocuments());
-//            oldSubject.getMessagesDocuments().addAll(newSubject.getMessagesDocuments());
-//        } else
-//            vkBot.sendMessageTo(userId, Answer.getNoNewSubjectInfo(newSubject.getName()));
-//    }
-
     private static void loginFailedMessages(Integer userId, Group group) {
         String groupName = group.getName();
         LoggedUser loggedUser = group.getLoggedUser();
@@ -534,8 +513,16 @@ public class Bot {
         String password = chunks[1];
 
         Group group = groupByGroupName.get(groupName);
-        if (group == null) { // Если не зарегана
-            loginNewGroup(userId, groupName, login, password);
+        if (group == null) { // Если нет в бд
+            try {
+                loginNewGroup(userId, groupName, login, password);
+
+            } catch (LkNotRespondingException | AuthenticationException e) {
+                throw e;
+
+            } catch (Exception e) {
+                throw new RuntimeException("Не удалось добавить группу " + groupName + " пользователя " + userId, e);
+            }
             return;
         }
 

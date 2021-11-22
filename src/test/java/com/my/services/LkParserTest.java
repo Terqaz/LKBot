@@ -137,13 +137,13 @@ class LkParserTest {
         assertNotNull(subject3);
         assertEquals("Экономика", subject3.getName());
         assertNull(subject3.getMessagesData().get(4).getDocument());
-        final LkDocument lkDocument1 = new LkDocument(6, "Лекция 01.04 Предприятие, производство, издержки", "5:108785375", "Круглов ИВ", null, null);
+        final LkDocument lkDocument1 = new LkDocument(6, "Лекция 01.04 Предприятие, производство, издержки", "5:108785375", "Круглов ИВ", null, null, null);
         assertEquals(lkDocument1,
                 subject3.getMessagesData().get(5).getDocument());
 
         assertIterableEquals(sortDocumentsByName(Set.of(lkDocument1,
-                new LkDocument(7, "Лекция 18.03 Равновесие потребителя", "5:108535269","Круглов ИВ", null,null),
-                new LkDocument(8,"Тема 3. Рынок и его механизмы", "5:108490770","Круглов ИВ", null, null))),
+                new LkDocument(7, "Лекция 18.03 Равновесие потребителя", "5:108535269","Круглов ИВ", null,null,null),
+                new LkDocument(8,"Тема 3. Рынок и его механизмы", "5:108490770","Круглов ИВ", null, null, null))),
                 sortDocumentsByName(subject3.getMessagesDocuments()));
     }
 
@@ -192,7 +192,7 @@ class LkParserTest {
                         .collect(Collectors.toList()),
                 newSubject1.getMaterialsDocuments().stream().sorted(Comparator.comparing(LkDocument::getName))
                         .collect(Collectors.toList()));
-        assertTrue(Utils.removeOldDocuments(firstSubjects, newSubjects).isEmpty());
+        assertTrue(Utils.removeOldMaterialsDocuments(firstSubjects, newSubjects).isEmpty());
     }
 
     @Test

@@ -33,7 +33,7 @@ public class TestUtils {
                         Set.of(msgDocument),
                         List.of(
                                 new LkMessage("Выкладывайте лабы)))", "Игорев ИИ", date2),
-                                new LkMessage("Выложил лр3", "Сергеев СС", date2, msgDocument)), LocalDateTime.now(), null),
+                                new LkMessage("Выложил лр3", "Сергеев СС", date2.minusDays(1), msgDocument)), LocalDateTime.now(), null),
 
                 new Subject(2, "lk2", "Прога",
                         createDocuments(1, "варианты", "рабочая программа"),

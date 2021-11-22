@@ -4,6 +4,7 @@ import com.my.TextUtils;
 import com.my.Utils;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.models.*;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
@@ -183,11 +184,16 @@ public class LkParser {
             final LocalDateTime messageDate = parseMessageDate(htmlMessage);
             if (messageDate.isBefore(fromDate)) // если дата сообщения строго раньше последней
                 break;
+
             comment = parseMessageComment(htmlMessage);
-            sender = TextUtils.makeShortSenderName(parseMessageSender(htmlMessage));
             lkDocument = parseMessageDocument(htmlMessage);
+            if (comment == null && lkDocument == null)
+                continue;
+
+            sender = TextUtils.makeShortSenderName(parseMessageSender(htmlMessage));
             if (lkDocument != null)
                 lkDocument.setSender(sender);
+
             final LkMessage message = new LkMessage(comment, sender, messageDate, lkDocument);
             if (Utils.hashLkMessage(message).equals(lastMessageHash))
                 break;
@@ -218,10 +224,22 @@ public class LkParser {
     }
 
     private LkDocument parseDocumentATag(Element a) {
-        final String[] strings = a.attr("href").split("/");
-        final var documentLkId = strings[strings.length-1];
-        final var name = a.text();
-        return new LkDocument(name, documentLkId);
+        final String name = a.text();
+        final String url = a.attr("href");
+
+        final String[] strings = url.split("/");
+        if (documentIsFromLk(strings)) {
+            final String documentLkId = strings[strings.length - 1];
+            return new LkDocument(name, documentLkId);
+
+        } else
+            return new LkDocument(name, DigestUtils.md5Hex(name+url).substring(0, 8), url);
+    }
+
+    public static final String LSTU_HOST = "lk.stu.lipetsk.ru";
+
+    private boolean documentIsFromLk(String[] strings) {
+        return strings[0].isBlank() || strings[1].equals(LSTU_HOST) || strings[2].equals(LSTU_HOST);
     }
 
     private LocalDateTime getLastMessageDate (List<LkMessage> messagesDataChunk) {
