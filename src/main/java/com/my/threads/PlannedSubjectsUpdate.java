@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
 @Log4j2
 public class PlannedSubjectsUpdate extends Thread {
 
-    private static final GroupsRepository groupsRepository = GroupsRepository.getInstance();
-    private static final VkBotService vkBot = VkBotService.getInstance();
+    private final GroupsRepository groupsRepository = GroupsRepository.getInstance();
+    private final VkBotService vkBot = VkBotService.getInstance();
     CipherService cipherService;
 
     public PlannedSubjectsUpdate() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
@@ -112,7 +112,7 @@ public class PlannedSubjectsUpdate extends Thread {
                     Utils.copyIdsFrom(
                             newSubject.getMaterialsDocuments(), oldSubject.getMaterialsDocuments());
                     Utils.setIdsWhereNull(newSubject);
-                    moveVkAttachments(newSubject.getMaterialsDocuments(), oldMaterialsDocuments);
+                    copyVkAttachments(newSubject.getMaterialsDocuments(), oldMaterialsDocuments);
                     return newSubject;
 
                 }).collect(Collectors.toList());
@@ -128,22 +128,27 @@ public class PlannedSubjectsUpdate extends Thread {
         return Answer.getSubjects(cleanedSubjects);
     }
 
-    // Changes newMaterialsDocuments
-    public void moveVkAttachments(Set<LkDocument> newMaterialsDocuments,
-                                   Set<LkDocument> oldMaterialsDocuments) {
+    // Changes newDocuments
+    public static void copyVkAttachments(Collection<LkDocument> newDocuments,
+                                         Collection<LkDocument> oldDocuments) {
+
+        if (newDocuments.isEmpty() || oldDocuments.isEmpty()) return;
 
         final Map<String, LkDocument> newDocumentsMap =
-                newMaterialsDocuments.stream()
+                newDocuments.stream()
                         .collect(Collectors.toMap(LkDocument::getLkId, d -> d));
 
-        oldMaterialsDocuments.stream()
+        oldDocuments.stream()
                 .filter(lkDocument -> lkDocument.getVkAttachment() != null)
-                .forEach(oldDocument ->
-                        newDocumentsMap.get(oldDocument.getLkId())
-                                .setVkAttachment(oldDocument.getVkAttachment()));
+                .forEach(oldDocument -> {
+                    final LkDocument newDocument = newDocumentsMap.get(oldDocument.getLkId());
+                    if (newDocument != null)
+                        newDocument.setVkAttachment(oldDocument.getVkAttachment())
+                                .setIsExtChanged(oldDocument.getIsExtChanged());
+                });
     }
 
-    public static String loadSubjectsFirstTime(Group group) {
+    public String loadSubjectsFirstTime(Group group) {
         List<Subject> newSubjects = group.getLkParser().getSubjectsFirstTime(Bot.getActualSemester());
 
         if (Utils.isNullOrEmptyCollection(newSubjects))
@@ -154,7 +159,7 @@ public class PlannedSubjectsUpdate extends Thread {
         return Answer.getSubjectsSuccessful(newSubjects);
     }
 
-    public static void loadLkIdsIfNeeds(Group group) {
+    public void loadLkIdsIfNeeds(Group group) {
         if (group.getLkId() != null && group.getLkSemesterId() != null && group.getLkContingentId() != null)
             return;
 

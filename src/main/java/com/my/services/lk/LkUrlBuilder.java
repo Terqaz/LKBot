@@ -1,13 +1,13 @@
 package com.my.services.lk;
 
+import com.my.Utils;
 import com.my.models.LkDocument;
 import org.apache.http.client.utils.URIBuilder;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 public class LkUrlBuilder {
 
@@ -79,7 +79,7 @@ public class LkUrlBuilder {
                 .setPathSegments("education", "0", semesterId, disciplineId, groupId, contingentId, "");
     }
 
-    public static String buildNextMessagesUrl (String semesterId, String disciplineId, String groupId, Date date) {
+    public static String buildNextMessagesUrl (String semesterId, String disciplineId, String groupId, LocalDateTime date) {
         final URIBuilder builder = getLstuOriginUriBuilder()
                 .setPath(AJAX_HANDLER_PHP)
                 .addParameter("get_msg", "1")
@@ -87,8 +87,7 @@ public class LkUrlBuilder {
                 .addParameter("discipline", disciplineId)
                 .addParameter("semester", semesterId);
                 if (date != null)
-                    builder.addParameter("last_msg",
-                            new SimpleDateFormat("dd.MM.yyyy+HH:mm").format(date));
+                    builder.addParameter("last_msg", Utils.queryFormatMessageDate(date));
         return build(builder);
     }
 

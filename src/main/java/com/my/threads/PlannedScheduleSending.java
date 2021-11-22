@@ -55,7 +55,7 @@ public class PlannedScheduleSending extends Thread {
                     Bot.getGroupByGroupName().values().stream()
                             .filter(group -> !group.isScheduleSent())
                             .forEach(group -> sendSchedule(group, nextWeekDay, isNextDayWeekWhite));
-                    Thread.sleep(5L * 60 * 1000); // 5 минут
+                    sleep(5L * 60 * 1000); // 5 минут
 
                 } else {
                     Bot.setWeekTypeUpdated(false);
@@ -63,7 +63,7 @@ public class PlannedScheduleSending extends Thread {
                         Bot.getGroupByGroupName().values().forEach(group -> group.setScheduleSent(false));
                         groupsRepository.updateEachField(GroupsRepository.SCHEDULE_SENT, false);
                     }
-                    Thread.sleep(Utils.getSleepTimeToHourStart(minute, second));
+                    sleep(Utils.getSleepTimeToHourStart(minute, second));
                 }
 
             } catch (InterruptedException e) {

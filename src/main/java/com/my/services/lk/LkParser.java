@@ -14,7 +14,9 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -39,15 +41,11 @@ public class LkParser {
         lkClient.logout();
     }
 
-    public boolean isNotLoggedIn () {
-        return lkClient.isSessionDiscarded();
-    }
-
     // Загружает все документы и все сообщения
     public List<Subject> getSubjectsFirstTime (String semesterName) {
         lkClient.keepAuth();
         final List<Subject> subjects = getHtmlSubjectsUrls(semesterName)
-                .map(htmlSubjectUrl -> getSubjectByHtmlUrl(htmlSubjectUrl, new Date(1)))
+                .map(this::getSubjectByHtmlUrl)
                 .map(Utils::setIdsWhereNull)
                 .sorted(Comparator.comparing(Subject::getName))
                 .collect(Collectors.toList());
@@ -81,12 +79,12 @@ public class LkParser {
                 .collect(Collectors.toList()));
     }
 
-    private Subject getSubjectByHtmlUrl (Element htmlSubjectUrl, Date lastCheckDate) {
+    private Subject getSubjectByHtmlUrl (Element htmlSubjectUrl) {
         final String localUrl = htmlSubjectUrl.attr("href");
-        return getNewSubject(TextUtils.capitalize(htmlSubjectUrl.text().strip()), localUrl, lastCheckDate);
+        return getNewSubject(TextUtils.capitalize(htmlSubjectUrl.text().strip()), localUrl);
     }
 
-    private Subject getNewSubject(String subjectName, String subjectLocalUrl, Date fromDate) {
+    private Subject getNewSubject(String subjectName, String subjectLocalUrl) {
 
         final Document subjectPage = lkClient.loggedGet(LkUrlBuilder.buildByLocalUrl(subjectLocalUrl));
 
@@ -95,14 +93,11 @@ public class LkParser {
         final String subjectId = pathSegments[4];
         final String groupId = pathSegments[5];
 
-        final List<LkMessage> messagesAfterDate = loadMessagesAfterDate(semesterId, subjectId, groupId, fromDate);
-        final Date newFromDate = !messagesAfterDate.isEmpty() ?
-                messagesAfterDate.get(0).getDate() : new Date();
+        LocalDateTime earliestDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(1), ZoneId.systemDefault());
+        final List<LkMessage> newMessages =
+                loadMessagesAfterDate(semesterId, subjectId, groupId, earliestDate, null);
 
-        return new Subject(subjectId, subjectName,
-                parseLkDocumentsFromMaterials(subjectPage),
-                getMessagesDocuments(messagesAfterDate),
-                messagesAfterDate, newFromDate);
+        return createNewSubject(subjectId, subjectName, subjectPage, newMessages);
     }
 
     private Set<LkDocument> getMessagesDocuments(List<LkMessage> messagesAfterDate) {
@@ -127,16 +122,26 @@ public class LkParser {
         final Document subjectPage = lkClient.loggedGet(subjectUrl);
         lkClient.keepAuth();
 
-        final var messagesAfterDate = loadMessagesAfterDate(
-                group.getLkSemesterId(), subject.getLkId(), group.getLkId(), subject.getLastMessageDate());
+        final List<LkMessage> newMessages =
+                loadMessagesAfterDate(group.getLkSemesterId(), subject.getLkId(), group.getLkId(),
+                                      subject.getLastMessageDate(), subject.getLastMessageHash());
 
-        final Date newFromDate = !messagesAfterDate.isEmpty() ?
-                messagesAfterDate.get(0).getDate() : new Date();
+        return createNewSubject(subject.getLkId(), subject.getName(), subjectPage, newMessages);
+    }
 
-        return new Subject(subject.getLkId(), subject.getName(),
+    private Subject createNewSubject(String subjectId, String subjectName, Document subjectPage, List<LkMessage> newMessages) {
+        LocalDateTime newFromDate = LocalDateTime.now();
+        String lastMessageHash = null;
+        if (!newMessages.isEmpty()) {
+            final LkMessage lastLkMessage = newMessages.get(0);
+            newFromDate = lastLkMessage.getDate();
+            lastMessageHash = Utils.hashLkMessage(lastLkMessage);
+        }
+
+        return new Subject(subjectId, subjectName,
                 parseLkDocumentsFromMaterials(subjectPage),
-                getMessagesDocuments(messagesAfterDate),
-                messagesAfterDate, newFromDate);
+                getMessagesDocuments(newMessages),
+                newMessages, newFromDate, lastMessageHash);
     }
 
     private Set<LkDocument> parseLkDocumentsFromMaterials(Document subjectPage) {
@@ -145,18 +150,18 @@ public class LkParser {
                 .collect(Collectors.toSet());
     }
 
-    private List<LkMessage> loadMessagesAfterDate (String semesterId, String subjectId,
-                                                   String groupId, Date fromDate) {
+    private List<LkMessage> loadMessagesAfterDate (String semesterId, String subjectId, String groupId,
+                                                   LocalDateTime fromDate, String lastMessageHash) {
         final List<LkMessage> lkMessageList = new ArrayList<>();
 
         Document pageWithMessages;
         List<LkMessage> messagesChunk;
-        Date lastMessageDate = null;
+        LocalDateTime lastMessageDate = null;
         do {
             pageWithMessages = lkClient.loggedPost(
                     LkUrlBuilder.buildNextMessagesUrl(semesterId, subjectId, groupId, lastMessageDate));
 
-            messagesChunk = parseMessages(pageWithMessages, fromDate);
+            messagesChunk = parseMessages(pageWithMessages, fromDate, lastMessageHash);
             if (messagesChunk.isEmpty())
                 break;
             lkMessageList.addAll(messagesChunk);
@@ -167,7 +172,7 @@ public class LkParser {
         return lkMessageList;
     }
 
-    private List<LkMessage> parseMessages(Document pageWithMessages, Date fromDate) {
+    private List<LkMessage> parseMessages(Document pageWithMessages, LocalDateTime fromDate, String lastMessageHash) {
         final Elements htmlMessages = pageWithMessages.getElementsByClass("comment__block");
         final List<LkMessage> lkMessageList = new ArrayList<>();
         String comment;
@@ -175,22 +180,25 @@ public class LkParser {
         LkDocument lkDocument;
 
         for (var htmlMessage : htmlMessages) {
-            final var messageDate = parseMessageDate(htmlMessage);
-            if (!messageDate.after(fromDate))
+            final LocalDateTime messageDate = parseMessageDate(htmlMessage);
+            if (messageDate.isBefore(fromDate)) // если дата сообщения строго раньше последней
                 break;
             comment = parseMessageComment(htmlMessage);
             sender = TextUtils.makeShortSenderName(parseMessageSender(htmlMessage));
             lkDocument = parseMessageDocument(htmlMessage);
             if (lkDocument != null)
                 lkDocument.setSender(sender);
-            lkMessageList.add(new LkMessage(comment, sender, messageDate, lkDocument));
+            final LkMessage message = new LkMessage(comment, sender, messageDate, lkDocument);
+            if (Utils.hashLkMessage(message).equals(lastMessageHash))
+                break;
+            lkMessageList.add(message);
         }
         return lkMessageList;
     }
 
     private String parseMessageComment(Element htmlMessage) {
         return htmlMessage.select("div.comment__body > .row > div")
-                .first().text();
+                .first().wholeText().strip();
     }
 
     private String parseMessageSender(Element htmlMessage) {
@@ -198,14 +206,9 @@ public class LkParser {
                 .first().text();
     }
 
-    private Date parseMessageDate(Element htmlMessage) {
-        final var htmlDate = htmlMessage.attr("data-msg");
-        try {
-            return new SimpleDateFormat("dd.MM.yyyy HH:mm")
-                    .parse(htmlDate);
-        } catch (java.text.ParseException e) {
-            return new Date(System.currentTimeMillis());
-        }
+    private LocalDateTime parseMessageDate(Element htmlMessage) {
+        final String htmlDate = htmlMessage.attr("data-msg");
+        return Utils.responseParseMessageDate(htmlDate);
     }
 
     private LkDocument parseMessageDocument(Element htmlMessage) {
@@ -221,11 +224,11 @@ public class LkParser {
         return new LkDocument(name, documentLkId);
     }
 
-    private Date getLastMessageDate (List<LkMessage> messagesDataChunk) {
+    private LocalDateTime getLastMessageDate (List<LkMessage> messagesDataChunk) {
         if (!messagesDataChunk.isEmpty()) {
             return messagesDataChunk.get(messagesDataChunk.size() - 1).getDate();
         } else {
-            return new Date();
+            return LocalDateTime.now();
         }
     }
 

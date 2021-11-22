@@ -16,9 +16,22 @@ public final class TextUtils {
 
     private TextUtils() {}
 
+    // name - ФИО
     public static String makeShortSenderName (String name) {
-        final String[] chunks = name.split(" ");
-        return chunks[0] + " " + chunks[1].charAt(0) + chunks[2].charAt(0);
+        if (name.isBlank()) return "";
+        final String[] chunks = name.strip().split(" ");
+
+        StringBuilder shortName = new StringBuilder(capitalize(chunks[0]));
+        if (chunks.length > 1)
+            shortName.append(' ');
+
+        for (int i = 1; i < chunks.length; i++) {
+            String c = chunks[i];
+            if (c.length() > 0)
+                shortName.append(c.toUpperCase().charAt(0));
+        }
+
+       return shortName.toString();
     }
 
     public static String capitalize (@NotEmpty String s) {

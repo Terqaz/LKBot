@@ -76,7 +76,7 @@ public class Answer {
             "Хорошо.\nВведи свой логин и пароль подряд на двух строках, " +
             "а потом удали свое сообщение на всякий случай ;-)";
     public static final String UPDATE_CREDENTIALS =
-            "Ты не сказал мне свой новый пароль после изменения его в ЛК.\n" +
+            "Возможно, ты не сказал мне свой новый пароль после изменения его в ЛК.\n" +
             "➡ Если ты хочешь продолжать пользоваться мной, введи свой логин и новый пароль подряд на двух строках, " +
             "а потом удали свое сообщение на всякий случай ;-)\n" +
             "➡ Если ты больше не хочешь продолжать пользоваться ботом, напиши "+quotes(Command.FORGET_ME);
@@ -202,16 +202,12 @@ public class Answer {
                 "🔶 Присылать ежедневное расписание в 18 часов на завтра:\n"+Command.WITH_EVERYDAY_SCHEDULE;
     }
 
-//    public static String getNoNewSubjectInfo(String subjectName) {
-//        return "Нет новой информации по предмету:\n " + subjectName;
-//    }
-
     public static String getTodaySchedule(String dayScheduleReport) {
-        return "Держи расписание на сегодня в качестве примера ;-)\n" + dayScheduleReport;
+        return "Держи расписание на сегодня в качестве примера:\n" + dayScheduleReport;
     }
 
     public static String getTomorrowSchedule(String dayScheduleReport) {
-        return "Держи расписание на завтра ;-)\n" + dayScheduleReport;
+        return "Расписание на завтра:\n" + dayScheduleReport;
     }
 
     public static String getSubjectsNames (List<Subject> subjects) {
@@ -266,13 +262,17 @@ public class Answer {
 
     private static String getSubjectMessages(List<LkMessage> messages) {
         return messages.stream()
-                .map(lkMessage ->
-                        "☑ " + lkMessage.getSender() + " в " +
-                                Utils.formatDate(lkMessage.getDate()) + ":\n" +
-                                lkMessage.getComment() +
-                                (lkMessage.getDocument() == null ? "" :
-                                        "\nДОКУМЕНТ: "+lkMessage.getDocument().getId()+" "+lkMessage.getDocument().getName())
-                ).collect(Collectors.joining("\n\n"));
+                .map(lkMessage -> {
+                    String s = "☑ " + lkMessage.getSender() +
+                            Utils.reportFormatMessageDate(lkMessage.getDate()) + ":";
+
+                    if (!lkMessage.getComment().isBlank())
+                        s += "\n" + lkMessage.getComment();
+
+                    if (lkMessage.getDocument() != null)
+                        s += "\nДОКУМЕНТ: " + lkMessage.getDocument().getId() + " " + lkMessage.getDocument().getName();
+                    return s;
+                }).collect(Collectors.joining("\n\n"));
     }
 
     public static String getSubjectDocuments(Subject subject) {

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,20 @@ class AnyUtilsTest {
         assertEquals("Тест", TextUtils.capitalize("тест"));
         assertEquals("", TextUtils.capitalize(""));
         assertEquals("  ", TextUtils.capitalize("  "));
+    }
+
+    @Test
+    @Disabled
+    void TextUtils_makeShortSenderName_isCorrect () {
+        assertEquals("Фамилия ИО", TextUtils.makeShortSenderName("Фамилия Имя Отчество"));
+        assertEquals("Фамилия ИО", TextUtils.makeShortSenderName(" Фамилия Имя Отчество "));
+        assertEquals("Фамилия ИО", TextUtils.makeShortSenderName(" \nФамилия Имя Отчество\n"));
+        assertEquals("Фамилия ИО", TextUtils.makeShortSenderName("Фамилия И О"));
+        assertEquals("Фамилия И", TextUtils.makeShortSenderName("Фамилия Имя"));
+        assertEquals("Фамилия И", TextUtils.makeShortSenderName("Фамилия Имя "));
+        assertEquals("Фамилия И", TextUtils.makeShortSenderName("Фамилия Ио"));
+        assertEquals("Фамилия", TextUtils.makeShortSenderName("Фамилия "));
+        assertEquals("", TextUtils.makeShortSenderName("  \n  \n   "));
     }
 
     @Test
@@ -88,7 +103,7 @@ class AnyUtilsTest {
     @Test
     @Disabled ("Пройден")
     void setIdsWhereNull_isCorrect() {
-        assertDoesNotThrow(() -> Utils.setIdsWhereNull(new Subject("1", "2", Set.of(), Set.of(), List.of(), new Date())));
+        assertDoesNotThrow(() -> Utils.setIdsWhereNull(new Subject("1", "2", Set.of(), Set.of(), List.of(), LocalDateTime.now())));
 
         final var subject = createSubject1()
                 .setMaterialsDocuments(TestUtils.createDocuments("0k", "1a", "2b", "3c", "4d", "5e", "6f"))

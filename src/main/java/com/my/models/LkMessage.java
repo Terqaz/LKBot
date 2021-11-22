@@ -2,7 +2,7 @@ package com.my.models;
 
 import lombok.*;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -14,6 +14,6 @@ public class LkMessage {
     @NonNull
     String sender;
     @NonNull
-    Date date;
+    LocalDateTime date;
     LkDocument document;
 }

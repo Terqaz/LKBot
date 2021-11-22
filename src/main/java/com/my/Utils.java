@@ -1,21 +1,68 @@
 package com.my;
 
-import com.google.gson.Gson;
+import com.google.gson.*;
 import com.my.models.LkDocument;
+import com.my.models.LkMessage;
 import com.my.models.Subject;
+import org.apache.commons.codec.digest.DigestUtils;
 
-import java.text.SimpleDateFormat;
+import java.lang.reflect.Type;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public final class Utils {
 
-    private static final Gson gson = new Gson();
-
     private Utils () {}
 
-    public static String formatDate (Date date) {
-        return new SimpleDateFormat("dd.MM.yyyy HH:mm").format(date);
+    private static class GsonLocalDateTime implements JsonSerializer<LocalDateTime>, JsonDeserializer<LocalDateTime> {
+        @Override
+        public LocalDateTime deserialize(JsonElement jsonElement, Type type, JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
+            String ldtString = jsonElement.getAsString();
+            return LocalDateTime.parse(ldtString,DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        }
+
+        @Override
+        public JsonElement serialize(LocalDateTime localDateTime, Type type, JsonSerializationContext jsonSerializationContext) {
+            return new JsonPrimitive(localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+    }
+
+    private static final Gson gson;
+    static {
+        gson = new GsonBuilder()
+                .registerTypeAdapter(LocalDateTime.class, new GsonLocalDateTime())
+                .create();
+    }
+
+    private static Subject gsonDeepCopy(Subject subject) {
+        return gson.fromJson(gson.toJson(subject), Subject.class);
+    }
+
+    static DateTimeFormatter reportFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+    static DateTimeFormatter timeReportFormatter = DateTimeFormatter.ofPattern("HH:mm");
+    static DateTimeFormatter queryFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy+HH:mm");
+
+    public static String reportFormatMessageDate(LocalDateTime date) {
+        if (date.toLocalDate().equals(LocalDate.now()))
+            return " сегодня в " + date.format(timeReportFormatter);
+        else
+            return " в " + date.format(reportFormatter);
+    }
+
+    public static LocalDateTime responseParseMessageDate(String s) {
+        try {
+            return LocalDateTime.parse(s, reportFormatter);
+        } catch (DateTimeParseException e) {
+            return LocalDateTime.now();
+        }
+    }
+
+    public static String queryFormatMessageDate(LocalDateTime date) {
+        return date.format(queryFormatter);
     }
 
     public static List<Subject> removeOldDocuments (List<Subject> oldSubjects,
@@ -45,10 +92,6 @@ public final class Utils {
             newSubject.setMaterialsDocuments(new HashSet<>(newDocumentsMap.values()));
         }
         return newSubjectsCopy.stream().filter(Subject::isNotEmpty).collect(Collectors.toList());
-    }
-
-    private static Subject gsonDeepCopy(Subject subject) {
-        return gson.fromJson(gson.toJson(subject), Subject.class);
     }
 
     // Changes newDocuments
@@ -158,5 +201,13 @@ public final class Utils {
 
     public static <T> boolean isNullOrEmptyCollection(Collection<T> collection) {
         return collection == null || collection.isEmpty();
+    }
+
+    public static String hashLkMessage(LkMessage message) {
+        String s = message.getDate().format(reportFormatter) + message.getSender() + message.getComment();
+        if (message.getDocument() != null)
+            s += message.getDocument().getLkId();
+
+        return DigestUtils.md5Hex(s).substring(0, 8);
     }
 }

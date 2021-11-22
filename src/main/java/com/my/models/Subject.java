@@ -4,7 +4,7 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -15,7 +15,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Accessors (chain = true)
 public class Subject {
-    private int id;
+    private Integer id;
     @NonNull
     private String lkId;
     @NonNull
@@ -28,7 +28,20 @@ public class Subject {
     @BsonIgnore @NonNull
     private List<LkMessage> messagesData;
     @NonNull
-    Date lastMessageDate;
+    LocalDateTime lastMessageDate;
+    String lastMessageHash;
+
+    public Subject(@NonNull String lkId, @NonNull String name,
+                   @NonNull Set<LkDocument> materialsDocuments, @NonNull Set<LkDocument> messagesDocuments,
+                   @NonNull List<LkMessage> messagesData, @NonNull LocalDateTime lastMessageDate, String lastMessageHash) {
+        this.lkId = lkId;
+        this.name = name;
+        this.materialsDocuments = materialsDocuments;
+        this.messagesDocuments = messagesDocuments;
+        this.messagesData = messagesData;
+        this.lastMessageDate = lastMessageDate;
+        this.lastMessageHash = lastMessageHash;
+    }
 
     @BsonIgnore
     public boolean isNotEmpty () {
