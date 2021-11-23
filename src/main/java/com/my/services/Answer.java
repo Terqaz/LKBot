@@ -175,12 +175,12 @@ public class Answer {
 
     public static String getDocument(String subjectName, String documentName, Boolean isExtensionChanged) {
         return subjectName + "\nДокумент: " + quotes(documentName)
-                + ((isExtensionChanged != null && !isExtensionChanged) ? "" : "\nУбери из расширения файла единицу, переименовав его. " +
-                "ВКонтакте не разрешил отправку этого файла с исходным расширением");
+                + ((isExtensionChanged != null && !isExtensionChanged) ? "\nУбери из расширения файла единицу, переименовав его. " +
+                "ВКонтакте не разрешил отправку этого файла с исходным расширением" : "");
     }
 
     public static String getDocumentUrl(String subjectName, String documentName, String url) {
-        return subjectName + "\nСсылка на документ " + quotes(documentName) + ": " + url;
+        return subjectName + "\nСсылка " + quotes(documentName) + ": " + url;
     }
 
     public static String getUserCommands (Integer userId, Group group) {
@@ -273,8 +273,12 @@ public class Answer {
                     if (!lkMessage.getComment().isBlank())
                         s += "\n" + lkMessage.getComment();
 
-                    if (lkMessage.getDocument() != null)
-                        s += "\nДОКУМЕНТ: " + lkMessage.getDocument().getId() + " " + lkMessage.getDocument().getName();
+                    if (lkMessage.getDocument() != null) {
+                        if (lkMessage.getDocument().getUrl() == null)
+                            s += "\nДОКУМЕНТ: " + lkMessage.getDocument().getId() + " " + lkMessage.getDocument().getName();
+                        else
+                            s += "\nССЫЛКА: " + lkMessage.getDocument().getId() + " " + lkMessage.getDocument().getName();
+                    }
                     return s;
                 }).collect(Collectors.joining("\n\n"));
     }

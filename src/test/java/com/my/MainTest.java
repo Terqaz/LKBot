@@ -86,8 +86,7 @@ class MainTest {
 
 //        FileUtils.write(new File("dump.json"), Utils.gson.toJson(oldGroupList), StandardCharsets.UTF_8);
 
-        Set<String> updatedGroups = Set.of("ПИ-19-1", "ПД-п-20-1", "ПД-21-1", "ТХ-19-1",
-                "т9-УК-20-1","ПМ-20-2","ПИ-21-2","ДТ-20-1","СЦ-20-1","ПП-20-1", "ПМ-19-2", "МС-п-21-1");
+        Set<String> updatedGroups = Set.of(); // Заполнять по мере необходимости
 
         oldGroups.forEach(oldGroup -> {
             if (updatedGroups.contains(oldGroup.getName())) {
@@ -126,7 +125,9 @@ class MainTest {
             return;
         }
 
-        final List<Subject> newSubjects = lkParser.getSubjectsFirstTime("2021-О");
+        List<Subject> newSubjects = lkParser.getSubjectsFirstTime("2021-О");
+        if (newSubjects == null || newSubjects.isEmpty())
+            newSubjects = lkParser.getSubjectsFirstTime("2021-О");
 
         Map<String, Subject> newSubjectsMap = newSubjects.stream()
                 .collect(Collectors.toMap(Subject::getLkId, subject -> subject));

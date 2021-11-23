@@ -239,7 +239,9 @@ public class LkParser {
     public static final String LSTU_HOST = "lk.stu.lipetsk.ru";
 
     private boolean documentIsFromLk(String[] strings) {
-        return strings[0].isBlank() || strings[1].equals(LSTU_HOST) || strings[2].equals(LSTU_HOST);
+        return strings[0].isBlank() ||
+                strings.length >= 2 && strings[1].equals(LSTU_HOST) ||
+                strings.length >= 3 && strings[2].equals(LSTU_HOST);
     }
 
     private LocalDateTime getLastMessageDate (List<LkMessage> messagesDataChunk) {

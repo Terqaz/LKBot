@@ -245,6 +245,7 @@ public class Bot {
 
                     } else if (document.getUrl() != null) {
                         vkBot.sendMessageTo(userId, Answer.getDocumentUrl(subjectName, document.getName(), document.getUrl()));
+                        return;
 
                     } else if (document.getVkAttachment() != null) {
                         vkBot.sendMessageTo(userId, document.getVkAttachment(),
@@ -298,7 +299,6 @@ public class Bot {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
             return newPath;
         }
         return path;

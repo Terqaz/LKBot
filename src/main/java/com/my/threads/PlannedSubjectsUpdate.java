@@ -136,12 +136,12 @@ public class PlannedSubjectsUpdate extends Thread {
 
         final Map<String, LkDocument> newDocumentsMap =
                 newDocuments.stream()
-                        .collect(Collectors.toMap(LkDocument::getLkId, d -> d));
+                        .collect(Collectors.toMap(document -> document.getLkId() + document.getName(), d -> d));
 
         oldDocuments.stream()
                 .filter(lkDocument -> lkDocument.getVkAttachment() != null)
                 .forEach(oldDocument -> {
-                    final LkDocument newDocument = newDocumentsMap.get(oldDocument.getLkId());
+                    final LkDocument newDocument = newDocumentsMap.get(oldDocument.getLkId() + oldDocument.getName());
                     if (newDocument != null)
                         newDocument.setVkAttachment(oldDocument.getVkAttachment())
                                 .setIsExtChanged(oldDocument.getIsExtChanged());
