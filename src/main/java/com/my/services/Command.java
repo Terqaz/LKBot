@@ -1,4 +1,4 @@
-package com.my.models;
+package com.my.services;
 
 import com.my.TextUtils;
 import com.my.services.text.KeyboardLayoutConverter;
@@ -25,11 +25,15 @@ public final class Command {
     private static final Pattern GROUP_NAME_PATTERN = wrap1("^((Т9?|ОЗ|ОЗМ|М)-)?([A-Я]{1,4}-)(П-)?\\d{2}(-\\d)?$");
     public static final Pattern WANT_TO_LOGIN_PATTERN = wrap1("^Хочу войти в ЛК$");
     public static final Pattern CREDENTIALS = wrap2("^\\S+\\n+\\S+$");
-//    public static final Pattern GET_SUBJECT = wrap2("^\\d{1,2}$");
     public static final Pattern GET_SUBJECT_DOCUMENTS = wrap1("^Документы \\d{1,2}$");
     public static final Pattern GET_SUBJECT_DOCUMENT = wrap1("^\\d{1,2} \\d{1,3}$");
     public static final Pattern CHANGE_SILENT_TIME = wrap1("^Новый тихий режим: с \\d+ по \\d+$");
     public static final Pattern VERIFICATION_CODE = wrap2("^\\d{6}$");
+
+    // Команды админа
+    public static final String WHICH_WEEK_TYPE = "тип недели";
+    public static final String APPLICATION_STOP = "I WANT TO STOP THE APPLICATION";
+    public static final Pattern WEEK_TYPE = wrap1("^(белая|зеленая)$");
 
     private static Pattern wrap1(String command) {
         return Pattern.compile(command, Pattern.UNICODE_CASE | Pattern.CASE_INSENSITIVE);
@@ -40,9 +44,9 @@ public final class Command {
     }
 
     @Getter
-    private String value;
-    private String convertedValue;
-    private String capitalizedConvertedValue;
+    private final String value;
+    private final String convertedValue;
+    private final String capitalizedConvertedValue;
 
     public Command(String value) {
         this.value = value;

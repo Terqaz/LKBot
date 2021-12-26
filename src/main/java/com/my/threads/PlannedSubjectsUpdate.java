@@ -1,7 +1,6 @@
 package com.my.threads;
 
 import com.my.Bot;
-import com.my.GroupsRepository;
 import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
@@ -9,6 +8,7 @@ import com.my.models.Group;
 import com.my.models.LkDocument;
 import com.my.models.Subject;
 import com.my.models.Timetable;
+import com.my.repositories.GroupsRepository;
 import com.my.services.Answer;
 import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
@@ -92,6 +92,7 @@ public class PlannedSubjectsUpdate extends Thread {
         if (Utils.isNullOrEmptyCollection(group.getSubjects())) {
             final String report = loadSubjectsFirstTime(group);
             if (!report.isEmpty()) return report;
+            else throw new RuntimeException("Не удалось загрузить предметы");
         }
         loadLkIdsIfNeeds(group);
 
@@ -160,10 +161,12 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     public void loadLkIdsIfNeeds(Group group) {
-        if (group.getLkId() != null && group.getLkSemesterId() != null && group.getLkContingentId() != null)
+        if (!group.isLkIdsNull())
             return;
-
         group.getLkParser().setSubjectsGeneralLkIds(group, Bot.getActualSemester());
+        if (group.isLkIdsNull())
+            throw new RuntimeException ("Не удалось обновить айдишники из ЛК");
+
         groupsRepository.updateLkIds(group.getName(),
                 group.getLkId(), group.getLkSemesterId(), group.getLkContingentId());
     }

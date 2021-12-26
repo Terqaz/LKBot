@@ -5,8 +5,10 @@ import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.FileLoadingException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.models.*;
+import com.my.repositories.GroupsRepository;
 import com.my.services.Answer;
 import com.my.services.CipherService;
+import com.my.services.Command;
 import com.my.services.lk.LkParser;
 import com.my.services.vk.KeyboardService;
 import com.my.services.vk.VkBotService;
@@ -23,7 +25,6 @@ import javax.crypto.NoSuchPaddingException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
@@ -41,12 +42,12 @@ public class Bot {
 
     public static final int APP_ADMIN_ID1 = 173315241;
     public static final int APP_ADMIN_ID2 = 272910732;
-    public static final String APPLICATION_STOP_TEXT = "I WANT TO STOP THE APPLICATION";
+    public static final List<Integer> ADMINS = List.of(APP_ADMIN_ID1, APP_ADMIN_ID2);
 
     @Getter @Setter
     private static volatile String actualSemester;
     @Getter
-    private static boolean isActualWeekWhite;
+    private static boolean isActualWeekWhite = true;
 
     private static PlannedSubjectsUpdate plannedSubjectsUpdate;
     private static PlannedScheduleSending plannedScheduleSending;
@@ -63,11 +64,10 @@ public class Bot {
         plannedSubjectsUpdate = new PlannedSubjectsUpdate();
         plannedScheduleSending = new PlannedScheduleSending();
         vkBot.sendMessageTo(APP_ADMIN_ID1,
-                "APP STARTED.\nTO STOP TYPE: "+ APPLICATION_STOP_TEXT);
+                "APP STARTED.\nTO STOP TYPE: "+ Command.APPLICATION_STOP);
 
-        while (true)
+        while (true) // Цикл обработки сообщений
             vkBot.getNewMessages()
-                    .map(Bot::stopAppOnSpecialMessage)
                     .forEach(Bot::processMessage);
     }
 
@@ -102,13 +102,6 @@ public class Bot {
         });
     }
 
-    private static Message stopAppOnSpecialMessage(Message message) {
-        if (message.getFromId().equals(APP_ADMIN_ID1) &&
-                message.getText().equals(APPLICATION_STOP_TEXT))
-            throw new ApplicationStopNeedsException();
-        else return message;
-    }
-
     private static void processMessage(Message message) {
         try {
             Thread.sleep(20); // Чтобы не ддосили ЛК
@@ -117,6 +110,7 @@ public class Bot {
         }
         final Integer userId = message.getFromId();
         final var messageText = message.getText();
+
         CompletableFuture.runAsync(() -> {
             try {
                 replyToMessage(userId, messageText);
@@ -127,23 +121,40 @@ public class Bot {
             } catch (LkNotRespondingException e) {
                 vkBot.sendMessageTo(userId, Answer.LK_NOT_RESPONDING);
 
+            } catch (ApplicationStopNeedsException e) {
+                throw e;
+
             } catch (Exception e) {
                 vkBot.sendMessageTo(userId, Answer.I_BROKEN);
-                vkBot.sendMessageTo(List.of(APP_ADMIN_ID1, APP_ADMIN_ID2), Answer.getForAdminsIBroken(userId, e));
+                vkBot.sendMessageTo(ADMINS, Answer.getForAdminsIBroken(userId, e));
                 e.printStackTrace();
             }
         });
     }
 
     private static void replyToMessage(Integer userId, String messageText) {
+        Command command = new Command(messageText);
+        if (ADMINS.contains(userId)) {
+            if (command.is(Command.APPLICATION_STOP))
+                throw new ApplicationStopNeedsException();
+
+            else if (command.is(Command.WEEK_TYPE)) {
+                isActualWeekWhite = command.getValue().equals("белая");
+                vkBot.sendMessageTo(userId, "Я изменил тип недели");
+                return;
+
+            } else if (command.is(Command.WHICH_WEEK_TYPE)) {
+                vkBot.sendMessageTo(userId, "Сейчас " + (isActualWeekWhite ? "белая" : "зеленая") + " неделя");
+                return;
+            }
+        }
+
         // TODO если добавить описание ошибок и пожелания, то изменить условие
         if (messageText.length() > 100) {
             vkBot.sendMessageTo(userId, Answer.YOUR_MESSAGE_IS_SPAM);
             return;
         }
 //        SpecialWordsFinder.findSpecialWords(userId, messageText);
-
-        Command command = new Command(messageText);
 
         if (replyForNewUser(userId, command)) return;
 
@@ -253,6 +264,7 @@ public class Bot {
                         return;
                     }
 
+                    Bot.login(group);
                     Path path;
                     try {
                         if (isFromMaterials)
@@ -266,8 +278,8 @@ public class Bot {
                         return;
                     }
 
-                    path = correctFileExt(path);
-                    document.setIsExtChanged(isExtensionChanged(path));
+                    path = Utils.correctFileExt(path);
+                    document.setIsExtChanged(Utils.isExtensionChanged(path));
 
                     final File file = path.toFile();
                     try {
@@ -277,7 +289,7 @@ public class Bot {
                         groupsRepository.updateDocumentVkAttachment(group.getName(), subjectId, documentId, isFromMaterials, document.getVkAttachment());
 
                     } catch (FileLoadingException e) {
-                        vkBot.sendMessageTo(List.of(APP_ADMIN_ID1), Answer.getForAdminsIBroken(0, e));
+                        vkBot.sendMessageTo(ADMINS, Answer.getForAdminsIBroken(0, e));
                         vkBot.sendMessageTo(userId, Answer.VK_LOAD_FILE_FAILED);
                         e.printStackTrace();
                     }
@@ -288,26 +300,6 @@ public class Bot {
                     }
                 },
                 () -> vkBot.sendMessageTo(userId, Answer.WRONG_SUBJECT_NUMBER));
-    }
-
-    private static Path correctFileExt(Path path) {
-        String strFilePath = path.toString();
-        if (TextUtils.isUnacceptableFileExtension(strFilePath)) {
-            final Path newPath = Paths.get(strFilePath + 1);
-            try {
-                FileUtils.moveFile(path.toFile(), newPath.toFile());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return newPath;
-        }
-        return path;
-    }
-
-    private static Boolean isExtensionChanged(Path path) {
-        if (path.toString().endsWith("1"))
-            return true;
-        else return null;
     }
 
     private static void changeSilentTime(Integer userId, Command command, Group group) {
@@ -464,23 +456,14 @@ public class Bot {
         vkBot.sendMessageTo(userId, KeyboardService.getCommands(userId, group), Answer.OK);
 
         if (isEnable) {
-            String dayScheduleReport = getDayScheduleReport(Utils.getThisWeekDayIndex(), isActualWeekWhite, group);
+            String dayScheduleReport =
+                    Answer.getDaySchedule(group, Utils.getThisWeekDayIndex(), isActualWeekWhite);
 
             if (!dayScheduleReport.isEmpty())
                 vkBot.sendMessageTo(userId, Answer.getTodaySchedule(dayScheduleReport));
             else
                 vkBot.sendMessageTo(userId, Answer.TODAY_EMPTY_SCHEDULE);
         }
-    }
-
-    public static String getDayScheduleReport(int weekDay, boolean isWeekWhite, Group group) {
-        if (weekDay >= 6)
-            return "";
-
-        else return Answer.getDaySchedule(isWeekWhite ?
-                        group.getTimetable().getWhiteSubjects().get(weekDay) :
-                        group.getTimetable().getGreenSubjects().get(weekDay),
-                isWeekWhite);
     }
 
     private static void loginFailedMessages(Integer userId, Group group) {
@@ -645,7 +628,7 @@ public class Bot {
                 .ifPresentOrElse(group -> {
                     final LkParser lkParser = new LkParser();
                     if (!group.hasLeader()) {
-                        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_NEED_REGISTRATION);
+                        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_WRITE_WEEK_TYPE);
                         return;
                     }
                     try {
@@ -654,10 +637,9 @@ public class Bot {
                         isWeekTypeUpdated = true;
 
                     } catch (AuthenticationException ignored) {
-                        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_NEED_REGISTRATION);
+                        vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_WRITE_WEEK_TYPE);
                     }
 
-                }, () -> vkBot.sendMessageTo(APP_ADMIN_ID1,
-                        "Не удалось загрузить твою группу. Войди и перезапусти бота."));
+                }, () -> vkBot.sendMessageTo(APP_ADMIN_ID1, Answer.FOR_ADMIN_WRITE_WEEK_TYPE));
     }
 }

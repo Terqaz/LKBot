@@ -5,8 +5,12 @@ import com.my.models.LkDocument;
 import com.my.models.LkMessage;
 import com.my.models.Subject;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.FileUtils;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -66,6 +70,26 @@ public final class Utils {
 
     public static String queryFormatMessageDate(LocalDateTime date) {
         return date.format(queryFormatter);
+    }
+
+    static Path correctFileExt(Path path) {
+        String strFilePath = path.toString();
+        if (TextUtils.isUnacceptableFileExtension(strFilePath)) {
+            final Path newPath = Paths.get(strFilePath + 1);
+            try {
+                FileUtils.moveFile(path.toFile(), newPath.toFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return newPath;
+        }
+        return path;
+    }
+
+    static Boolean isExtensionChanged(Path path) {
+        if (path.toString().endsWith("1"))
+            return true;
+        else return null;
     }
 
     public static List<Subject> removeOldMaterialsDocuments(List<Subject> oldSubjects,

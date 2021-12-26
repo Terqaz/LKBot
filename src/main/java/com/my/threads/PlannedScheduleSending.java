@@ -1,12 +1,12 @@
 package com.my.threads;
 
 import com.my.Bot;
-import com.my.GroupsRepository;
 import com.my.Utils;
 import com.my.exceptions.AuthenticationException;
 import com.my.exceptions.LkNotRespondingException;
 import com.my.models.Group;
 import com.my.models.Timetable;
+import com.my.repositories.GroupsRepository;
 import com.my.services.Answer;
 import com.my.services.vk.VkBotService;
 import lombok.SneakyThrows;
@@ -49,6 +49,7 @@ public class PlannedScheduleSending extends Thread {
                         if (!Bot.isWeekTypeUpdated() && calendar.get(DAY_OF_WEEK) == MONDAY)
                             Bot.manualChangeWeekType();
                     }
+
                     final boolean isNextDayWeekWhite =
                             nextWeekDay == 0 ? !Bot.isActualWeekWhite() : Bot.isActualWeekWhite();
 
@@ -92,7 +93,7 @@ public class PlannedScheduleSending extends Thread {
         }
 
         try {
-            final String dayScheduleReport = Bot.getDayScheduleReport(nextWeekDay, isNextDayWeekWhite, group);
+            final String dayScheduleReport = Answer.getDaySchedule(group, nextWeekDay, isNextDayWeekWhite);
             if (!dayScheduleReport.isEmpty()) {
                 vkBot.sendMessageTo(
                         group.getSchedulingEnabledUsers(),

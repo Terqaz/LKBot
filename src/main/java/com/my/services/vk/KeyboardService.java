@@ -1,7 +1,7 @@
 package com.my.services.vk;
 
-import com.my.models.Command;
 import com.my.models.Group;
+import com.my.services.Command;
 import com.vk.api.sdk.objects.messages.*;
 
 import java.util.List;

@@ -1,17 +1,11 @@
-package com.my;
+package com.my.repositories;
 
-import com.mongodb.ConnectionString;
-import com.mongodb.MongoClientSettings;
 import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.UpdateOptions;
 import com.my.models.*;
 import com.my.models.temp.OldGroup;
-import org.bson.codecs.configuration.CodecRegistry;
-import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 
 import javax.validation.constraints.NotEmpty;
@@ -23,12 +17,9 @@ import static com.mongodb.client.model.Filters.empty;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Projections.*;
 import static com.mongodb.client.model.Updates.*;
-import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
-import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
-public class GroupsRepository {
+public class GroupsRepository extends MongoRepository {
 
-    public static final String _ID = "_id";
     public static final String NAME = "name";
     public static final String USERS = "users";
     public static final String USERS_TO_VERIFY = "usersToVerify";
@@ -36,7 +27,6 @@ public class GroupsRepository {
     public static final String LOGGED_USER = "loggedUser";
     public static final String SUBJECTS = "subjects";
     public static final String TIMETABLE = "timetable";
-//    public static final String LAST_CHECK_DATE = "lastCheckDate";
     public static final String SCHEDULE_SENT = "scheduleSent";
     public static final String UPDATE_INTERVAL = "updateInterval";
     public static final String UPDATE_AUTH_DATA_NOTIFIED = "loggedUser.updateAuthDataNotified";
@@ -53,22 +43,10 @@ public class GroupsRepository {
         return instance;
     }
 
-    private final MongoClient mongoClient;
     private final MongoCollection<Group> groupsCollection;
     public final MongoCollection<OldGroup> olgGroupsCollection; // TODO temp
 
     private GroupsRepository () {
-        final CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
-                fromProviders(PojoCodecProvider.builder().automatic(true).build()));
-
-        final ConnectionString connectionString = new ConnectionString(System.getenv("MONGO_STRING"));
-        MongoClientSettings settings = MongoClientSettings.builder()
-                .applyConnectionString(connectionString)
-                .codecRegistry(pojoCodecRegistry)
-                .build();
-
-        mongoClient = MongoClients.create(settings);
-
         groupsCollection = mongoClient
                 .getDatabase(connectionString.getDatabase())
                 .getCollection("groups", Group.class);

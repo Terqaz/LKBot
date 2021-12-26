@@ -123,4 +123,9 @@ public class Group {
         this.subjects = subjects;
         this.timetable = timetable;
     }
+
+    @BsonIgnore
+    public boolean isLkIdsNull() {
+        return lkId == null || lkSemesterId == null || lkContingentId == null;
+    }
 }

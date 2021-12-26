@@ -51,7 +51,6 @@ public final class TextUtils {
                 chars[i] = '_';
             }
         }
-
         return trimUnderscore(chars);
     }
 

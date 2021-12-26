@@ -5,6 +5,7 @@ import com.my.models.Group;
 import com.my.models.LoggedUser;
 import com.my.models.Subject;
 import com.my.models.temp.OldGroup;
+import com.my.repositories.GroupsRepository;
 import com.my.services.CipherService;
 import com.my.services.lk.LkParser;
 import com.my.threads.PlannedSubjectsUpdate;
