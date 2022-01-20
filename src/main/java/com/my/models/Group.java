@@ -34,6 +34,8 @@ public class Group {
     private int silentModeStart = 2; // Час [0, 23]
     private int silentModeEnd = 6;   // Час [0, 23]
 
+    private String semesterName;
+
     @BsonIgnore
     private LkParser lkParser;
 
@@ -83,13 +85,13 @@ public class Group {
                 .findFirst().orElseThrow(() -> new IllegalArgumentException(
                         "Неизвестный id пользователя: "+userId+" в группе: "+name));
     }
-
-    @BsonIgnore
-    public void setLkIds (String semesterId, String groupId, String unknownId) {
-        lkSemesterId = semesterId;
-        lkId = groupId;
-        lkContingentId = unknownId;
-    }
+//
+//    @BsonIgnore
+//    public void setLkIds (String semesterId, String groupId, String unknownId) {
+//        lkSemesterId = semesterId;
+//        lkId = groupId;
+//        lkContingentId = unknownId;
+//    }
 
     @BsonIgnore
     public void removeLoggedUser(Integer id) {

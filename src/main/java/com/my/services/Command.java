@@ -27,7 +27,7 @@ public final class Command {
     public static final Pattern CREDENTIALS = wrap2("^\\S+\\n+\\S+$");
     public static final Pattern GET_SUBJECT_DOCUMENTS = wrap1("^Документы \\d{1,2}$");
     public static final Pattern GET_SUBJECT_DOCUMENT = wrap1("^\\d{1,2} \\d{1,3}$");
-    public static final Pattern CHANGE_SILENT_TIME = wrap1("^Новый тихий режим: с \\d+ по \\d+$");
+    public static final Pattern CHANGE_SILENT_TIME = wrap1("^Новый тихий режим: с \\d+ [пд]о \\d+$");
     public static final Pattern VERIFICATION_CODE = wrap2("^\\d{6}$");
 
     // Команды админа

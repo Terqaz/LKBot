@@ -35,6 +35,7 @@ public class GroupsRepository extends MongoRepository {
     public static final String LK_ID = "lkId";
     public static final String LK_SEMESTER_ID = "lkSemesterId";
     public static final String LK_CONTINGENT_ID = "lkContingentId";
+    private static final String SEMESTER_NAME = "semesterName";
 
     private static GroupsRepository instance = null;
     public static GroupsRepository getInstance () {
@@ -113,11 +114,11 @@ public class GroupsRepository extends MongoRepository {
         ));
     }
 
-    public void setNewSemesterData(@NotNull String groupName,
-                                   List<Subject> subjects,
-                                   Timetable timetable,
+    public void setNewSemesterData(@NotNull String groupName, String newSemester,
+                                   List<Subject> subjects, Timetable timetable,
                                    String lkSemesterId, String lkContingentId) {
         updateBy(groupName, combine(
+                set(SEMESTER_NAME, newSemester),
                 set(SUBJECTS, subjects),
                 set(TIMETABLE, timetable),
                 set(LK_SEMESTER_ID, lkSemesterId),

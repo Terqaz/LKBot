@@ -39,7 +39,7 @@ public class PlannedSubjectsUpdate extends Thread {
     public void run() {
         while (true) {
             try {
-                updateSubjects(Utils.getSemesterName());
+                updateSubjects(Utils.getActualSemester());
                 sleep(50);
 
             } catch (InterruptedException e) {
@@ -50,7 +50,7 @@ public class PlannedSubjectsUpdate extends Thread {
         }
     }
 
-    private void updateSubjects(String newSemester) {
+    private void updateSubjects(String actualSemester) {
         Bot.getGroupByGroupName().values().stream()
                 .filter(group -> group.getLoggedUser() != null)
                 .forEach(group -> {
@@ -59,7 +59,7 @@ public class PlannedSubjectsUpdate extends Thread {
                         return;
 
                     try {
-                        updateGroupSubjects(newSemester, group);
+                        updateGroupSubjects(actualSemester, group);
 
                     } catch (AuthenticationException e) {
                         Bot.rememberUpdateAuthDataMessage(group.getName(), group.getLoggedUser(), true);
@@ -76,13 +76,13 @@ public class PlannedSubjectsUpdate extends Thread {
                 calendar.get(Calendar.HOUR_OF_DAY));
     }
 
-    private void updateGroupSubjects(String newSemester, Group group) {
+    private void updateGroupSubjects(String actualSemester, Group group) {
         Bot.login(group);
         final String report;
-        if (Bot.getActualSemester().equals(newSemester))
+        if (group.getSemesterName().equals(actualSemester))
             report = sameSemesterUpdate(group);
         else
-            report = newSemesterUpdate(newSemester, group);
+            report = newSemesterUpdate(actualSemester, group);
 
         if (!report.isBlank())
             vkBot.sendLongMessageTo(group.getUserIds(), report);
@@ -121,7 +121,8 @@ public class PlannedSubjectsUpdate extends Thread {
         final List<Subject> cleanedSubjects = Utils.removeOldMaterialsDocuments(oldSubjects, newSubjects);
 
         if (!cleanedSubjects.stream()
-                .allMatch(subject -> subject.getMaterialsDocuments().isEmpty() && subject.getMessagesData().isEmpty())) {
+                .allMatch(subject -> subject.getMaterialsDocuments().isEmpty()
+                        && subject.getMessagesData().isEmpty())) {
             groupsRepository.updateSubjects(group.getName(), newSubjects);
             group.setSubjects(newSubjects);
         }
@@ -150,7 +151,8 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     public String loadSubjectsFirstTime(Group group) {
-        List<Subject> newSubjects = group.getLkParser().getSubjectsFirstTime(Bot.getActualSemester());
+        List<Subject> newSubjects = group.getLkParser()
+                .getSubjectsFirstTime(group.getSemesterName());
 
         if (Utils.isNullOrEmptyCollection(newSubjects))
             return "";
@@ -163,7 +165,7 @@ public class PlannedSubjectsUpdate extends Thread {
     public void loadLkIdsIfNeeds(Group group) {
         if (!group.isLkIdsNull())
             return;
-        group.getLkParser().setSubjectsGeneralLkIds(group, Bot.getActualSemester());
+        group.getLkParser().setSubjectsGeneralLkIds(group, group.getSemesterName());
         if (group.isLkIdsNull())
             throw new RuntimeException ("Не удалось обновить айдишники из ЛК");
 
@@ -172,7 +174,7 @@ public class PlannedSubjectsUpdate extends Thread {
     }
 
     private String newSemesterUpdate(String newSemester, Group group) {
-        Bot.setActualSemester(newSemester);
+        group.setSemesterName(newSemester);
         vkBot.sendMessageTo(group.getUserIds(),
                 "Данные теперь будут приходить из семестра: " + newSemester + "\n" +
                         "Советую тебе обновить пароль в ЛК ;-) (http://lk.stu.lipetsk.ru/)");
@@ -187,8 +189,8 @@ public class PlannedSubjectsUpdate extends Thread {
 
         Timetable timetable = lkParser.parseTimetable(newLkSemesterId, group.getLkId());
 
-        groupsRepository.setNewSemesterData(group.getName(), newSubjects,
-                timetable,
+        groupsRepository.setNewSemesterData(group.getName(), newSemester,
+                newSubjects, timetable,
                 newLkSemesterId, group.getLkContingentId());
 
         group.setNewSemesterData(newSubjects, timetable);

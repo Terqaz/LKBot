@@ -165,7 +165,7 @@ public final class Utils {
                 .orElse(0);
     }
 
-    public static String getSemesterName() {
+    public static String getActualSemester() {
         Calendar now = new GregorianCalendar();
         Calendar autumnSemesterStart = new GregorianCalendar();
         autumnSemesterStart.set(Calendar.MONTH, Calendar.AUGUST);
@@ -173,7 +173,7 @@ public final class Utils {
 
         Calendar springSemesterStart = new GregorianCalendar();
         springSemesterStart.set(Calendar.MONTH, Calendar.JANUARY);
-        springSemesterStart.set(Calendar.DAY_OF_MONTH, 15);
+        springSemesterStart.set(Calendar.DAY_OF_MONTH, 29);
 
         final int year = now.get(Calendar.YEAR);
         if (now.after(springSemesterStart) && now.before(autumnSemesterStart))

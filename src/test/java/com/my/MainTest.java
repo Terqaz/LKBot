@@ -30,7 +30,7 @@ class MainTest {
     @Disabled("Только для ручного обновления группы")
     void updateGroup () throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
         cipherService = CipherService.getInstance();
-        String actualSemester = Utils.getSemesterName();
+        String actualSemester = Utils.getActualSemester();
 
         String groupName = "ТЭ-20-2";
         log.info("Обновление группы: " + groupName);

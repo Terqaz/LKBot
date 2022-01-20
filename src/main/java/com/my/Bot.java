@@ -44,8 +44,6 @@ public class Bot {
     public static final int APP_ADMIN_ID2 = 272910732;
     public static final List<Integer> ADMINS = List.of(APP_ADMIN_ID1, APP_ADMIN_ID2);
 
-    @Getter @Setter
-    private static volatile String actualSemester;
     @Getter
     private static boolean isActualWeekWhite = true;
 
@@ -56,7 +54,6 @@ public class Bot {
 
     public void startProcessing() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeySpecException {
         cipherService = CipherService.getInstance();
-        actualSemester = Utils.getSemesterName();
 
         fillCaches();
         actualizeWeekType();
@@ -580,11 +577,14 @@ public class Bot {
             return;
         }
 
+        String actualSemester = Utils.getActualSemester();
+
         List<Subject> newSubjects = lkParser.getSubjectsFirstTime(actualSemester);
 
         final var newGroup = new Group(groupName)
                 .setLoggedUser(new LoggedUser().setId(userId).setAuthData(cipherService.encrypt(login, password)))
-                .setSubjects(newSubjects);
+                .setSubjects(newSubjects)
+                .setSemesterName(actualSemester);
         newGroup.getUsers().add(new GroupUser(userId));
         newGroup.setLkParser(lkParser);
 
